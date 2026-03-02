@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"/>
+  <title>Mandarin Flashcards</title>
+
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&family=Noto+Serif+TC:wght@400;700&display=swap" rel="stylesheet">
+  
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="hqLoader" class="hq-loader">
+    <div class="hq-loader-content">
+      
+      <div class="hq-logo-wrapper">
+        <svg class="hq-spinner" viewBox="0 0 100 100" width="84" height="84">
+          <circle cx="50" cy="50" r="42" stroke="rgba(255, 158, 181, 0.2)" stroke-width="4" fill="none" />
+          <circle class="hq-spinner-path" cx="50" cy="50" r="42" stroke="var(--primary)" stroke-width="4" fill="none" stroke-linecap="round" />
+          <text x="50" y="64" font-family="'twkai', 'Noto Serif TC', serif" font-size="40" fill="var(--text-main)" text-anchor="middle" class="hq-spinner-char">字</text>
+        </svg>
+      </div>
+
+      <h1 class="hq-brand-title">Ron's Flashcards</h1>
+      
+      <div class="hq-progress-container">
+        <div class="hq-progress-track">
+          <div id="hqProgressFill" class="hq-progress-fill"></div>
+        </div>
+      </div>
+
+      <div id="hqLoadingText" class="hq-loading-text">Preparing...</div>
+      
+    </div>
+  </div>
+
+  <div id="app">
+    <div class="dynamic-island-wrapper">
+      <div id="dynamicIsland" class="dynamic-island">
+        <div class="island-header">
+         <div class="island-progress-container">
+             <div class="global-progress-fill" style="width:0%"></div>
+           </div>
+           <div class="island-stats">
+             <div class="global-progress-text" style="color: var(--text-main); font-weight: 800;">0/0</div>
+             <div class="island-chevron">
+               <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z"/></svg>
+             </div>
+           </div>
+        </div>
+        
+        <div class="island-body">
+           <button id="lessonBadge" class="island-lesson-btn">Book 1 All Lessons</button>
+           <div class="island-actions">
+              <button id="shuffleBtn" class="island-action-btn">
+                 <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M10.59 9.17L5.41 4 4 5.41l5.17 5.17 1.42-1.41zM14.5 4l2.04 2.04L4 18.59 5.41 20 17.96 7.46 20 9.5V4h-5.5zm.33 9.41l-1.41 1.41 3.13 3.13L14.5 20H20v-5.5l-2.04 2.04-3.13-3.13z"/></svg>
+                 <span>Shuffle</span>
+              </button>
+              <button id="settingsBtn" class="island-action-btn">
+                 <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L3.16 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.04.64.09.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.04.24.24.41.48.41h3.84c.24 0 .43-.17.47-.41l.36-2.54c.59-.24 1.13-.57 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
+                 <span>Settings</span>
+              </button>
+           </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="topSubNav" style="position: absolute; left: 50%; transform: translateX(-50%); z-index: 20;"></div>
+
+    <main id="mainContainer"></main>
+  </div>
+
+  <nav class="bottom-nav">
+    <button class="nav-item active" data-mode="study">
+      <svg viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zM9 19H7v-2h2v2zm0-4H7v-2h2v2zm0-4H7V9h2v2zm0-4H7V5h2v2zm10 12h-8v-2h8v2zm0-4h-8v-2h8v2zm0-4h-8V9h8v2zm0-4h-8V5h8v2z"/></svg>
+      Study
+    </button>
+    <button class="nav-item" data-mode="sentences">
+      <svg viewBox="0 0 24 24"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zM6 20V4h7v5h5v11H6z"/></svg>
+      Sentences
+    </button>
+    <button class="nav-item" data-mode="writing">
+      <svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34a.9959.9959 0 00-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
+      Writing
+    </button>
+    <button class="nav-item" data-mode="quiz">
+      <svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
+      Quiz
+    </button>
+  </nav>
+
+  <div class="modal-overlay" id="settingsModal">
+    <div class="modal-sheet">
+      <button class="modal-close" aria-label="Close">x</button>
+      <div class="modal-content" id="settingsModalContent">
+        <div class="settings-header">
+          <h2>Settings</h2>
+        </div>
+        
+        <div class="settings-section">
+          <div class="settings-section-title">Learning & Audio</div>
+          <div class="setting-card">
+            <div class="setting-row">
+              <div class="setting-label">
+                <span class="setting-name">Audio Speed</span>
+                <span class="setting-desc">TTS playback rate</span>
+              </div>
+              <div class="speed-group">
+                <button class="speed-btn" data-rate="0.45">0.45x</button>
+                <button class="speed-btn" data-rate="0.6">0.6x</button>
+                <button class="speed-btn" data-rate="0.8">0.8x</button>
+                <button class="speed-btn" data-rate="1.0">1.0x</button>
+                <button class="speed-btn" data-rate="1.2">1.2x</button>
+              </div>
+            </div>
+            <div class="setting-row">
+              <div class="setting-label"><span class="setting-name">Tone Test</span><span class="setting-desc">For listening mode</span></div>
+              <label class="switch"><input type="checkbox" id="listeningToneTestToggle"><span class="slider"></span></label>
+            </div>
+            <div class="setting-row">
+              <div class="setting-label"><span class="setting-name">Hard Mode</span><span class="setting-desc">Type pinyin for listening</span></div>
+              <label class="switch"><input type="checkbox" id="listeningHardToggle"><span class="slider"></span></label>
+            </div>
+            <div class="setting-row">
+              <div class="setting-label"><span class="setting-name">Writing Guides</span><span class="setting-desc">Show outline in writing mode</span></div>
+              <label class="switch"><input type="checkbox" id="writingGuidelinesToggle"><span class="slider"></span></label>
+            </div>
+          </div>
+        </div>
+
+        <div class="settings-section">
+          <div class="settings-section-title">Display</div>
+          <div class="setting-card">
+            <div class="setting-row">
+              <div class="setting-label"><span class="setting-name">No Pinyin</span><span class="setting-desc">Hide pinyin on cards</span></div>
+              <label class="switch"><input type="checkbox" id="noPinyinToggle"><span class="slider"></span></label>
+            </div>
+            <div class="setting-row">
+              <div class="setting-label"><span class="setting-name">No Hanzi Color</span><span class="setting-desc">Disable tone colors</span></div>
+              <label class="switch"><input type="checkbox" id="noHanziColorToggle"><span class="slider"></span></label>
+            </div>
+            <div class="setting-row">
+              <div class="setting-label"><span class="setting-name">Memory Hooks</span><span class="setting-desc">Show mnemonics on cards</span></div>
+              <label class="switch"><input type="checkbox" id="showHooksToggle"><span class="slider"></span></label>
+            </div>
+            <div class="setting-row">
+              <div class="setting-label"><span class="setting-name">Split Characters</span><span class="setting-desc">Separate multi-char words</span></div>
+              <label class="switch"><input type="checkbox" id="separateCharsToggle"><span class="slider"></span></label>
+            </div>
+          </div>
+        </div>
+        
+        <div class="settings-section">
+          <div class="settings-section-title">Quiz Settings</div>
+          <div class="setting-card">
+            <div class="setting-row">
+              <div class="setting-label"><span class="setting-name">Translate Mode</span><span class="setting-desc">English to Chinese</span></div>
+              <label class="switch"><input type="checkbox" id="quizTypeToggle"><span class="slider"></span></label>
+            </div>
+            <div class="setting-row">
+              <div class="setting-label"><span class="setting-name">Definition Only</span><span class="setting-desc">Hide Hanzi in quiz</span></div>
+              <label class="switch"><input type="checkbox" id="quizDefOnlyToggle"><span class="slider"></span></label>
+            </div>
+            <div class="setting-row">
+              <div class="setting-label"><span class="setting-name">Fast Next</span><span class="setting-desc">Auto-advance quickly</span></div>
+              <label class="switch"><input type="checkbox" id="fastNextToggle"><span class="slider"></span></label>
+            </div>
+          </div>
+        </div>
+        
+        <div style="height: 40px;"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="lessonModal">
+    <div class="modal-sheet">
+      <button class="modal-close" aria-label="Close">x</button>
+      <div class="modal-content" id="lessonModalContent">
+        <h2 style="margin-top:0; margin-bottom:20px;">Select Lesson</h2>
+        <div id="lessonGrid" class="lesson-list"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="charModal">
+    <div class="modal-sheet" style="text-align:center; padding-bottom:40px;">
+      <button class="modal-close" aria-label="Close">x</button>
+      <div class="modal-content" id="charModalContent">
+        <h3 style="margin:0 0 20px 0; color:var(--text-muted); font-size:1rem; text-transform:uppercase;">Character Lookup</h3>
+        <div id="charDisplay" style="font-family:'twkai'; font-size:6rem; line-height:1; margin-bottom:10px; color:var(--text-main);"></div>
+        <div id="strokeOrderContainer" style="height: 150px; width: 150px; margin: 0 auto 20px auto; cursor: pointer; border-radius: 12px;" title="Click to animate"></div>
+        <div id="strokeOrderSpinner" class="spinner hidden"></div>
+        <div id="strokeOrderFallback" class="hidden" style="color:var(--text-muted); font-size:0.9rem; margin-bottom:20px; font-style:italic;">No stroke order available</div>
+        <div id="charDetail"></div>
+        <div id="charRelated" style="text-align:left; margin-bottom:20px;"></div>
+        <a id="charLink" href="#" target="_blank" class="btn-sec" style="text-decoration:none; display:flex; align-items:center; justify-content:center; width:100%;">Open Dictionary</a>
+      </div>
+    </div>
+  </div>
+
+  <script src="new_vocab.js"></script>
+  <script src="sentences.js"></script>
+  <script src="chars.js"></script>
+  <script type="text/javascript" src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/hanzi-writer@3.5/dist/hanzi-writer.min.js"></script>
+  
+  <script src="utils.js"></script>
+  <script src="sound.js"></script>
+  <script src="ui-core.js"></script>
+  <script src="ui-modes.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
