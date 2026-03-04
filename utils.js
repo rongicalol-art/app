@@ -30,52 +30,42 @@ const Utils = {
       return text.replace(targetVowel, toneMap[targetVowel][tone] || targetVowel);
   },
 
-  /// Add this inside the Utils object in utils.js
 
-  // The Ultra-Premium Structural Tree Builder
-  buildAnatomyTree(node) {
+ // The Premium Expanding Thread Builder
+  buildPremiumTree(node) {
       if (!node) return '';
-
       const char = node.component || '?';
-      const meaning = node.meaning || 'Component';
+      const meaning = (node.meaning || 'Component').split(/[,;]/)[0]; // Keep meaning short
       const pinyinRaw = Array.isArray(node.pinyin) ? node.pinyin[0] : (node.pinyin || '');
       const pinyin = this.formatNumberedPinyin(pinyinRaw);
-      
       const hasChildren = node.children && node.children.length > 0;
-      
+
+      // Determine icon (Chevron if expandable, Dot if it's a final stroke)
+      let icon = hasChildren 
+          ? `<div class="p-chevron"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M9 18l6-6-6-6"/></svg></div>`
+          : `<div class="p-leaf-dot"></div>`;
+
+      // Build children recursively
       let childrenHTML = '';
       if (hasChildren) {
           let innerHTML = '';
-          node.children.forEach(child => {
-              innerHTML += this.buildAnatomyTree(child);
-          });
-          childrenHTML = `<div class="node-thread node-children-wrapper">${innerHTML}</div>`;
+          node.children.forEach(child => { innerHTML += this.buildPremiumTree(child); });
+          childrenHTML = `<div class="p-children-wrapper"><div class="p-children-inner">${innerHTML}</div></div>`;
       }
 
-      const expandIcon = hasChildren ? `
-          <div style="color: #cbd5e1; transition: transform 0.2s;" class="expand-icon">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg>
-          </div>
-      ` : '';
+      // Interaction Logic
+      const cursor = hasChildren ? 'cursor: pointer;' : 'cursor: default;';
+      const onClick = hasChildren ? `onclick="this.parentElement.classList.toggle('expanded'); event.stopPropagation();"` : `onclick="event.stopPropagation();"`;
 
-      // Toggling logic: opens the direct next sibling which is the children wrapper
       return `
-      <div>
-          <div class="node-item" onclick="
-              const children = this.nextElementSibling;
-              if(children && children.classList.contains('node-children-wrapper')) {
-                  children.classList.toggle('open');
-                  const icon = this.querySelector('.expand-icon');
-                  if(icon) icon.style.transform = children.classList.contains('open') ? 'rotate(180deg)' : 'rotate(0deg)';
-              }
-              event.stopPropagation();
-          ">
-              <div class="node-char">${char}</div>
-              <div class="node-data">
-                  ${pinyin ? `<div class="node-py">${pinyin}</div>` : ''}
-                  <div class="node-def">${meaning}</div>
+      <div class="p-node">
+          <div class="p-node-header" style="${cursor}" ${onClick}>
+              ${icon}
+              <div class="p-char">${char}</div>
+              <div class="p-info">
+                  ${pinyin ? `<div class="p-py">${pinyin}</div>` : ''}
+                  <div class="p-def">${meaning}</div>
               </div>
-              ${expandIcon}
           </div>
           ${childrenHTML}
       </div>`;

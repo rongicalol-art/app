@@ -268,15 +268,17 @@ body::before {
 .listening-audio-btn:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(255, 158, 181, 0.3) !important; }
 .listening-audio-btn.playing { color: var(--primary) !important; transform: scale(0.98); background: white !important; }
 
-.listening-options-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; width: 100%; }
-.listening-options-grid.single { grid-template-columns: 1fr; }
-.listening-opt-btn { padding: 12px; border-radius: 24px !important; text-align: center; cursor: pointer; transition: all 0.2s; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100px; animation: slideUpFade 0.6s backwards; background: rgba(255, 255, 255, 0.8) !important; box-shadow: 0 4px 15px rgba(255, 158, 181, 0.2) !important; border: none !important; }
-.listening-opt-btn:hover { transform: translateY(-3px); box-shadow: 0 8px 20px rgba(255, 158, 181, 0.3) !important; }
-.listening-opt-btn.correct { background: #ecfdf5 !important; color: #059669 !important; border: 2px solid #10b981 !important; }
-.listening-opt-btn.wrong { background: #fef2f2 !important; color: #b91c1c !important; border: 2px solid #ef4444 !important; animation: shake 0.4s; }
-.listening-options-grid.single .listening-opt-btn { height: auto; min-height: 80px; }
+.listen-options-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; width: 100%; }
+.listen-options-grid.single { grid-template-columns: 1fr; }
+.listen-option-card { padding: 12px; border-radius: 24px !important; text-align: center; cursor: pointer; transition: all 0.2s; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100px; animation: slideUpFade 0.6s backwards; background: rgba(255, 255, 255, 0.8) !important; box-shadow: 0 4px 15px rgba(255, 158, 181, 0.2) !important; border: none !important; }
+.listen-option-card:hover { transform: translateY(-3px); box-shadow: 0 8px 20px rgba(255, 158, 181, 0.3) !important; }
+.listen-option-card.state-correct { background: #ecfdf5 !important; color: #059669 !important; border: 2px solid #10b981 !important; }
+.listen-option-card.state-wrong { background: #fef2f2 !important; color: #b91c1c !important; border: 2px solid #ef4444 !important; animation: shake 0.4s; }
+.listen-options-grid.single .listen-option-card { height: auto; min-height: 80px; }
+.listen-opt-main { font-family: 'twkai', serif; font-size: 1.8rem; color: var(--text-main); line-height: 1.2; margin-bottom: 4px; }
+.listen-opt-sub { font-size: 0.9rem; color: var(--text-muted); line-height: 1.2; }
 .listening-pinyin { font-size: 0.9rem; color: var(--text-muted); max-height: 0; opacity: 0; overflow: hidden; transition: all 0.4s; }
-.listening-opt-btn.revealed .listening-pinyin { max-height: 30px; opacity: 1; margin-top: 4px; }
+.listen-option-card.revealed .listening-pinyin { max-height: 30px; opacity: 1; margin-top: 4px; }
 @keyframes slideUpFade { 0% { opacity: 0; transform: translateY(20px) scale(0.96); } 100% { opacity: 1; transform: translateY(0) scale(1); } }
 
 /* --- 9. BUILDER MODE --- */
@@ -303,7 +305,7 @@ body::before {
 .setting-desc { font-size: 0.85rem; color: var(--text-muted); font-weight: 500; }
 
 #charModal.modal-overlay, #settingsModal.modal-overlay { align-items: center; }
-#charModal .modal-sheet, #settingsModal .modal-sheet { width: min(90vw, 90vh); height: min(90vw, 90vh); max-width: 560px; max-height: 560px; border-radius: 20px; margin: 0 auto; overflow: hidden; transform: scale(0.92); }
+#charModal .modal-sheet, #settingsModal .modal-sheet { width: min(90vw, 90vh); height: min(90vw, 90vh); max-width: 560px; max-height: 560px; border-radius: 20px; margin: 0 auto; overflow: visible; transform: scale(0.92); }
 #charModal.modal-overlay.open .modal-sheet, #settingsModal.modal-overlay.open .modal-sheet { transform: scale(1); }
 .modal-close { position: absolute; top: 12px; right: 12px; width: 36px; height: 36px; border-radius: 999px; border: none; background: rgba(255,255,255,0.9); color: var(--text-muted); display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 1.1rem; cursor: pointer; transition: transform 0.2s; }
 .modal-close:hover { transform: scale(1.05) rotate(6deg); color: var(--primary); }
@@ -330,7 +332,6 @@ body::before {
 input:checked + .slider { background-color: var(--primary); } input:checked + .slider:before { transform: translateX(20px); }
 
 /* Custom Scrollbar */
-::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: rgba(255, 158, 181, 0.5); border-radius: 10px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--primary); }
@@ -343,6 +344,28 @@ input:checked + .slider { background-color: var(--primary); } input:checked + .s
 .interactive-char:hover { transform: scale(1.2); color: var(--primary) !important; z-index: 10; }
 
 /* Mobile Adjustments */
+
+/* --- RANK STICKER BADGE --- */
+.rank-sticker {
+    position: absolute;
+    top: -12px;
+    left: -12px;
+    padding: 6px 16px;
+    border-radius: 12px;
+    font-family: 'Nunito', sans-serif;
+    font-weight: 800;
+    font-size: 0.85rem;
+    color: white;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    transform: rotate(-8deg);
+    z-index: 200;
+    border: 2px solid white;
+}
+.rank-very-common { background: #10b981; } /* Green */
+.rank-common { background: #3b82f6; }      /* Blue */
+.rank-uncommon { background: #f59e0b; }    /* Yellow/Orange */
+.rank-rare { background: #ef4444; }        /* Red */
+
 @media (max-width: 768px) {
   .card-group, .card-container { max-width: 85vw !important; width: 85vw !important; height: 60vh !important; aspect-ratio: auto !important; }
   .vocab-content .hanzi-display { font-size: 2.5rem !important; }
@@ -607,7 +630,7 @@ details[open] summary .accordion-icon {
 .list-scroll-area { flex: 1; overflow-y: auto; position: relative; margin-top: 6px; }
 .list-spacer { position: absolute; top: 0; left: 0; right: 0; pointer-events: none; }
 .list-items-wrapper { position: absolute; top: 0; left: 0; right: 0; padding: 0 10px; }
-.list-item-sentence-hz { font-size: 1.05rem; font-weight: 400; color: var(--text-main); margin-bottom: 3px; }
+.list-item-sentence-hz { font-family: 'twkai', 'Noto Serif TC', serif; font-size: 1.05rem; font-weight: 400; color: var(--text-main); margin-bottom: 3px; }
 .list-item-sentence-en { font-size: 0.8rem; }
 
 /* Writing Mode */
@@ -741,271 +764,109 @@ details[open] summary .accordion-icon {
     aspect-ratio: 1/1 !important; 
   }
 }
-
-/* --- 16. PREMIUM COURSE SELECTOR REDESIGN --- */
-
-/* Frosted Glass Background Overlay */
-.filter-modal {
-  position: fixed;
-  top: 0; left: 0; right: 0; bottom: 0;
-  background: rgba(0, 0, 0, 0.4);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  z-index: 3000;
-  display: flex;
-  align-items: flex-end; /* Aligns the sheet to the bottom */
-  justify-content: center;
-  opacity: 0;
-  visibility: hidden;
-  transition: opacity 0.3s ease, visibility 0.3s ease;
-  padding: 0; /* Remove old padding */
-  border: none;
-}
-.filter-modal.open {
-  opacity: 1;
-  visibility: visible;
+/* --- THE APPLE-STYLE BENTO ANATOMY --- */
+.anatomy-master-container {
+    display: flex; flex-direction: column; align-items: center; width: 100%;
+    padding: 20px 0 20px 0;
 }
 
-/* The Native-Style Bottom Sheet */
-.filter-sheet {
-  background: #ffffff;
-  width: 100%;
-  max-width: 600px;
-  max-height: 85vh; /* Prevents it from going off-screen */
-  border-radius: 32px 32px 0 0;
-  padding: 24px 24px 35px 24px;
-  box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.1);
-  transform: translateY(100%); /* Hardware accelerated animation */
-  transition: transform 0.4s cubic-bezier(0.32, 0.72, 0, 1);
-  display: flex;
-  flex-direction: column;
-}
-.filter-modal.open .filter-sheet {
-  transform: translateY(0);
+/* 1. Hero Section */
+.anatomy-hero-section { text-align: center; margin-bottom: 10px; z-index: 2; position: relative; }
+.hero-hz { font-family: 'twkai', serif; font-size: 5rem; line-height: 1.1; color: var(--text-main); }
+.hero-py { font-family: 'Nunito', sans-serif; font-size: 1.4rem; font-weight: 800; color: var(--primary); }
+.hero-def { font-family: 'Nunito', sans-serif; font-size: 1rem; color: var(--text-muted); font-weight: 600; }
+
+/* 2. The Subtle Branch Connector */
+.anatomy-branch-connector {
+    width: 2px; height: 30px;
+    background: linear-gradient(to bottom, rgba(255, 158, 181, 0.5), transparent);
+    margin-bottom: -15px; 
+    z-index: 1;
 }
 
-/* Scrollable Inner Area (Hides scrollbar but allows scrolling) */
-.filter-scroll-area {
-  overflow-y: auto;
-  flex: 1;
-  padding-bottom: 20px;
-  -webkit-overflow-scrolling: touch;
-}
-.filter-scroll-area::-webkit-scrollbar { display: none; }
-
-.filter-section-title {
-  font-family: 'Nunito', sans-serif;
-  font-size: 0.85rem;
-  font-weight: 800;
-  color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: 1px;
-  margin-bottom: 12px;
-  margin-top: 24px;
+/* 3. The Grid Layout */
+.anatomy-bento-grid {
+    display: flex; flex-direction: column; gap: 12px; width: 100%; max-width: 400px; z-index: 2;
 }
 
-/* Horizontal Scrolling Book Pills */
-.book-scroll-container {
-  display: flex;
-  gap: 12px;
-  overflow-x: auto;
-  padding-bottom: 10px; /* Space for box-shadow */
-  -webkit-overflow-scrolling: touch;
-}
-.book-scroll-container::-webkit-scrollbar { display: none; }
-
-.book-card {
-  flex: 0 0 auto;
-  padding: 12px 24px;
-  border-radius: 20px;
-  border: 2px solid rgba(0,0,0,0.05);
-  background: white;
-  font-weight: 800;
-  color: var(--text-main);
-  font-family: 'Nunito', sans-serif;
-  cursor: pointer;
-  transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
-}
-.book-card.active {
-  background: var(--primary);
-  color: white;
-  border-color: var(--primary);
-  box-shadow: 0 8px 20px rgba(236,72,153,0.3);
-  transform: translateY(-2px);
+/* 4. The Frosted Interactive Node Cards */
+.bento-node {
+    background: rgba(255, 255, 255, 0.7);
+    backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 158, 181, 0.3);
+    border-radius: 20px;
+    overflow: hidden; 
+    transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+    box-shadow: 0 4px 15px rgba(0,0,0,0.02);
 }
 
-/* Perfect Square Lesson Grid */
-.lesson-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(65px, 1fr));
-  gap: 10px;
-}
-.lesson-btn {
-  aspect-ratio: 1/1; /* Forces a perfect square */
-  border-radius: 16px;
-  background: #f8fafc;
-  border: 1px solid rgba(0,0,0,0.04);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-family: 'Nunito', sans-serif;
-  font-size: 1.15rem;
-  font-weight: 800;
-  color: var(--text-main);
-  cursor: pointer;
-  transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
-}
-.lesson-btn.active {
-  background: var(--primary);
-  color: white;
-  border-color: var(--primary);
-  box-shadow: 0 6px 16px rgba(236,72,153,0.3);
-  transform: scale(1.05);
+.bento-node[onclick]:hover {
+    background: rgba(255, 255, 255, 0.95);
+    border-color: rgba(255, 158, 181, 0.6);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(255, 158, 181, 0.15);
 }
 
-/* Special "All Lessons" Button */
-.lesson-btn-all {
-  grid-column: 1 / -1; /* Spans full width */
-  aspect-ratio: auto; /* Not a square */
-  padding: 16px;
-  background: rgba(255, 158, 181, 0.1);
-  color: var(--primary);
-  border: 2px dashed rgba(255,158,181,0.5);
-  font-size: 1rem;
+.bento-node[onclick]:active { transform: scale(0.98); }
+
+/* The Header */
+.bento-header {
+    display: flex; align-items: center; padding: 16px 20px; gap: 16px;
 }
-.lesson-btn-all.active {
-  background: var(--primary);
-  color: white;
-  border: 2px solid var(--primary);
+.bento-icon-hz {
+    font-family: 'twkai', serif; font-size: 2.2rem; color: #0f172a; line-height: 1;
+    width: 44px; text-align: center;
+}
+.bento-meta { display: flex; flex-direction: column; flex: 1; text-align: left; }
+.bento-py { font-family: 'Nunito', sans-serif; font-size: 1rem; font-weight: 800; color: var(--primary-dark); }
+.bento-def { font-family: 'Nunito', sans-serif; font-size: 0.85rem; color: #64748b; font-weight: 600; line-height: 1.2;}
+
+/* The Chevron Animation */
+.bento-chevron {
+    color: #cbd5e1; transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1); display: flex;
+}
+.bento-node.expanded .bento-chevron {
+    transform: rotate(90deg); color: var(--primary);
 }
 
-.interactive-word:hover {
-    background: var(--primary-soft, #fdf2f8);
-    color: var(--primary) !important;
-    transform: translateY(-2px) scale(1.02);
-    box-shadow: 0 4px 12px rgba(0,0,0,0.05);
-}
-.interactive-word:active {
-    transform: scale(0.95);
-}
-/* --- Premium Ghost Controls for Writing Mode --- */
-.premium-icon-btn {
-  width: 50px; 
-  height: 50px; 
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.5);
-  border: 1px solid rgba(255, 255, 255, 0.8);
-  color: var(--text-muted);
-  display: flex; 
-  align-items: center; 
-  justify-content: center;
-  cursor: pointer; 
-  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
-  box-shadow: 0 4px 12px rgba(0,0,0,0.02);
+/* 5. The Magic Expansion List */
+.bento-body-wrapper {
+    display: grid; grid-template-rows: 0fr;
+    transition: grid-template-rows 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+    background: rgba(248, 250, 252, 0.6); 
 }
 
-.premium-icon-btn:hover, .premium-icon-btn.active {
-  background: white; 
-  color: var(--primary); 
-  transform: scale(1.1);
-  border-color: white;
-  box-shadow: 0 10px 25px rgba(255, 158, 181, 0.25);
+.bento-node.expanded .bento-body-wrapper { grid-template-rows: 1fr; }
+
+.bento-body-inner { overflow: hidden; }
+
+/* The Sleek List Inside */
+.sub-component-list {
+    list-style: none; padding: 0 20px 20px 20px; margin: 0;
+    display: flex; flex-direction: column; gap: 8px;
+    border-top: 1px dashed rgba(255, 158, 181, 0.2);
+    padding-top: 16px; margin-top: 4px;
+}
+.sub-component-list li {
+    display: flex; align-items: center; gap: 12px;
+    font-family: 'Nunito', sans-serif; font-size: 0.95rem; color: #475569; text-align: left;
+}
+.sub-hz {
+    font-family: 'twkai', serif; font-size: 1.4rem; color: var(--primary);
+    width: 24px; text-align: center; font-weight: bold;
+}
+.sub-def { font-weight: 600; }
+
+/* --- INVISIBLE SCROLLBARS FOR NATIVE APP FEEL --- */
+/* Hide scrollbar for Chrome, Safari and Opera */
+*::-webkit-scrollbar {
+    display: none !important;
 }
 
-.premium-icon-btn:active {
-  transform: scale(0.95);
-}
-
-/* Fix grid lines inside canvas making it feel more like paper */
-.writing-target-inner {
-  position: relative;
-  background-image: 
-    linear-gradient(rgba(226, 232, 240, 0.4) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(226, 232, 240, 0.4) 1px, transparent 1px);
-  background-size: 50% 50%;
-  background-position: center center;
-}
-
-.writing-target-inner svg,
-.writing-target-inner canvas {
-  display: block;
-  margin: 0 auto !important;
-}
-
-/* --- Ultra-Premium Focus Mode (Writing) --- */
-
-/* 1. Auto-hide the bottom nav smoothly */
-body.focus-mode .bottom-nav {
-  transform: translate(-50%, 150%) scale(0.9);
-  opacity: 0;
-  pointer-events: none;
-}
-body.focus-mode div#app {
-  max-width: none;
-  width: 100vw;
-  margin: 0;
-  padding-left: clamp(12px, 2vw, 24px) !important;
-  padding-right: clamp(12px, 2vw, 24px) !important;
-  
-  /* CANCELLING TOP GAP */
-  padding-top: max(20px, env(safe-area-inset-top)) !important; 
-  
-  /* THE FIX: Relaxed bottom padding. Since 100dvh clears the Messenger toolbar naturally, 
-     we just need a small 20px buffer so it floats nicely. */
-  padding-bottom: max(20px, env(safe-area-inset-bottom) + 10px) !important; 
-  
-  overflow: hidden !important; 
-}
-
-/* 2. Sleek Exit Button for Focus Mode */
-.focus-exit-btn {
-  position: absolute;
-  top: max(20px, env(safe-area-inset-top) + 10px);
-  left: 20px;
-  width: 44px; height: 44px;
-  border-radius: 50%;
-  background: rgba(255,255,255,0.7);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255,255,255,0.9);
-  display: flex; align-items: center; justify-content: center;
-  color: var(--text-muted);
-  cursor: pointer; z-index: 2000;
-  box-shadow: 0 8px 20px rgba(0,0,0,0.05);
-  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
-}
-.focus-exit-btn:hover { background: white; color: var(--primary); transform: scale(1.1); }
-.focus-exit-btn:active { transform: scale(0.9); }
-
-/* 3. iPad-Style Floating Tool Palette */
-.floating-tool-palette {
-  position: absolute;
-  bottom: 12px; /* Floats inside the bottom edge of the canvas */
-  left: 50%;
-  transform: translateX(-50%);
-  background: rgba(255, 255, 255, 0.6);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.9);
-  border-radius: 40px;
-  display: flex;
-  gap: 6px;
-  padding: 6px;
-  box-shadow: 0 10px 30px rgba(0,0,0,0.06), inset 0 2px 4px rgba(255,255,255,0.5);
-  z-index: 10;
-}
-
-/* Adjust the ghost icons to fit the new palette */
-.floating-tool-palette .premium-icon-btn {
-  width: 42px; height: 42px;
-  border: none;
-  background: transparent;
-  box-shadow: none;
-}
-.floating-tool-palette .premium-icon-btn.active, 
-.floating-tool-palette .premium-icon-btn:hover {
-  background: white;
-  box-shadow: 0 4px 12px rgba(255, 158, 181, 0.2);
+/* Hide scrollbar for IE, Edge and Firefox */
+* {
+    -ms-overflow-style: none !important;
+    scrollbar-width: none !important;
 }
 /* --- CINEMATIC LOADER --- */
 .hq-loader {
@@ -1021,406 +882,429 @@ body.focus-mode div#app {
     transition: opacity 0.7s cubic-bezier(0.8, 0, 0.2, 1), transform 0.7s cubic-bezier(0.8, 0, 0.2, 1);
     will-change: opacity, transform;
 }
-
-/* The exit animation class */
 .hq-loader.fade-out {
     opacity: 0;
-    transform: scale(1.05); /* Slight zoom-in as it fades away */
+    transform: scale(1.05);
     pointer-events: none;
 }
-
 .hq-loader-content {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
+    display: flex; flex-direction: column; align-items: center;
     animation: hqFloatIn 0.8s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
 }
-
 @keyframes hqFloatIn {
     0% { opacity: 0; transform: translateY(20px); }
     100% { opacity: 1; transform: translateY(0); }
 }
-
-/* SVG Drawing Animation */
-.hq-logo-wrapper {
-    position: relative;
-    margin-bottom: 24px;
-    filter: drop-shadow(0 10px 20px rgba(255, 158, 181, 0.3));
-}
-
+.hq-logo-wrapper { position: relative; margin-bottom: 24px; filter: drop-shadow(0 10px 20px rgba(255, 158, 181, 0.3)); }
 .hq-spinner-path {
-    stroke-dasharray: 264; /* Circumference of the circle */
-    stroke-dashoffset: 264;
+    stroke-dasharray: 264; stroke-dashoffset: 264;
     animation: hqDrawLine 2s cubic-bezier(0.4, 0, 0.2, 1) forwards, hqSpin 3s linear infinite 0.5s;
     transform-origin: center;
 }
+.hq-spinner-char { opacity: 0; animation: hqFadeScale 1s cubic-bezier(0.34, 1.56, 0.64, 1) 0.4s forwards; }
+@keyframes hqDrawLine { to { stroke-dashoffset: 0; } }
+@keyframes hqSpin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+@keyframes hqFadeScale { 0% { opacity: 0; transform: scale(0.5); } 100% { opacity: 1; transform: scale(1); } }
+.hq-brand-title { font-family: 'Nunito', sans-serif; font-size: 1.8rem; font-weight: 800; color: var(--text-main); margin: 0 0 30px 0; letter-spacing: -0.5px; }
+.hq-progress-container { width: 200px; margin-bottom: 16px; }
+.hq-progress-track { width: 100%; height: 6px; background: rgba(255, 158, 181, 0.15); border-radius: 10px; overflow: hidden; }
+.hq-progress-fill { height: 100%; width: 0%; background: linear-gradient(90deg, var(--primary), #ff8fa3); border-radius: 10px; transition: width 0.4s cubic-bezier(0.2, 0.8, 0.2, 1); }
+.hq-loading-text { font-family: 'Nunito', sans-serif; font-size: 0.85rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; height: 20px; transition: opacity 0.3s ease; }
+/* --- ULTRA-PREMIUM FOCUS MODE (WRITING) --- */
 
-.hq-spinner-char {
-    opacity: 0;
-    animation: hqFadeScale 1s cubic-bezier(0.34, 1.56, 0.64, 1) 0.4s forwards;
-}
-
-@keyframes hqDrawLine {
-    to { stroke-dashoffset: 0; }
-}
-@keyframes hqSpin {
-    from { transform: rotate(0deg); }
-    to { transform: rotate(360deg); }
-}
-@keyframes hqFadeScale {
-    0% { opacity: 0; transform: scale(0.5); }
-    100% { opacity: 1; transform: scale(1); }
-}
-
-/* Typography & Progress */
-.hq-brand-title {
-    font-family: 'Nunito', sans-serif;
-    font-size: 1.8rem;
-    font-weight: 800;
-    color: var(--text-main);
-    margin: 0 0 30px 0;
-    letter-spacing: -0.5px;
+/* 1. Auto-hide the main bottom nav smoothly when writing */
+body.focus-mode .bottom-nav {
+  transform: translate(-50%, 150%) scale(0.9) !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+  transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
 }
 
-.hq-progress-container {
-    width: 200px;
-    margin-bottom: 16px;
+/* 2. Ensure the bottom nav animates smoothly when it comes back */
+.bottom-nav {
+  transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
-.hq-progress-track {
-    width: 100%;
-    height: 6px;
-    background: rgba(255, 158, 181, 0.15);
-    border-radius: 10px;
-    overflow: hidden;
+/* 3. Adjust the main app container so it respects the top dock */
+body.focus-mode div#app {
+  max-width: none;
+  width: 100vw;
+  margin: 0;
+  padding-left: clamp(12px, 2vw, 24px) !important;
+  padding-right: clamp(12px, 2vw, 24px) !important;
+  /* THE FIX: Give the top dock 85px of safe breathing room! */
+  padding-top: max(85px, env(safe-area-inset-top) + 70px) !important; 
+  padding-bottom: max(20px, env(safe-area-inset-bottom) + 10px) !important; 
+  overflow: hidden !important; 
 }
 
-.hq-progress-fill {
-    height: 100%;
-    width: 0%;
-    background: linear-gradient(90deg, var(--primary), #ff8fa3);
-    border-radius: 10px;
-    transition: width 0.4s cubic-bezier(0.2, 0.8, 0.2, 1);
-}
-
-.hq-loading-text {
-    font-family: 'Nunito', sans-serif;
-    font-size: 0.85rem;
-    font-weight: 700;
-    color: var(--text-muted);
-    text-transform: uppercase;
-    letter-spacing: 1px;
-    height: 20px;
-    transition: opacity 0.3s ease;
-}
-/* --- INVISIBLE SCROLLBARS FOR NATIVE APP FEEL --- */
-/* Hide scrollbar for Chrome, Safari and Opera */
-*::-webkit-scrollbar {
-    display: none !important;
-}
-
-/* Hide scrollbar for IE, Edge and Firefox */
-* {
-    -ms-overflow-style: none !important;  /* IE and Edge */
-    scrollbar-width: none !important;     /* Firefox */
-}
-
-/* --- PREMIUM LIST SEARCH BAR --- */
-.hq-search-container {
-    padding: 10px 20px 15px 20px;
-    width: 100%;
-    z-index: 20;
-    position: relative;
-}
-
-.hq-search-wrapper {
-    position: relative;
-    display: flex;
-    align-items: center;
-    background: rgba(255, 255, 255, 0.6);
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
-    border: 2px solid rgba(255, 158, 181, 0.2);
-    border-radius: 30px; /* Perfect pill shape */
-    padding: 12px 20px;
-    transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.03);
-}
-
-/* The Magic Focus State */
-.hq-search-wrapper:focus-within {
-    background: rgba(255, 255, 255, 0.95);
-    border-color: rgba(255, 158, 181, 0.7);
-    box-shadow: 0 12px 30px rgba(255, 158, 181, 0.25), inset 0 0 0 2px rgba(255, 255, 255, 0.6);
-    transform: translateY(-2px) scale(1.02);
-}
-
-/* Animated SVG Search Icon */
-.hq-search-icon {
-    color: #b4aab5;
-    transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
-    width: 22px; height: 22px;
-    margin-right: 12px;
-    flex-shrink: 0;
-}
-
-.hq-search-wrapper:focus-within .hq-search-icon {
-    color: var(--primary);
-    transform: scale(1.15) rotate(-8deg); /* Cute little tilt when active! */
-}
-
-/* The Input Field */
-.hq-search-input {
-    flex: 1;
-    border: none;
-    background: transparent;
-    font-family: 'Nunito', sans-serif;
-    font-size: 1.05rem;
-    font-weight: 700;
-    color: var(--text-main);
-    outline: none;
-    padding: 0;
-    min-width: 0;
-}
-
-.hq-search-input::placeholder {
-    color: rgba(180, 170, 181, 0.6);
-    font-weight: 600;
-    transition: opacity 0.3s;
-}
-
-.hq-search-wrapper:focus-within .hq-search-input::placeholder {
-    opacity: 0.3; /* Fades out smoothly when you start typing */
-}
-
-/* Spinning Pop-in Clear Button */
-.hq-search-clear {
-    background: var(--primary-soft);
-    color: var(--primary);
-    border: none;
-    border-radius: 50%;
-    width: 28px;
-    height: 28px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    opacity: 0;
-    /* Starts tiny and rotated */
-    transform: scale(0.5) rotate(-90deg);
-    transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
-    pointer-events: none;
-    flex-shrink: 0;
-    margin-left: 8px;
-}
-
-/* When text is typed, it pops into existence! */
-.hq-search-clear.visible {
-    opacity: 1;
-    transform: scale(1) rotate(0deg);
-    pointer-events: auto;
-}
-
-.hq-search-clear:hover {
-    background: var(--primary);
-    color: white;
-    transform: scale(1.1) rotate(90deg);
-}
-/* --- PREMIUM LISTENING MODE (SONAR INTERFACE) --- */
-.listen-master-wrapper {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: space-between;
-    width: 100%;
-    height: 100%;
-    padding: max(20px, env(safe-area-inset-top)) 20px 40px 20px;
-    box-sizing: border-box;
-}
-
-/* The Sonar Orb */
-.sonar-container {
-    position: relative;
-    width: 140px;
-    height: 140px;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    margin: 40px 0;
-}
-
-.sonar-orb {
-    position: relative;
-    width: 90px;
-    height: 90px;
-    border-radius: 50%;
-    background: linear-gradient(135deg, var(--primary), #ff7a9e);
-    box-shadow: 0 15px 35px rgba(255, 158, 181, 0.4), inset 0 4px 10px rgba(255, 255, 255, 0.4);
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    color: white;
-    z-index: 10;
-    cursor: pointer;
-    transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
-}
-
-.sonar-orb:active { transform: scale(0.9); }
-
-.sonar-ring {
-    position: absolute;
-    width: 90px;
-    height: 90px;
-    border-radius: 50%;
-    border: 3px solid var(--primary);
-    opacity: 0;
-    z-index: 1;
-    pointer-events: none;
-}
-
-/* The Animation triggered via JS */
-.sonar-container.is-playing .sonar-ring:nth-child(1) {
-    animation: sonarPulse 1.5s cubic-bezier(0.2, 0.8, 0.2, 1) infinite;
-}
-.sonar-container.is-playing .sonar-ring:nth-child(2) {
-    animation: sonarPulse 1.5s cubic-bezier(0.2, 0.8, 0.2, 1) infinite 0.4s;
-}
-.sonar-container.is-playing .sonar-ring:nth-child(3) {
-    animation: sonarPulse 1.5s cubic-bezier(0.2, 0.8, 0.2, 1) infinite 0.8s;
-}
-
-@keyframes sonarPulse {
-    0% { transform: scale(1); opacity: 0.8; border-width: 4px; }
-    100% { transform: scale(2.2); opacity: 0; border-width: 1px; }
-}
-
-/* Glass Option Cards */
-.listen-options-grid {
-    display: flex;
-    flex-direction: column;
-    gap: 14px;
-    width: 100%;
-    max-width: 400px;
-}
-
-.listen-option-card {
-    background: rgba(255, 255, 255, 0.7);
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
-    border: 2px solid rgba(255, 255, 255, 0.9);
-    border-radius: 24px;
-    padding: 18px 24px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    text-align: center;
-    cursor: pointer;
-    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.04);
-    transform: translateY(40px);
-    opacity: 0;
-    transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
-}
-
-/* Staggered Entrance Animations */
-.listen-option-card.animate-in { transform: translateY(0); opacity: 1; }
-.listen-option-card:active { transform: scale(0.96); }
-
-/* Option Text Formatting */
-.listen-opt-main { font-family: 'twkai', serif; font-size: 1.8rem; color: var(--text-main); line-height: 1.2; margin-bottom: 4px; }
-.listen-opt-sub { font-family: 'Nunito', sans-serif; font-size: 0.95rem; color: var(--text-muted); font-weight: 700; }
-
-/* States */
-.listen-option-card.state-wrong {
-    background: #fff1f2;
-    border-color: #fda4af;
-    animation: shake 0.4s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
-}
-
-.listen-option-card.state-correct {
-    background: var(--primary);
-    border-color: var(--primary-dark);
-    transform: scale(1.05);
-    box-shadow: 0 15px 35px rgba(255, 158, 181, 0.4);
-}
-
-.listen-option-card.state-correct .listen-opt-main,
-.listen-option-card.state-correct .listen-opt-sub { color: white; }
-
-.listen-options-grid.has-selection .listen-option-card:not(.state-correct) {
-    opacity: 0.4;
-    transform: scale(0.95);
-    pointer-events: none;
+/* 4. Kill the inline padding pulling the canvas too far up */
+#writingAppWrapper {
+  padding-top: 0 !important; 
 }
 /* =========================================
- /* =========================================
-   ULTRA-CLEAN "BLUEPRINT" MODAL
+   "APPLE NATIVE" iOS ANATOMY REDESIGN (SIMPLIFIED)
    ========================================= */
 
-.blueprint-container { width: 100%; text-align: left; }
-
-/* 1. Sleek Header */
-.blueprint-hero { 
-    display: flex; align-items: center; gap: 24px; 
-    padding-bottom: 24px; border-bottom: 1px solid #e2e8f0; 
-    margin-bottom: 24px; 
-}
-.bp-char { font-family: 'twkai', serif; font-size: 5.5rem; color: #0f172a; line-height: 1; }
-.bp-meta { display: flex; flex-direction: column; gap: 4px; }
-.bp-py { font-family: 'Nunito', sans-serif; font-size: 1.6rem; font-weight: 800; color: var(--primary); letter-spacing: 0.5px;}
-.bp-def { font-family: 'Nunito', sans-serif; font-size: 1.1rem; color: #475569; font-weight: 600; line-height: 1.4; }
-
-.bp-tags { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
-.bp-tag { 
-    font-family: 'Nunito', sans-serif; font-size: 0.7rem; font-weight: 800; 
-    text-transform: uppercase; letter-spacing: 1px; 
-    padding: 4px 10px; border-radius: 6px; 
-    background: #f8fafc; color: #64748b; border: 1px solid #e2e8f0; 
+.anatomy-master-container {
+    display: flex; flex-direction: column; width: 100%;
+    padding: 0 0 30px 0; max-width: 440px; margin: 0 auto;
 }
 
-/* 2. Section Titles */
-.bp-section-title { 
-    font-family: 'Nunito', sans-serif; font-size: 0.85rem; font-weight: 800; 
-    color: #94a3b8; text-transform: uppercase; letter-spacing: 1.5px; 
-    margin-bottom: 16px; 
+/* 1. Hero Section */
+.anatomy-hero-section { text-align: center; margin-bottom: 24px; }
+.hero-py { font-family: 'Nunito', sans-serif; font-size: 1.6rem; font-weight: 800; color: var(--primary); }
+.hero-def { font-family: 'Nunito', sans-serif; font-size: 1.05rem; color: var(--text-muted); font-weight: 600; margin-top: 6px; }
+
+/* Section Titles */
+.dna-section-title {
+    font-family: 'Nunito', sans-serif; font-size: 0.8rem; font-weight: 800;
+    color: var(--text-muted); text-transform: uppercase; letter-spacing: 1.5px;
+    margin-bottom: 10px; padding-left: 12px; text-align: left;
 }
 
-/* 3. The Component Grid */
-.blueprint-grid { 
-    display: grid; 
-    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); 
-    gap: 12px; margin-bottom: 30px; 
+
+/* Expanding Body */
+.bento-body-wrapper { display: grid; grid-template-rows: 0fr; transition: grid-template-rows 0.3s cubic-bezier(0.4, 0, 0.2, 1); background: #f8fafc; }
+.bento-node.expanded .bento-body-wrapper { grid-template-rows: 1fr; }
+.bento-body-inner { overflow: hidden; }
+
+.sub-component-list { list-style: none; padding: 16px 20px; margin: 0; display: flex; flex-direction: column; gap: 10px; border-top: 1px solid rgba(0,0,0,0.03); }
+.sub-component-list li { display: flex; align-items: center; gap: 12px; font-family: 'Nunito', sans-serif; font-size: 0.9rem; color: #475569; text-align: left;}
+.sub-hz { font-family: 'twkai', serif; font-size: 1.3rem; color: var(--primary); width: 24px; text-align: center; font-weight: bold; }
+.sub-def { font-weight: 600; }
+
+.appears-in-row { padding: 12px 20px; border-top: 1px solid rgba(0,0,0,0.03); display: flex; align-items: center; gap: 10px; background: rgba(255,158,181,0.03);}
+.appears-label { font-family: 'Nunito', sans-serif; font-size: 0.7rem; font-weight: 800; color: var(--primary); text-transform: uppercase; letter-spacing: 1px; }
+.appears-list { display: flex; gap: 6px; }
+.appears-node { font-family: 'twkai', serif; font-size: 1.2rem; color: var(--text-main); }
+
+/* 3. iOS Grouped Lists (Insights) */
+.ios-list-group {
+    background: #ffffff;
+    border-radius: 20px;
+    border: 1px solid rgba(0,0,0,0.04);
+    box-shadow: 0 4px 15px rgba(0,0,0,0.02);
+    overflow: hidden;
+}
+.ios-list-row {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 14px 18px; border-bottom: 1px solid rgba(0,0,0,0.04);
+}
+.ios-list-label { font-family: 'Nunito', sans-serif; font-size: 0.95rem; font-weight: 700; color: #475569; }
+.ios-list-value { display: flex; align-items: center; }
+
+/* 4. Sleek Hook Card */
+.hook-card {
+    background: rgba(255, 255, 255, 0.7); border: 1px dashed rgba(255, 158, 181, 0.4);
+    border-radius: 20px; padding: 16px; display: flex; align-items: flex-start; gap: 12px;
+    text-align: left; position: relative;
+}
+.hook-text { flex: 1; font-family: 'Nunito', sans-serif; font-size: 0.95rem; line-height: 1.5; color: var(--text-main); }
+.hook-edit-btn { background: none; border: none; color: var(--text-muted); cursor: pointer; padding: 4px; border-radius: 8px; transition: 0.2s; }
+.hook-edit-btn:hover { background: white; color: var(--primary); }
+.hook-textarea { width: 100%; border: 1px solid rgba(255,158,181,0.3); border-radius: 12px; padding: 10px; font-family: 'Nunito', sans-serif; font-size: 0.95rem; resize: none; min-height: 70px; outline: none; margin-bottom: 8px;}
+.hook-actions { display: flex; justify-content: flex-end; gap: 8px; }
+
+/* --- CLICKABLE SUB-COMPONENT ROWS --- */
+.sub-component-list {
+    list-style: none; padding: 12px 12px 16px 12px; margin: 0; 
+    display: flex; flex-direction: column; gap: 4px; 
+    border-top: 1px solid rgba(0,0,0,0.03); 
 }
 
-/* 4. The Clean Cards */
-.bp-card { 
-    background: #ffffff; border: 1px solid #e2e8f0; border-radius: 16px; 
-    padding: 16px; box-shadow: 0 1px 2px rgba(0,0,0,0.02); 
-    transition: all 0.2s ease; display: flex; flex-direction: column;
-}
-.bp-card:hover { 
-    border-color: #cbd5e1; box-shadow: 0 6px 16px rgba(0,0,0,0.04); 
-    transform: translateY(-2px); 
-}
-.bp-card-char { font-family: 'twkai', serif; font-size: 2.5rem; color: #0f172a; margin-bottom: 8px; line-height: 1;}
-.bp-card-py { font-family: 'Nunito', sans-serif; font-size: 0.95rem; font-weight: 800; color: var(--primary-dark); }
-.bp-card-def { 
-    font-family: 'Nunito', sans-serif; font-size: 0.85rem; color: #64748b; 
-    line-height: 1.3; margin-top: 4px; 
-    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; 
+/* The actual row styling */
+.sub-component-item {
+    display: flex; align-items: center; gap: 12px; 
+    padding: 8px 12px;
+    border-radius: 12px;
+    transition: all 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
+    cursor: pointer;
+    user-select: none;
 }
 
-/* 5. Sub-component Pills (Level 3/Strokes) */
-.bp-subcomponents { 
-    margin-top: auto; padding-top: 12px; border-top: 1px dashed #e2e8f0; 
-    display: flex; flex-wrap: wrap; gap: 6px; 
+/* Hover and active touch states */
+.sub-component-item:hover {
+    background: rgba(255, 158, 181, 0.08);
 }
-.bp-sub-pill { 
-    font-family: 'twkai', serif; font-size: 1.1rem; color: #475569; 
-    background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; 
-    padding: 2px 8px; display: flex; align-items: center; justify-content: center; 
+.sub-component-item:active {
+    transform: scale(0.98);
+    background: rgba(255, 158, 181, 0.15);
 }
 
-/* Memory Hook Override for this theme */
-.bp-hook-box {
-    background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 16px; padding: 20px; margin-bottom: 30px;
+/* The state when the row is actively controlling the "Also In" preview */
+.sub-component-item.active-preview {
+    background: rgba(255, 158, 181, 0.12);
 }
+.sub-component-item.active-preview .sub-hz {
+    color: var(--primary-dark);
+    transform: scale(1.15);
+}
+
+/* Basic resets for the text inside */
+.sub-component-item .sub-hz { 
+    font-family: 'twkai', serif; font-size: 1.3rem; color: var(--primary); 
+    width: 24px; text-align: center; font-weight: bold; transition: all 0.2s;
+}
+.sub-component-item .sub-def { 
+    font-family: 'Nunito', sans-serif; font-size: 0.9rem; color: #475569; font-weight: 600; text-align: left;
+}
+
+/* Make sure the main icon highlights too if you tap it */
+.bento-icon-hz { transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1); }
+.bento-icon-hz.active-preview {
+    color: var(--primary);
+    transform: scale(1.15);
+}
+/* =========================================
+   "APPLE NATIVE" iOS ANATOMY REDESIGN 
+   ========================================= */
+
+.anatomy-master-container {
+    display: flex; flex-direction: column; width: 100%;
+    padding: 0 0 30px 0; max-width: 440px; margin: 0 auto;
+    position: relative;
+}
+
+/* 1. Hero Section */
+.anatomy-hero-section { text-align: center; margin-bottom: 24px; }
+.hero-py { font-family: 'Nunito', sans-serif; font-size: 1.6rem; font-weight: 800; color: var(--primary); }
+.hero-def { font-family: 'Nunito', sans-serif; font-size: 1.05rem; color: var(--text-muted); font-weight: 600; margin-top: 6px; }
+
+/* Section Titles */
+.dna-section-title {
+    font-family: 'Nunito', sans-serif; font-size: 0.8rem; font-weight: 800;
+    color: var(--text-muted); text-transform: uppercase; letter-spacing: 1.5px;
+    margin-bottom: 10px; padding-left: 12px; text-align: left;
+}
+
+/* 2. The DNA Bento (Restored) */
+.anatomy-bento-grid { display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px;}
+.bento-node {
+    background: #ffffff; border-radius: 20px;
+    border: 1px solid rgba(0,0,0,0.04);
+    box-shadow: 0 4px 15px rgba(0,0,0,0.02);
+    overflow: hidden; transition: all 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.bento-node:hover { box-shadow: 0 8px 25px rgba(255, 158, 181, 0.1); transform: translateY(-2px); }
+.bento-header { display: flex; align-items: center; padding: 14px 18px; gap: 14px; }
+.bento-icon-hz { font-family: 'twkai', serif; font-size: 2rem; color: #0f172a; width: 40px; text-align: center; line-height: 1; transition: all 0.2s; }
+.bento-meta { display: flex; flex-direction: column; flex: 1; text-align: left;}
+.bento-py { font-family: 'Nunito', sans-serif; font-size: 0.95rem; font-weight: 800; color: var(--primary-dark); }
+.bento-def { font-family: 'Nunito', sans-serif; font-size: 0.85rem; color: var(--text-muted); font-weight: 600; line-height: 1.3;}
+.bento-chevron { color: #cbd5e1; transition: transform 0.3s; }
+.bento-node.expanded .bento-chevron { transform: rotate(90deg); color: var(--primary); }
+
+.bento-body-wrapper { display: grid; grid-template-rows: 0fr; transition: grid-template-rows 0.3s cubic-bezier(0.4, 0, 0.2, 1); background: #f8fafc; }
+.bento-node.expanded .bento-body-wrapper { grid-template-rows: 1fr; }
+.bento-body-inner { overflow: hidden; }
+
+/* Clickable Sub-Components */
+.sub-component-list { list-style: none; padding: 12px 12px 16px 12px; margin: 0; display: flex; flex-direction: column; gap: 4px; border-top: 1px solid rgba(0,0,0,0.03); }
+.sub-component-item { display: flex; align-items: center; gap: 12px; padding: 8px 12px; border-radius: 12px; transition: all 0.2s cubic-bezier(0.2, 0.8, 0.2, 1); cursor: pointer; user-select: none;}
+.sub-component-item:hover { background: rgba(255, 158, 181, 0.08); }
+.sub-component-item:active { transform: scale(0.98); background: rgba(255, 158, 181, 0.15); }
+.sub-component-item.active-preview { background: rgba(255, 158, 181, 0.12); }
+.sub-component-item.active-preview .sub-hz { color: var(--primary-dark); transform: scale(1.15); }
+.sub-component-item .sub-hz { font-family: 'twkai', serif; font-size: 1.3rem; color: var(--primary); width: 24px; text-align: center; font-weight: bold; transition: all 0.2s; }
+.sub-component-item .sub-def { font-family: 'Nunito', sans-serif; font-size: 0.9rem; color: #475569; font-weight: 600; text-align: left;}
+
+/* Also In Preview */
+.appears-in-row { padding: 12px 20px; border-top: 1px solid rgba(0,0,0,0.03); display: flex; align-items: center; gap: 10px; background: rgba(255,158,181,0.03);}
+.appears-label { font-family: 'Nunito', sans-serif; font-size: 0.7rem; font-weight: 800; color: var(--primary); text-transform: uppercase; letter-spacing: 1px; }
+.appears-list { display: flex; gap: 6px; }
+.appears-node { font-family: 'twkai', serif; font-size: 1.2rem; color: var(--text-main); }
+
+/* 3. Sleek Hook Card */
+.hook-card {
+    background: rgba(255, 255, 255, 0.7); border: 1px dashed rgba(255, 158, 181, 0.4);
+    border-radius: 20px; padding: 16px; display: flex; align-items: flex-start; gap: 12px;
+    text-align: left; position: relative;
+}
+.hook-text { flex: 1; font-family: 'Nunito', sans-serif; font-size: 0.95rem; line-height: 1.5; color: var(--text-main); }
+.hook-edit-btn { background: none; border: none; color: var(--text-muted); cursor: pointer; padding: 4px; border-radius: 8px; transition: 0.2s; }
+.hook-edit-btn:hover { background: white; color: var(--primary); }
+.hook-textarea { width: 100%; border: 1px solid rgba(255,158,181,0.3); border-radius: 12px; padding: 10px; font-family: 'Nunito', sans-serif; font-size: 0.95rem; resize: none; min-height: 70px; outline: none; margin-bottom: 8px;}
+.hook-actions { display: flex; justify-content: flex-end; gap: 8px; }
+
+/* --- 4. NEW iOS NETWORK UI --- */
+
+/* App Store Style Horizontal Scroll */
+.ios-horizontal-scroll {
+    display: flex; gap: 10px; overflow-x: auto; 
+    padding: 4px 12px 16px 12px; margin: 0 -12px; /* Full bleed scroll */
+    scrollbar-width: none; /* Hide scrollbar Firefox */
+}
+.ios-horizontal-scroll::-webkit-scrollbar { display: none; } /* Hide Chrome/Safari */
+.ios-scroll-item {
+    background: #ffffff; border: 1px solid rgba(0,0,0,0.04);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.03);
+    border-radius: 16px; padding: 12px 20px;
+    font-family: 'twkai', serif; font-size: 1.8rem; color: var(--text-main);
+    flex-shrink: 0; cursor: pointer; transition: 0.2s;
+}
+.ios-scroll-item:hover { transform: translateY(-3px); box-shadow: 0 6px 16px rgba(255, 158, 181, 0.15); color: var(--primary); }
+
+/* iOS Settings Grouped List */
+/* iOS Settings Grouped List */
+/* iOS Settings Grouped List */
+.ios-grouped-list {
+    background: #ffffff; 
+    border-radius: 20px;
+    border: 1px solid rgba(0,0,0,0.04);
+    box-shadow: 0 4px 15px rgba(0,0,0,0.02);
+    width: 100%; /* Locks the width perfectly to match the rest of the modal! */
+    box-sizing: border-box;
+    overflow: hidden; /* Keeps the rounded corners clean */
+    /* Height is completely fluid and natural again! */
+}
+
+.ios-list-item {
+    display: flex; align-items: center; gap: 16px;
+    padding: 16px 20px; border-bottom: 1px solid rgba(0,0,0,0.04);
+    width: 100%; 
+    box-sizing: border-box;
+}
+.ios-list-item:last-child { border-bottom: none; }
+.ios-list-hz { font-family: 'twkai', serif; font-size: 1.6rem; color: var(--text-main); min-width: 50px; text-align: center; line-height: 1;}
+.ios-list-info { display: flex; flex-direction: column; text-align: left; flex: 1; }
+.ios-list-py { font-family: 'Nunito', sans-serif; font-size: 0.95rem; font-weight: 800; color: var(--primary-dark); }
+.ios-list-def { font-family: 'Nunito', sans-serif; font-size: 0.85rem; color: var(--text-muted); font-weight: 600; line-height: 1.3;}
+/* =========================================
+   MODERN iOS 17 INSET UI (TACTILE & ALIVE)
+   ========================================= */
+
+/* The Section Headers (Like iOS Settings) */
+.ios17-section-title {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-size: 0.85rem; font-weight: 600; color: #86868b;
+    text-transform: uppercase; letter-spacing: 0.5px;
+    margin: 32px 0 8px 16px; 
+}
+
+/* The Base Card (Soft, floating squarcle) */
+.ios17-card {
+    background: #ffffff;
+    border-radius: 16px;
+    padding: 16px; position: relative;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.02);
+    border: 1px solid rgba(0,0,0,0.02);
+}
+
+/* Hook Styling */
+.ios17-hook-text { font-family: 'Nunito', sans-serif; font-size: 1.05rem; line-height: 1.5; color: var(--text-main); padding-right: 32px; }
+.ios17-icon-btn { position: absolute; top: 12px; right: 12px; background: #f4f4f5; border: none; color: #a1a1aa; width: 32px; height: 32px; border-radius: 16px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: 0.2s; }
+.ios17-icon-btn:hover { background: #e4e4e7; color: var(--primary); }
+.ios17-textarea { width: 100%; border: 1px solid #e4e4e7; border-radius: 12px; padding: 12px; font-family: 'Nunito', sans-serif; font-size: 1rem; resize: none; min-height: 80px; outline: none; background: #fafafa; transition: border 0.2s; }
+.ios17-textarea:focus { border-color: var(--primary); background: #ffffff; }
+.ios17-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
+
+/* --- BUTTERY SMOOTH ACCORDIONS --- */
+.network-accordion { width: 100%; margin-top: 24px; }
+
+.network-accordion-header {
+    display: flex; justify-content: space-between; align-items: center;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-size: 0.85rem; font-weight: 600; color: #86868b;
+    text-transform: uppercase; letter-spacing: 0.5px;
+    margin: 0 0 8px 16px; cursor: pointer; user-select: none;
+    -webkit-tap-highlight-color: transparent; 
+}
+.network-accordion-header:active { color: var(--text-main); }
+
+/* Chevron rotation */
+.network-chevron { color: #c7c7cc; transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1); margin-right: 16px; }
+.network-accordion.expanded .network-chevron { transform: rotate(180deg); color: #86868b; }
+
+/* The Magic CSS Grid Smooth Height Animation */
+.network-accordion-body {
+    display: grid;
+    grid-template-rows: 0fr;
+    transition: grid-template-rows 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.network-accordion.expanded .network-accordion-body {
+    grid-template-rows: 1fr;
+}
+.network-accordion-inner {
+    overflow: hidden;
+}
+/* FIX: Removed the :hover state that was causing the iOS Double-Tap bug! */
+.ios17-disclosure-summary:active { color: var(--text-main); }
+
+.ios17-chevron { color: #c7c7cc; transition: transform 0.25s ease-out; margin-right: 16px; }
+.ios17-disclosure[open] .ios17-chevron { transform: rotate(180deg); color: #86868b; }
+
+.ios17-disclosure-content { 
+    animation: lightningFade 0.2s ease-out forwards; 
+    will-change: opacity; 
+}
+@keyframes lightningFade {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+/* --- CARD COMPONENT GRID (Spacious & Tactile) --- */
+.ios17-component-grid {
+    display: grid;
+    /* Increased min-width for better spacing and readability */
+    grid-template-columns: repeat(auto-fill, minmax(85px, 1fr));
+    gap: 12px; 
+    padding: 4px;
+}
+
+.ios17-grid-card {
+    background: #ffffff; 
+    border: 1px solid rgba(0,0,0,0.04);            
+    box-shadow: 0 2px 8px rgba(0,0,0,0.04);        
+    border-radius: 16px;
+    padding: 12px 8px; 
+    display: flex; flex-direction: column; align-items: center; text-align: center;
+    cursor: pointer;
+    transform: translate3d(0, 0, 0); 
+    will-change: transform, opacity;
+    transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.ios17-grid-card:active { transform: scale(0.96); }
+.ios17-grid-card:hover { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(0,0,0,0.08); border-color: rgba(255, 158, 181, 0.3); }
+
+/* Typography adjustments */
+.grid-hz { font-family: 'twkai', serif; font-size: 2rem; color: var(--text-main); line-height: 1; margin-bottom: 6px; transition: color 0.15s; }
+.ios17-grid-card:hover .grid-hz { color: var(--primary); }
+.grid-py { font-family: 'Nunito', sans-serif; font-size: 0.85rem; font-weight: 800; color: var(--primary-dark); line-height: 1.2; }
+.grid-def { font-family: 'Nunito', sans-serif; font-size: 0.75rem; color: #94a3b8; font-weight: 600; line-height: 1.2; margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 100%; }
+
+/* --- INSET GROUPED VOCAB LIST (Clean & Organized) --- */
+.ios17-grouped-list {
+    background: #ffffff; 
+    border: 1px solid rgba(0,0,0,0.04);            
+    box-shadow: 0 2px 12px rgba(0,0,0,0.03);        
+    border-radius: 20px;
+    overflow: hidden; 
+    margin: 4px 0;
+    transform: translate3d(0,0,0);
+}
+
+.ios17-list-item { 
+    display: flex; align-items: center; gap: 16px; 
+    padding: 14px 20px; position: relative; 
+    transition: background 0.2s; 
+    background: white;
+}
+.ios17-list-item:active { background: #f8fafc; }
+
+/* Adjusted the separator to match the new tighter spacing */
+.ios17-list-item:not(:last-child)::after { 
+    content: ''; position: absolute; bottom: 0; left: 20px; right: 0; 
+    height: 1px; background: rgba(0,0,0,0.06); 
+}
+
+/* Shrunk the vocab text so it doesn't dominate the screen */
+.list-hz { font-family: 'twkai', serif; font-size: 1.6rem; color: var(--text-main); min-width: 48px; text-align: center; line-height: 1; letter-spacing: 1px;}
+.list-info { display: flex; flex-direction: column; flex: 1; gap: 2px; min-width: 0; }
+.list-py { font-family: 'Nunito', sans-serif; font-size: 0.95rem; font-weight: 800; color: var(--primary-dark); }
+.list-def { font-family: 'Nunito', sans-serif; font-size: 0.85rem; color: #64748b; line-height: 1.3; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* Make sure interactive taps are snappy */
+.interactive-char { cursor: pointer; display: inline-block; }
+.interactive-char:active { transform: scale(0.92); opacity: 0.7; transition: 0.1s; }

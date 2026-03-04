@@ -70,12 +70,10 @@ const App = {
   },
 
   async importData() {
-    // 1. Process Characters (UPDATED FOR NEW JSON FORMAT)
+    // 1. Process Characters
     if (window.CHARS_DATA) {
-        // Check if it's the new dictionary format (Object) and not an Array
         if (!Array.isArray(window.CHARS_DATA)) {
             for (const [hanzi, charData] of Object.entries(window.CHARS_DATA)) {
-                // Standardize the keys for the rest of the app
                 DATA.CHARS[hanzi] = {
                     ...charData, 
                     hanzi: hanzi,
@@ -84,7 +82,6 @@ const App = {
                 };
             }
         } else {
-            // Fallback just in case it ever reads the old array format
             window.CHARS_DATA.forEach(c => {
                 DATA.CHARS[c.hanzi] = { ...c, def: c.meaning || c.definition, decomposition: c.components };
             });
@@ -461,10 +458,75 @@ const App = {
       }
     }, 200); 
   },
+  
+  findRelatedCharacters(char) {
+      const containsComponent = (node, target) => {
+          if (!node) return false;
+          if (node.component === target) return true;
+          if (Array.isArray(node.children)) {
+              return node.children.some(child => containsComponent(child, target));
+          }
+          return false;
+      };
 
-handleCharClick(e, char) {
-      if (e) e.stopPropagation();
+      return Object.values(DATA.CHARS).filter(c => {
+          if (c.hanzi === char) return false;
+          return c.deconstruction_tree && containsComponent(c.deconstruction_tree, char);
+      });
+  },
+
+  // 1. UPDATED HELPER: Removed the highlight from the main component
+  updateAppearsIn(e, searchChar, rowId, heroChar, mainComponent) {
+      if (e) e.stopPropagation(); 
+      
+      const row = document.getElementById(rowId);
+      if (!row) return;
+
+      const bentoNode = row.closest('.bento-node');
+      let targetChar = searchChar;
+
+      // Toggle logic: If we clicked the already-active sub-component, revert to the main component!
+      if (e && e.currentTarget && e.currentTarget.classList.contains('active-preview') && searchChar !== mainComponent) {
+          targetChar = mainComponent;
+      }
+
+      const relatedChars = Object.values(DATA.CHARS)
+          .filter(c => c.hanzi !== heroChar && c.hanzi !== targetChar && c.deconstruction_tree && JSON.stringify(c.deconstruction_tree).includes(`"component":"${targetChar}"`))
+          .map(c => c.hanzi).slice(0, 5);
+
+      let interactive = `<span style="color:var(--text-muted); font-size: 0.85rem;">None</span>`;
+      if (relatedChars.length > 0) {
+          interactive = relatedChars.map(c => `<span class="interactive-char appears-node" onclick="App.handleCharClick(event, '${c}')">${c}</span>`).join('');
+      }
+
+      row.innerHTML = `
+          <span class="appears-label interactive-char" onclick="App.handleCharClick(event, '${targetChar}')" style="cursor:pointer; display:flex; align-items:center; gap:2px; transition:0.2s;" title="Explore ${targetChar}">
+              in ${targetChar} 
+              <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg>
+          </span> 
+          <div class="appears-list">${interactive}</div>
+      `;
+
+      if (bentoNode) {
+          bentoNode.classList.add('expanded'); 
+          // Clear all highlights
+          bentoNode.querySelectorAll('.sub-component-item, .bento-icon-hz').forEach(el => {
+              el.classList.remove('active-preview');
+          });
+          
+          // Apply highlight ONLY to sub-components, never the main component
+          if (targetChar !== mainComponent && e && e.currentTarget) {
+              e.currentTarget.classList.add('active-preview');
+          }
+      }
+  },
+
+  // 2. UPDATED CLICK HANDLER: Master integration of all iOS UI components
+  handleCharClick(e, char) {
+      if (e) e.stopPropagation(); 
       const modal = document.getElementById('charModal');
+      if (modal) modal.classList.add('open'); 
+
       const display = document.getElementById('charDisplay');
       const detail = document.getElementById('charDetail');
       const relatedContainer = document.getElementById('charRelated');
@@ -475,96 +537,260 @@ handleCharClick(e, char) {
       display.style.display = 'none'; 
       relatedContainer.innerHTML = '';
       
-      let html = `<div class="blueprint-container">`;
+      let html = `<div class="anatomy-master-container">`;
+
+      // Clean up any existing sticker from previous opens
+      const sheet = detail.closest('.modal-sheet');
+      if (sheet) {
+          const oldBadge = sheet.querySelector('.rank-sticker');
+          if (oldBadge) oldBadge.remove();
+      }
 
       if (charData) {
-          // 1. HERO SECTION
-          let tags = '';
-          if (charData.street_utility?.frequency_rank) tags += `<div class="bp-tag">Rank ${charData.street_utility.frequency_rank}</div>`;
-          if (charData.chameleon_alert?.is_polyphone) tags += `<div class="bp-tag" style="background:#f3e8ff; color:#7e22ce; border-color:#e9d5ff;">Polyphone</div>`;
-
-          html += `
-              <div class="blueprint-hero">
-                  <div class="bp-char">${char}</div>
-                  <div class="bp-meta">
-                      <div class="bp-py">${charData.pinyin || ''}</div>
-                      <div class="bp-def">${charData.def || ''}</div>
-                      ${tags ? `<div class="bp-tags">${tags}</div>` : ''}
-                  </div>
-              </div>
-          `;
-
-          // 2. COMPONENT CARDS (The Anatomy Grid)
-          if (charData.deconstruction_tree && charData.deconstruction_tree.children) {
-              let cardsHTML = '';
+          // 1. STICKER RANK BADGE (Injected into sheet, not scrollable content)
+          if (charData.street_utility && charData.street_utility.frequency_rank && sheet) {
+              const rank = charData.street_utility.frequency_rank;
+              let rankText = "Rare";
+              let rankClass = "rank-rare";
               
-              charData.deconstruction_tree.children.forEach(child => {
-                  const charStr = child.component || '?';
-                  const pyRaw = Array.isArray(child.pinyin) ? child.pinyin[0] : (child.pinyin || '');
-                  const py = Utils.formatNumberedPinyin(pyRaw);
-                  const def = (child.meaning || '').split(/[,;]/)[0]; // Keep it short and clean
+              if (rank <= 500) { rankText = "Very Common"; rankClass = "rank-very-common"; }
+              else if (rank <= 1500) { rankText = "Common"; rankClass = "rank-common"; }
+              else if (rank <= 3000) { rankText = "Uncommon"; rankClass = "rank-uncommon"; }
 
-                  // If this component is made of smaller strokes/pieces, put them in tiny pills
-                  let subPills = '';
-                  if (child.children && child.children.length > 0) {
-                      const subChars = child.children.map(c => c.component).filter(Boolean);
-                      if (subChars.length > 0) {
-                          subPills = `<div class="bp-subcomponents">` + 
-                                     subChars.map(c => `<div class="bp-sub-pill">${c}</div>`).join('') + 
-                                     `</div>`;
-                      }
-                  }
+              const badge = document.createElement('div');
+              badge.className = `rank-sticker ${rankClass}`;
+              badge.textContent = rankText;
+              sheet.appendChild(badge);
+          }
 
-                  cardsHTML += `
-                      <div class="bp-card">
-                          <div class="bp-card-char">${charStr}</div>
-                          ${py ? `<div class="bp-card-py">${py}</div>` : ''}
-                          <div class="bp-card-def" title="${child.meaning || ''}">${def}</div>
-                          ${subPills}
-                      </div>
-                  `;
-              });
+          // 2. THE HERO (Pinyin, Sound Hint, Def)
+          let displayPinyin = charData.pinyin || '';
+          if (charData.chameleon_alert && charData.chameleon_alert.is_polyphone) {
+              const variations = charData.chameleon_alert.pinyin_variations
+                  .map(p => Utils.formatNumberedPinyin(p))
+                  .filter(p => p !== displayPinyin);
+              if (variations.length > 0) {
+                  displayPinyin += ` <span style="color:var(--text-muted); font-size:0.95rem; font-weight:600;">(also: ${variations.join(', ')})</span>`;
+              }
+          }
 
-              html += `
-                  <div>
-                      <div class="bp-section-title">Composition</div>
-                      <div class="blueprint-grid">${cardsHTML}</div>
+          let soundHintHTML = '';
+          if (charData.phonetic_clue && charData.phonetic_clue.has_clue) {
+              const clueChar = charData.phonetic_clue.indicator_component;
+              const cluePy = Utils.formatNumberedPinyin(charData.phonetic_clue.indicator_pinyin);
+              soundHintHTML = `
+                  <div style="font-family: 'Nunito', sans-serif; font-size: 0.9rem; color: var(--text-muted); font-weight: 600; margin-top: 4px;">
+                      Sound hint: 
+                      <span class="interactive-char" onclick="App.handleCharClick(event, '${clueChar}')" style="cursor: pointer; color: var(--primary); font-family: 'twkai', serif; font-size: 1.2rem; margin: 0 2px;">${clueChar}</span> 
+                      (${cluePy})
                   </div>
               `;
           }
+
+          html += `
+              <div class="anatomy-hero-section">
+                  <div class="hero-py">${displayPinyin}</div>
+                  ${soundHintHTML}
+                  <div class="hero-def">${charData.def || ''}</div>
+              </div>
+          `;
+
+          // 3. THE DNA (BENTO COMPONENTS)
+          if (charData.deconstruction_tree && charData.deconstruction_tree.children) {
+              html += `<div class="anatomy-bento-grid">`;
+              
+              charData.deconstruction_tree.children.forEach((child, idx) => {
+                  const charStr = child.component || '?';
+                  const py = Utils.formatNumberedPinyin(Array.isArray(child.pinyin) ? child.pinyin[0] : (child.pinyin || ''));
+                  const def = (child.meaning || '').split(/[,;]/)[0]; 
+                  
+                  const rowId = `appears-row-${char}-${idx}`;
+
+                  let subCharsHTML = '';
+                  if (child.children && child.children.length > 0) {
+                      const lis = child.children.map(c => {
+                          const subC = c.component || '?';
+                          const classSub = subC !== '?' ? 'sub-hz interactive-char' : 'sub-hz';
+                          const clickSubIcon = subC !== '?' ? `onclick="App.handleCharClick(event, '${subC}')"` : '';
+                          const clickSubRow = subC !== '?' ? `onclick="App.updateAppearsIn(event, '${subC}', '${rowId}', '${char}', '${charStr}')"` : '';
+                          
+                          return `
+                              <li class="sub-component-item" ${clickSubRow}>
+                                  <span class="${classSub}" ${clickSubIcon} style="position:relative; z-index:5;">${subC}</span> 
+                                  <span class="sub-def">${(c.meaning || '').split(/[,;]/)[0]}</span>
+                              </li>
+                          `;
+                      }).join('');
+                      subCharsHTML = `<ul class="sub-component-list">${lis}</ul>`;
+                  }
+
+                  const initialRelatedChars = charStr !== '?' ? Object.values(DATA.CHARS)
+                      .filter(c => c.hanzi !== char && c.hanzi !== charStr && c.deconstruction_tree && JSON.stringify(c.deconstruction_tree).includes(`"component":"${charStr}"`))
+                      .map(c => c.hanzi).slice(0, 5) : [];
+
+                  const hasExpandedContent = (child.children && child.children.length > 0) || initialRelatedChars.length > 0;
+                  
+                  let appearsInHTML = '';
+                  if (hasExpandedContent) {
+                      let interactive = `<span style="color:var(--text-muted); font-size: 0.85rem;">None</span>`;
+                      if (initialRelatedChars.length > 0) {
+                          interactive = initialRelatedChars.map(c => `<span class="interactive-char appears-node" onclick="App.handleCharClick(event, '${c}')">${c}</span>`).join('');
+                      }
+                      
+                      appearsInHTML = `
+                          <div class="appears-in-row" id="${rowId}">
+                              <span class="appears-label interactive-char" onclick="App.handleCharClick(event, '${charStr}')" style="cursor:pointer; display:flex; align-items:center; gap:2px; transition:0.2s;" title="Explore ${charStr}">
+                                  in ${charStr} 
+                                  <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg>
+                              </span> 
+                              <div class="appears-list">${interactive}</div>
+                          </div>
+                      `;
+                  }
+
+                  const clickAttr = hasExpandedContent ? `onclick="this.classList.toggle('expanded')"` : '';
+                  
+                  let expandedBodyHTML = '';
+                  if (hasExpandedContent) {
+                      expandedBodyHTML = `
+                          <div class="bento-body-wrapper">
+                              <div class="bento-body-inner">
+                                  ${subCharsHTML}
+                                  ${appearsInHTML}
+                              </div>
+                          </div>`;
+                  }
+
+                  const clickMainIcon = charStr !== '?' ? `onclick="App.handleCharClick(event, '${charStr}')"` : '';
+                  const classMain = charStr !== '?' ? 'bento-icon-hz interactive-char' : 'bento-icon-hz'; 
+
+                  html += `
+                      <div class="bento-node" ${clickAttr} style="${hasExpandedContent ? 'cursor:pointer' : ''}">
+                          <div class="bento-header">
+                              <div class="${classMain}" ${clickMainIcon} style="transition:all 0.2s; position:relative; z-index:5;">${charStr}</div>
+                              <div class="bento-meta">
+                                  <span class="bento-py">${py}</span>
+                                  <span class="bento-def">${def}</span>
+                              </div>
+                              ${hasExpandedContent ? `<div class="bento-chevron"><svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z"/></svg></div>` : '<div style="width:20px;"></div>'}
+                          </div>
+                          ${expandedBodyHTML}
+                      </div>
+                  `;
+              });
+              html += `</div>`; 
+          }
+
       } else {
-          // Fallback if data is missing
-          display.style.display = 'block';
-          display.textContent = char;
-          const fallbackDef = DATA.FALLBACK_DEFS[char] || "No detailed breakdown available yet.";
-          html += `<div style="text-align:center; padding: 20px 0; color: #64748b; font-weight: 600;">${fallbackDef}</div>`;
+          html += `<div style="text-align:center; padding: 20px 0; color: #64748b; font-weight: 600;">${DATA.FALLBACK_DEFS[char] || "No detailed breakdown available yet."}</div>`;
       }
 
-      // 3. MEMORY HOOK (Sleek Theme Override)
+      // 4. MEMORY HOOK 
       let activeHook = charData ? charData.hook : '';
       html += `
-        <div class="bp-hook-box">
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 12px;">
-                <div class="bp-section-title" style="margin:0;">Memory Hook</div>
-                <button class="btn-icon" data-action="edit-hook" data-char="${char}" style="width:32px; height:32px; background:white; color:var(--primary); border:1px solid #e2e8f0; border-radius:8px; display:flex; justify-content:center; align-items:center; cursor:pointer;"><svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg></button>
+        <div class="dna-section-title" style="margin-top:24px;">Your Mnemonics</div>
+        <div class="hook-card">
+            <div id="hook-display-${char}" class="hook-text">
+                ${activeHook ? Utils.createBreakdown(activeHook) : '<span style="color:#cbd5e1;">Tap edit to add a memory hook...</span>'}
             </div>
-            <div id="hook-display-${char}" style="font-family: 'Nunito', sans-serif; font-size:1.05rem; color:#334155; font-style:italic; line-height: 1.5;">
-                ${activeHook ? Utils.createBreakdown(activeHook) : '<span style="color:#cbd5e1; font-size:0.95rem;">Save a custom mnemonic here.</span>'}
-            </div>
-            <div id="hook-editor-${char}" style="display:none; margin-top:16px;">
-                <textarea id="hook-input-${char}" style="width:100%; min-height:80px; padding:12px; font-size:1rem; border-radius:12px; background:white; border:1px solid #cbd5e1; outline:none; font-family: 'Nunito', sans-serif; color:#334155; resize:none; box-sizing:border-box;" placeholder="Enter memory hook...">${activeHook || ''}</textarea>
-                <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:12px;">
-                    <button class="btn-sec" data-action="cancel-edit-hook" data-char="${char}" style="padding:8px 16px; font-size:0.85rem; border:none; background:transparent; color:#64748b; cursor:pointer;">Cancel</button>
-                    <button class="btn-main" data-action="save-hook" data-char="${char}" style="padding:8px 20px; font-size:0.85rem; border-radius:8px; cursor:pointer;">Save Hook</button>
+            <button class="hook-edit-btn" data-action="edit-hook" data-char="${char}">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
+            </button>
+            <div id="hook-editor-${char}" style="display:none; width:100%;">
+                <textarea id="hook-input-${char}" class="hook-textarea" placeholder="Enter memory hook...">${activeHook || ''}</textarea>
+                <div class="hook-actions">
+                    <button class="btn-sec" data-action="cancel-edit-hook" data-char="${char}" style="padding:6px 12px; font-size:0.8rem;">Cancel</button>
+                    <button class="btn-main" data-action="save-hook" data-char="${char}" style="padding:6px 16px; font-size:0.8rem;">Save</button>
                 </div>
             </div>
         </div>
-      </div>`; // Close blueprint-container
+      `;
 
+  // 5. BUTTERY SMOOTH NETWORK UI (Custom Accordions)
+      
+      // A. "Acts as a component in" (Uniform Grid)
+      const buildsChars = this.findRelatedCharacters(char).slice(0, 12);
+
+      if (buildsChars.length > 0) {
+          const gridItems = buildsChars.map((c) => {
+              const py = Utils.formatNumberedPinyin(Array.isArray(c.pinyin) ? c.pinyin[0] : (c.pinyin || ''));
+              const def = (c.def || c.meaning || '').split(/[,;，\/]/)[0].trim(); 
+              
+              return `
+                  <div class="ios17-grid-card interactive-char" onclick="App.handleCharClick(event, '${c.hanzi}')" title="${c.def || ''}">
+                      <div class="grid-py">${py}</div>
+                      <div class="grid-hz">${c.hanzi}</div>
+                      <div class="grid-def">${def}</div>
+                  </div>
+              `;
+          }).join('');
+          
+          html += `
+              <div class="network-accordion expanded">
+                  <div class="network-accordion-header" onclick="this.parentElement.classList.toggle('expanded')">
+                      <span>Acts as a component</span>
+                      <svg class="network-chevron" viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z"/></svg>
+                  </div>
+                  <div class="network-accordion-body">
+                      <div class="network-accordion-inner">
+                          <div class="ios17-component-grid">
+                              ${gridItems}
+                          </div>
+                      </div>
+                  </div>
+              </div>
+          `;
+      }
+
+      // B. "Appears in Vocab" (Inset Grouped List)
+      const relatedVocab = DATA.VOCAB.filter(v => v.hanzi.includes(char) && v.hanzi !== char).slice(0, 8);
+      if (relatedVocab.length > 0) {
+          html += `
+              <div class="network-accordion expanded">
+                  <div class="network-accordion-header" onclick="this.parentElement.classList.toggle('expanded')">
+                      <span>Appears in Vocab</span>
+                      <svg class="network-chevron" viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z"/></svg>
+                  </div>
+                  <div class="network-accordion-body">
+                      <div class="network-accordion-inner">
+                          <div class="ios17-grouped-list">
+          `;
+          
+          relatedVocab.forEach((v) => {
+              const interactiveHanzi = v.hanzi.split('').map(c => {
+                  if (/[\u4e00-\u9fa5]/.test(c)) {
+                      const isTarget = c === char;
+                      const colorStyle = isTarget ? 'color: var(--primary);' : 'color: var(--text-main);';
+                      return `<span class="interactive-char" onclick="App.handleCharClick(event, '${c}')" style="${colorStyle}">${c}</span>`;
+                  }
+                  return c;
+              }).join('');
+              
+              const def = (v.def || '').split(/[,;，\/]/)[0].trim();
+
+              html += `
+                  <div class="ios17-list-item">
+                      <div class="list-hz">${interactiveHanzi}</div>
+                      <div class="list-info">
+                          <span class="list-py">${v.pinyin}</span>
+                          <span class="list-def">${def}</span>
+                      </div>
+                  </div>
+              `;
+          });
+          html += `</div></div></div></div>`;
+      }
+
+      
+
+    
+
+      html += `</div>`; // Close master container
+      
       detail.innerHTML = html;
       link.href = `https://pleco.com/s/${char}`;
 
-      // 4. STROKE ORDER ANIMATION (Kept intact)
+      // STROKE ORDER
       const strokeOrderContainer = document.getElementById('strokeOrderContainer');
       const strokeOrderFallback = document.getElementById('strokeOrderFallback');
       const strokeOrderSpinner = document.getElementById('strokeOrderSpinner');
@@ -603,82 +829,11 @@ handleCharClick(e, char) {
           strokeOrderFallback.classList.add('hidden');
           strokeOrderSpinner.classList.add('hidden');
       }
-
-
-
-      // 5. INITIALIZE VIS.JS NETWORK
-      // We must do this AFTER modal.classList.add('open') so the canvas sizes itself properly!
-      if (charData && charData.deconstruction_tree && charData.deconstruction_tree.children && typeof vis !== 'undefined') {
-          setTimeout(() => {
-              const nodes = [];
-              const edges = [];
-              let nodeIdCounter = 1;
-
-              const parseTree = (node, parentId = null) => {
-                  if (!node) return;
-                  const currentId = nodeIdCounter++;
-                  const charStr = node.component || '?';
-                  const pyRaw = Array.isArray(node.pinyin) ? node.pinyin[0] : (node.pinyin || '');
-                  const py = Utils.formatNumberedPinyin(pyRaw);
-                  const def = (node.meaning || '').split(/[,;]/)[0]; // Use short definition for tooltip
-
-                  const isRoot = parentId === null;
-
-                  nodes.push({
-                      id: currentId,
-                      label: `${charStr}\n${py}`,
-                      title: def, // Tooltip that appears on hover
-                      shape: 'box',
-                      margin: 12,
-                      color: {
-                          background: isRoot ? '#fff0f5' : '#ffffff',
-                          border: isRoot ? '#ff9eb5' : '#cbd5e1',
-                          highlight: { background: '#ffffff', border: '#ff85a2' }
-                      },
-                      font: { face: 'twkai, sans-serif', size: isRoot ? 28 : 18, color: '#887888' },
-                      borderWidth: 2
-                  });
-
-                  if (parentId !== null) {
-                      edges.push({
-                          from: parentId,
-                          to: currentId,
-                          color: { color: '#cbd5e1', highlight: '#ff9eb5' },
-                          width: 2,
-                          arrows: 'to'
-                      });
-                  }
-
-                  if (node.children) {
-                      node.children.forEach(child => parseTree(child, currentId));
-                  }
-              };
-
-              parseTree(charData.deconstruction_tree);
-
-              const container = document.getElementById('anatomyNetwork');
-              const data = { nodes: new vis.DataSet(nodes), edges: new vis.DataSet(edges) };
-              const options = {
-                  layout: {
-                      hierarchical: {
-                          direction: 'UD', // Up to Down tree
-                          sortMethod: 'directed',
-                          nodeSpacing: 120,
-                          levelSeparation: 90
-                      }
-                  },
-                  physics: { enabled: false }, // Disables bouncing so it stays looking like a clean tree
-                  interaction: { dragNodes: true, zoomView: true, dragView: true, hover: true }
-              };
-              
-              new vis.Network(container, data, options);
-          }, 100); // 100ms delay ensures the modal is fully visible before drawing
-      }
   }
-}; 
-
+};
 window.App = App;
 
+// --- THIS GOES AT THE VERY BOTTOM OF APP.JS ---
 const startApp = async () => {
     const loader = document.getElementById('hqLoader');
     const fill = document.getElementById('hqProgressFill');
