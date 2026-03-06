@@ -88,8 +88,9 @@ Object.assign(window.UI, {
             
             ${primaryExample ? `
             <div class="example-section" style="margin-top: 40px; padding-bottom: 40px;">
-            <div class="example-zh">${Utils.createInteractiveSentence(primaryExample.zh, item.hanzi)}</div>                <div class="example-py" style="${App.state.noPinyin ? 'display:none' : ''}">${Utils.convertTones(primaryExample.py)}</div>
-                <div class="example-en" style="${App.state.noTranslation ? 'display:none' : ''}">${primaryExample.en}</div>
+            <div class="example-zh">${Utils.createInteractiveSentence(primaryExample.zh, item.hanzi)}</div>                
+            <div class="example-py" style="${App.state.noPinyin || App.state.noExamplePinyin ? 'display:none' : ''}">${Utils.convertTones(primaryExample.py)}</div>
+            <div class="example-en" style="${App.state.noTranslation ? 'display:none' : ''}">${primaryExample.en}</div>
             </div>
             ` : ''}
         </div>
@@ -99,7 +100,10 @@ Object.assign(window.UI, {
 
   renderSentences(item) {
     this.container.innerHTML = '';
-    const pinyinStyle = App.state.noPinyin ? 'display:none' : 'font-size:1.3rem; margin-bottom:0.5rem';
+    
+    // 🌟 Shrunk the font size to 1.1rem and linked the "Hide Example Pinyin" toggle
+    const pinyinStyle = (App.state.noPinyin || App.state.noExamplePinyin) ? 'display:none' : 'font-size:1.1rem; margin-bottom:0.5rem; font-weight:800; letter-spacing:0.5px;';
+    
     const zhHTML = Utils.createInteractiveSentence(item.zh);
     const html = `
       <div class="card-wrapper relative-center-wrapper fade-in">
@@ -126,7 +130,7 @@ Object.assign(window.UI, {
     this.container.innerHTML = html;
   },
 
-renderQuiz(item) {
+  renderQuiz(item) {
     const isTrans = App.state.quizType === 'translate';
     const isDefOnly = !isTrans && App.state.quizDefOnly;
 
@@ -140,8 +144,6 @@ renderQuiz(item) {
     } else { 
         prompt = Utils.createInteractiveHanzi(item.hanzi, false);
         promptLabel = 'Type Pinyin';
-        
-        // Sane font size for the Chinese characters on the front
         fontStyle = 'clamp(3rem, 15vw, 6rem)'; 
         fontFam = "";
     }
@@ -185,11 +187,8 @@ renderQuiz(item) {
       const hanzi = Utils.createInteractiveHanzi(item.hanzi || item.zh, false);
       const def = item.def || item.en;
       
-      // Clean, elegant colors for the text
       const themeColor = isCorrect ? '#10b981' : '#f43f5e';
       
-      // THE FIX: Removed the "Oops/Awesome" boxes entirely.
-      // Replaced with a beautifully clean, minimalist layout.
       cardBack.innerHTML = `
           <div class="face-content vocab-content" style="justify-content: center;">
               <div class="card-center-layout">
@@ -228,33 +227,32 @@ renderQuiz(item) {
     input.focus();
   },
 
- renderList() {
+  renderList() {
     if (!document.getElementById('listContent')) {
         const html = `
-          <div class="list-view-container list-view fade-in" style="padding: 0; background: transparent;">
-            
-            <div class="hq-search-container">
-                <div class="hq-search-wrapper">
-                    <svg class="hq-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                        <circle cx="11" cy="11" r="8"></circle>
-                        <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-                    </svg>
-                    
-                    <input type="text" id="listSearch" class="hq-search-input" placeholder="Search Hanzi, Pinyin or English..." autocomplete="off">
-                    
-                    <button id="listSearchClear" class="hq-search-clear" title="Clear Search">
-                        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
-                            <line x1="18" y1="6" x2="6" y2="18"></line>
-                            <line x1="6" y1="6" x2="18" y2="18"></line>
-                        </svg>
-                    </button>
-                </div>
-            </div>
+          <div class="list-view fade-in" style="display: flex; flex-direction: column; width: 100%; height: 100%; padding-bottom: 20px;">
+              
+              <div class="prof-list-board">
+                  
+                  <div class="prof-search-header">
+                      <div class="prof-search-wrapper">
+                          <svg class="prof-search-icon" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                              <circle cx="11" cy="11" r="8"></circle>
+                              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                          </svg>
+                          <input type="text" id="listSearch" class="prof-search-input" placeholder="Search dictionary..." autocomplete="off">
+                          <button id="listSearchClear" class="prof-search-clear" style="display: none;">
+                              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                                  <line x1="18" y1="6" x2="6" y2="18"></line>
+                                  <line x1="6" y1="6" x2="18" y2="18"></line>
+                              </svg>
+                          </button>
+                      </div>
+                  </div>
 
-            <div class="list-content list-scroll-area" id="listContent">
-                <div id="listSpacer" class="list-spacer"></div>
-                <div id="listItemsContainer" class="list-items-wrapper"></div>
-            </div>
+                  <div id="listItemsContainer" class="prof-list-scroll"></div>
+
+              </div>
           </div>
         `;
         this.container.innerHTML = html;
@@ -263,387 +261,129 @@ renderQuiz(item) {
         const clearBtn = document.getElementById('listSearchClear');
         let debounceTimer;
 
-        // Listen for typing to animate the Clear button
         searchInput.addEventListener('input', (e) => {
           const val = e.target.value;
-          
-          if (val.length > 0) {
-              clearBtn.classList.add('visible');
-          } else {
-              clearBtn.classList.remove('visible');
-          }
+          clearBtn.style.display = val.length > 0 ? 'flex' : 'none';
 
           clearTimeout(debounceTimer);
           debounceTimer = setTimeout(() => {
               const term = Utils.normalizeSearch(val);
               const filtered = App.state.activeList.filter(i => i.searchKey && i.searchKey.includes(term));
               this.populateList(filtered);
-          }, 300);
+          }, 200);
         });
 
-        // Clear button logic
         clearBtn.addEventListener('click', () => {
             if (window.Sound) window.Sound.play('click');
             searchInput.value = '';
-            clearBtn.classList.remove('visible');
-            searchInput.focus(); // Keep the glow active!
+            clearBtn.style.display = 'none';
+            searchInput.focus(); 
             this.populateList(App.state.activeList);
-        });
-
-        document.getElementById('listContent').addEventListener('scroll', () => {
-            this.updateVirtualList();
         });
     }
     
     this.populateList(App.state.activeList);
   },
 
-  renderBuilder(item) {
-    this.container.innerHTML = '';
+  populateList(items) {
+    const containerEl = document.getElementById('listItemsContainer');
+    if (!containerEl) return;
     
-    // 1. Intelligently split the sentence into actual words!
-    let targetWords = [];
-    if (window.Intl && Intl.Segmenter) {
-        // Use the native language engine to understand Chinese grammar boundaries
-        const segmenter = new Intl.Segmenter('zh-TW', { granularity: 'word' });
-        const segments = Array.from(segmenter.segment(item.zh));
-        
-        // isWordLike automatically drops commas, periods, question marks, and spaces!
-        targetWords = segments.filter(s => s.isWordLike).map(s => s.segment);
-    } else {
-        // Fallback for older browsers: just strip punctuation and split by character
-        targetWords = item.zh.replace(/[，。！？、；：“”‘’（）《》〈〉【】\s]/g, '').split('');
-    }
+    containerEl.innerHTML = ''; 
     
-    // The final string we need to match (without punctuation)
-    const targetStr = targetWords.join('');
-
-    // 2. Initialize the tokens state if starting fresh
-    if (!App.state.builderTokens.length) {
-        App.state.builderTokens = targetWords.map((w, i) => ({ id: i, char: w }));
-        // Shuffle the words
-        App.state.builderTokens.sort(() => Math.random() - 0.5);
-        App.state.builderAnswer = [];
+    if (!items || items.length === 0) {
+        containerEl.innerHTML = `<div style="text-align:center; padding: 60px 20px; color: #94a3b8; font-family: 'Nunito', sans-serif; font-weight: 600;">No items found.</div>`;
+        return;
     }
 
-    const html = `
-      <div class="builder-container builder-scroll-wrapper fade-in">
-        <div class="builder-prompt">
-          <div class="builder-subtitle">Translate this</div>
-          ${item.en}
-        </div>
-        <div class="answer-area" id="builderAnswer">
-          ${App.state.builderAnswer.length === 0 ? '<span class="placeholder-text">Tap words below</span>' : ''}
-        </div>
-        <div class="word-bank" id="builderBank"></div>
-        <div class="builder-action-row">
-           <button class="btn-sec" id="clearBtn">Clear</button>
-           <button class="btn-sec" id="hintBtn">Hint</button>
-        </div>
-        <div id="builderFeedback" class="builder-feedback-row"></div>
-      </div>
-    `;
-    this.container.innerHTML = html;
+    const CHUNK_SIZE = 30; 
+    let index = 0;
 
-    const bankEl = document.getElementById('builderBank');
-    const answerEl = document.getElementById('builderAnswer');
-    
-    document.getElementById('clearBtn').onclick = () => {
-        App.state.builderAnswer = [];
-        this.renderBuilder(item);
-    };
+    const renderChunk = () => {
+        if (!document.getElementById('listItemsContainer')) return; 
 
-    document.getElementById('hintBtn').onclick = () => {
-        // Solve it instantly by sorting IDs back to their original sequence
-        App.state.builderAnswer = [...App.state.builderTokens].sort((a, b) => a.id - b.id);
-        this.renderBuilder(item);
+        const fragment = document.createDocumentFragment();
+        const end = Math.min(index + CHUNK_SIZE, items.length);
         
-        document.getElementById('builderAnswer').classList.add('correct');
-        Sound.play('correct');
-        this.celebrate();
-        
-        const hintBtn = document.getElementById('hintBtn');
-        hintBtn.textContent = 'Next';
-        hintBtn.classList.replace('btn-sec', 'btn-main');
-        hintBtn.onclick = () => setTimeout(() => App.next(), 300);
-    };
+        for (; index < end; index++) {
+            const item = items[index];
+            const hz = item.hanzi || item.zh;
+            const py = item.pinyin || item.py;
+            const en = item.def || item.en;
+            const isSentence = !!item.zh;
+            const hzHTML = Utils.createInteractiveHanzi(hz);
+            
+            const bookColor = window.Utils && Utils.getBookColor ? Utils.getBookColor(item.book) : '#ec4899';
+            const bookBg = window.Utils && Utils.getBookBg ? Utils.getBookBg(item.book) : '#fce7f3';
 
-    const checkAnswer = () => {
-        // Compare the current blocks against the punctuation-free target
-        const currentStr = App.state.builderAnswer.map(t => t.char).join('');
-        if (currentStr.length > 0 && currentStr.length === targetStr.length) {
-           if (currentStr === targetStr) {
-             answerEl.classList.add('correct');
-             document.getElementById('builderFeedback').innerHTML = '<span class="status-correct" style="color:#10b981; font-weight:800;">Perfect! 🎉</span>';
-             Sound.play('correct');
-             this.celebrate();
-             
-             const hintBtn = document.getElementById('hintBtn');
-             hintBtn.textContent = 'Next';
-             hintBtn.classList.replace('btn-sec', 'btn-main');
-             hintBtn.onclick = () => setTimeout(() => App.next(), 300);
-           } else {
-             answerEl.classList.add('wrong');
-             Sound.play('wrong');
-             setTimeout(() => answerEl.classList.remove('wrong'), 500);
-           }
+            const el = document.createElement('div');
+            el.className = 'prof-list-row fade-in'; 
+            
+            el.onclick = (e) => {
+                if (window.App && App.handleCharClick) {
+                    App.handleCharClick(e, hz, py, en);
+                }
+            };
+
+            // 🌟 Linked "Hide Example Pinyin" to the sentences in the dictionary list!
+            const pyDisplay = (App.state.noPinyin || (isSentence && App.state.noExamplePinyin)) ? 'display:none;' : '';
+
+            if (isSentence) {
+                el.innerHTML = `
+                    <div class="prof-row-content">
+                        <div class="prof-hz-sentence">${hzHTML}</div>
+                        <div class="prof-py" style="${pyDisplay} color: ${bookColor};">${Utils.colorPinyin(py)}</div>
+                        <div class="prof-en">${en}</div>
+                    </div>
+                    <div class="prof-tag" style="color: ${bookColor}; background: ${bookBg}; align-self: flex-start;">B${item.book} L${item.lesson}</div>
+                `;
+            } else {
+                el.innerHTML = `
+                    <div class="prof-hz-large">${hzHTML}</div>
+                    <div class="prof-row-content" style="border-left: 2px solid rgba(0,0,0,0.03); padding-left: 16px; margin-left: 4px;">
+                        <div class="prof-py" style="${pyDisplay}">${Utils.colorPinyin(py)}</div>
+                        <div class="prof-en">${en}</div>
+                    </div>
+                    <div class="prof-tag" style="color: ${bookColor}; background: ${bookBg};">B${item.book} L${item.lesson}</div>
+                `;
+            }
+            fragment.appendChild(el);
+        }
+        containerEl.appendChild(fragment);
+
+        if (index < items.length) {
+            requestAnimationFrame(renderChunk);
         }
     };
 
-    // Helper to generate a chip inside the answer box
-    const createAnswerChip = (token) => {
-        const ansChip = document.createElement('div');
-        ansChip.className = 'word-chip in-answer';
-        ansChip.textContent = token.char;
-        
-        ansChip.onclick = () => {
-           Sound.play('click');
-           const idx = App.state.builderAnswer.findIndex(t => t.id === token.id);
-           if (idx > -1) App.state.builderAnswer.splice(idx, 1);
-           
-           ansChip.remove();
-           const bankChip = bankEl.querySelector(`.word-chip[data-id="${token.id}"]`);
-           if(bankChip) bankChip.classList.remove('used');
-           
-           if (App.state.builderAnswer.length === 0) {
-               answerEl.innerHTML = '<span class="placeholder-text">Tap words below</span>';
-           }
-        };
-        return ansChip;
-    };
+    requestAnimationFrame(renderChunk);
+  },
 
-    // Render the draggable words in the bottom bank
-    App.state.builderTokens.forEach(token => {
-      const chip = document.createElement('div');
-      chip.className = 'word-chip';
-      chip.textContent = token.char;
-      chip.dataset.id = token.id;
-      
-      // Hide from bank if already in the answer area
-      if (App.state.builderAnswer.some(t => t.id === token.id)) chip.classList.add('used');
-      
-      chip.onclick = () => {
-        Sound.play('click');
-        const ph = answerEl.querySelector('.placeholder-text');
-        if (ph) ph.remove();
-
-        App.state.builderAnswer.push(token);
-        chip.classList.add('used');
-        
-        const ansChip = createAnswerChip(token);
-        answerEl.appendChild(ansChip);
-        checkAnswer();
-      };
-      bankEl.appendChild(chip);
-    });
-    
-    // Render any words currently in the answer box
-    if (App.state.builderAnswer.length > 0) {
-         App.state.builderAnswer.forEach(token => {
-             const ansChip = createAnswerChip(token);
-             answerEl.appendChild(ansChip);
-         });
-    }
+  renderBuilder(item) {
+    this.container.innerHTML = `
+      <div class="unstable-screen fade-in">
+        <div class="unstable-icon">🚧🥺🚧</div>
+        <h2 class="unstable-title">Under Construction</h2>
+        <p class="unstable-text">The Sentence Builder is currently undergoing maintenance and is a bit unstable right now.<br><br>Check back soon!</p>
+        <button class="btn-main" onclick="App.setMode('study')" style="margin-top: 24px; box-shadow: 0 8px 20px rgba(236, 72, 153, 0.3);">Go back to safety</button>
+      </div>
+    `;
+    return; 
   },
 
   renderListening(item) {
-    if (!item) return;
-
-    // 1. Generate 3 random distractors
-    let pool = App.state.activeList.length > 3 ? App.state.activeList : DATA.VOCAB;
-    let choices = [item];
-    let attempts = 0;
-    
-    while(choices.length < 4 && attempts < 50) {
-        let rand = pool[Math.floor(Math.random() * pool.length)];
-        // Ensure no duplicates
-        if (!choices.some(c => c.hanzi === rand.hanzi || c.en === rand.en)) {
-            choices.push(rand);
-        }
-        attempts++;
-    }
-    
-    // Shuffle options
-    choices.sort(() => Math.random() - 0.5);
-
-    // 2. Build the HTML Interface
-    const html = `
-      <div class="listen-master-wrapper fade-in">
-        
-        <div style="text-align: center; margin-top: 10px;">
-            <div style="font-family: 'Nunito', sans-serif; font-size: 0.9rem; font-weight: 800; color: var(--primary); text-transform: uppercase; letter-spacing: 2px; margin-bottom: 6px;">Listening Test</div>
-            <div style="font-family: 'Nunito', sans-serif; font-size: 1.2rem; font-weight: 700; color: var(--text-muted);">What did you hear?</div>
-        </div>
-
-        <div id="sonarContainer" class="sonar-container">
-            <div class="sonar-ring"></div>
-            <div class="sonar-ring"></div>
-            <div class="sonar-ring"></div>
-            <div id="sonarOrb" class="sonar-orb" title="Play Audio">
-                <svg viewBox="0 0 24 24" width="36" height="36" fill="currentColor">
-                    <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/>
-                </svg>
-            </div>
-        </div>
-
-        <div id="listenOptionsGrid" class="listen-options-grid">
-            ${choices.map((choice, i) => `
-                <div class="listen-option-card" data-id="${choice.id || choice.hanzi}" style="transition-delay: ${i * 0.08}s">
-                    <div class="listen-opt-main">${App.state.listeningHard ? '?' : choice.hanzi}</div>
-                    <div class="listen-opt-sub">${choice.en}</div>
-                </div>
-            `).join('')}
-        </div>
-        
+    this.container.innerHTML = `
+      <div class="unstable-screen fade-in">
+        <div class="unstable-icon">🎧🛠️🥺</div>
+        <h2 class="unstable-title">Tuning the Audio!</h2>
+        <p class="unstable-text">The Listening Test is currently unstable and getting a tune-up.<br><br>Check back later!</p>
+        <button class="btn-main" onclick="App.setMode('study')" style="margin-top: 24px; box-shadow: 0 8px 20px rgba(236, 72, 153, 0.3);">Go back to safety</button>
       </div>
     `;
-    this.container.innerHTML = html;
-
-    const sonarContainer = document.getElementById('sonarContainer');
-    const sonarOrb = document.getElementById('sonarOrb');
-    const grid = document.getElementById('listenOptionsGrid');
-    const cards = document.querySelectorAll('.listen-option-card');
-
-    // 3. Trigger staggered entrance animation
-    setTimeout(() => {
-        cards.forEach(card => card.classList.add('animate-in'));
-    }, 50);
-
-    // 4. TTS Audio Logic (Syncs with the Sonar Rings!)
-    const playAudio = () => {
-        if (!window.speechSynthesis) return;
-        window.speechSynthesis.cancel(); // kill previous
-
-        const msg = new SpeechSynthesisUtterance(item.hanzi || item.zh);
-        msg.lang = 'zh-TW';
-        msg.rate = App.state.ttsRate || 0.8;
-        
-        // Turn on rings
-        sonarContainer.classList.add('is-playing');
-        
-        // Turn off rings when done
-        msg.onend = () => sonarContainer.classList.remove('is-playing');
-        msg.onerror = () => sonarContainer.classList.remove('is-playing');
-        
-        window.speechSynthesis.speak(msg);
-    };
-
-    // Auto-play on load
-    setTimeout(playAudio, 300);
-
-    // Re-play on tapping the orb
-    sonarOrb.addEventListener('click', () => {
-        if (window.Sound) Sound.play('click');
-        playAudio();
-    });
-
-    // 5. Option Selection Logic
-    cards.forEach(card => {
-        card.addEventListener('click', function() {
-            if (grid.classList.contains('has-selection')) return; // Prevent double taps
-
-            const selectedId = this.getAttribute('data-id');
-            const correctId = String(item.id || item.hanzi);
-
-            if (selectedId === correctId) {
-                // CORRECT
-                if (window.Sound) Sound.play('correct');
-                this.classList.add('state-correct');
-                grid.classList.add('has-selection');
-                window.speechSynthesis.cancel(); // Stop talking if they got it right
-                
-                UI.celebrate(); // Fire confetti!
-
-                setTimeout(() => App.next(), 1000);
-            } else {
-                // WRONG
-                if (window.Sound) Sound.play('wrong');
-                this.classList.add('state-wrong');
-                
-                // Track mistake if not already tracked
-                if (!App.state.sessionMistakes.includes(item.hanzi)) {
-                    App.state.sessionMistakes.push(item.hanzi);
-                }
-
-                // Remove red shake after animation so they can try again
-                setTimeout(() => {
-                    this.classList.remove('state-wrong');
-                }, 500);
-            }
-        });
-    });
+    return;
   },
 
-  populateList(items) {
-    this.currentListItems = items;
-    this._lastListStart = -1; // Reset our new cache
-    this._lastListEnd = -1;
-    const container = document.getElementById('listContent');
-    if (container) container.scrollTop = 0;
-    this.updateVirtualList();
-  },
-
- updateVirtualList() {
-    const container = document.getElementById('listContent');
-    const spacer = document.getElementById('listSpacer');
-    const itemsContainer = document.getElementById('listItemsContainer');
-    const items = this.currentListItems;
-    
-    if (!container || !itemsContainer || !items) return;
-
-    const itemHeight = 94; 
-    const scrollTop = container.scrollTop;
-    const containerHeight = container.clientHeight;
-
-    spacer.style.height = `${items.length * itemHeight}px`;
-
-    let start = Math.floor(scrollTop / itemHeight) - 3;
-    let end = Math.ceil((scrollTop + containerHeight) / itemHeight) + 3;
-    
-    start = Math.max(0, start);
-    end = Math.min(items.length, end);
-
-    if (this._lastListStart === start && this._lastListEnd === end) return;
-    this._lastListStart = start;
-    this._lastListEnd = end;
-
-    itemsContainer.style.transform = `translateY(${start * itemHeight}px)`;
-
-    const pinyinStyle = App.state.noPinyin ? 'display:none' : '';
-    const visibleItems = items.slice(start, end);
-
-    itemsContainer.innerHTML = visibleItems.map(item => {
-        const hz = item.hanzi || item.zh;
-        const py = item.pinyin || item.py;
-        const en = item.def || item.en;
-        const isSentence = !!item.zh;
-        const hzHTML = Utils.createInteractiveHanzi(hz);
-        
-        const bookColor = Utils.getBookColor(item.book);
-        const bookBg = Utils.getBookBg(item.book);
-
-        // THE FIX: Added 'animation: none !important;' and 'opacity: 1 !important;' to force it to stop fading!
-        return `
-            <div class="list-item" style="background: #ffffff; border: 1px solid #eef2f7; border-radius: 16px; padding: 10px 12px; margin-bottom: 8px; display: flex; align-items: center; gap: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.02); border-left: 4px solid ${bookColor}; animation: none !important; transition: none !important; opacity: 1 !important;">
-                ${isSentence ? `
-                    <div class="list-info" style="flex: 1;">
-                        <div class="list-item-sentence-hz" style="font-size: 1.05rem; margin-bottom: 3px;">${hzHTML}</div>
-                        <div class="list-pinyin" style="${pinyinStyle} font-family: 'Nunito', sans-serif; font-weight: 700; color: ${bookColor}; margin-bottom: 2px; font-size: 0.82rem;">${Utils.colorPinyin(py)}</div>
-                        <div class="list-def list-item-sentence-en" style="font-family: 'Nunito', sans-serif; font-size: 0.8rem; color: #64748b; line-height: 1.25;">${en}</div>
-                    </div>
-                ` : `
-                    <div class="list-hanzi" style="font-family: 'twkai', 'Noto Serif TC', serif !important; font-size: 2rem; min-width: 44px; text-align: center; color: var(--text-main);">${hzHTML}</div>
-                    <div class="list-info" style="flex: 1;">
-                        <div class="list-pinyin" style="${pinyinStyle} font-family: 'Nunito', sans-serif; font-weight: 800; color: ${bookColor}; font-size: 0.88rem; margin-bottom: 2px;">${Utils.colorPinyin(py)}</div>
-                        <div class="list-def" style="font-family: 'Nunito', sans-serif; font-size: 0.8rem; color: #64748b; font-weight: 600; line-height: 1.25;">${en}</div>
-                    </div>
-                `}
-                <div style="font-family: 'Nunito', sans-serif; font-size: 0.66rem; font-weight: 800; color: ${bookColor}; background: ${bookBg}; padding: 4px 7px; border-radius: 8px; white-space: nowrap;">B${item.book} L${item.lesson}</div>
-            </div>
-        `;
-    }).join('');
-  },
-renderWriting(item) {
+  renderWriting(item) {
     if (this._lastWritingItemId !== item.id) {
         this._lastWritingItemId = item.id;
         App.state.writingCharIndex = 0;
@@ -861,7 +601,6 @@ renderWriting(item) {
         successView.style.display = 'none';
         successView.innerHTML = '';
         
-        // CLEANUP: Reset back to absolute but clear any transform so we start fresh
         successView.style.position = 'absolute';
         successView.style.transform = 'none';
         successView.style.height = 'auto';
@@ -971,12 +710,8 @@ renderWriting(item) {
                     if (headerToggle) headerToggle.style.opacity = '0';
                     
                     setTimeout(() => {
-                        // KEEPS THE CANVAS PROPPING UP THE HEIGHT
                         targetEl.style.visibility = 'hidden';
                         
-                        // PERFECT GEOMETRIC CENTERING
-                        // This pins the exact middle of the success view 
-                        // to the exact middle of the practice card.
                         successView.style.position = 'absolute';
                         successView.style.top = '50%';
                         successView.style.left = '50%';
@@ -1049,4 +784,5 @@ renderWriting(item) {
             outlineToggle.classList.remove('active');
         }
     };
-}})
+  }
+});

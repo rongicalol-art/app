@@ -10,6 +10,8 @@ window.App = null;
 
 const App = {
   state: {
+    charHistory: [],
+    currentCharModal: null,
     mode: 'study',
     bookFilter: '1',
     lessonFilter: ['All'],
@@ -28,6 +30,7 @@ const App = {
     listeningHard: false,
     listeningToneTest: false,
     writingShowOutline: true,
+    writingFullscreen: true,
     activeList: [],
     showHooks: true,
     builderTokens: [],
@@ -70,7 +73,6 @@ const App = {
   },
 
   async importData() {
-    // 1. Process Characters
     if (window.CHARS_DATA) {
         if (!Array.isArray(window.CHARS_DATA)) {
             for (const [hanzi, charData] of Object.entries(window.CHARS_DATA)) {
@@ -88,7 +90,6 @@ const App = {
         }
     }
 
-    // 2. Process Vocab
     const vocabMap = new Map();
     (window.new_vocab || []).forEach(v => {
         const hanzi = v.word || v.hanzi;
@@ -109,7 +110,6 @@ const App = {
     });
     DATA.VOCAB = Array.from(vocabMap.values());
 
-    // 3. Process Sentences
     DATA.SENTENCES = [];
     DATA.SENTENCES_BY_LESSON = {};
     (window.sentences || []).forEach(s => {
@@ -132,7 +132,6 @@ const App = {
         DATA.SENTENCES_BY_LESSON[key].push(entry);
     });
 
-    // 4. Load Custom Hooks
     const userHooks = JSON.parse(localStorage.getItem('fc_user_hooks') || '{}');
     Object.keys(userHooks).forEach(char => {
         if (DATA.CHARS[char]) {
@@ -475,7 +474,6 @@ const App = {
       });
   },
 
-  // 1. UPDATED HELPER: Removed the highlight from the main component
   updateAppearsIn(e, searchChar, rowId, heroChar, mainComponent) {
       if (e) e.stopPropagation(); 
       
@@ -485,7 +483,6 @@ const App = {
       const bentoNode = row.closest('.bento-node');
       let targetChar = searchChar;
 
-      // Toggle logic: If we clicked the already-active sub-component, revert to the main component!
       if (e && e.currentTarget && e.currentTarget.classList.contains('active-preview') && searchChar !== mainComponent) {
           targetChar = mainComponent;
       }
@@ -509,46 +506,201 @@ const App = {
 
       if (bentoNode) {
           bentoNode.classList.add('expanded'); 
-          // Clear all highlights
           bentoNode.querySelectorAll('.sub-component-item, .bento-icon-hz').forEach(el => {
               el.classList.remove('active-preview');
           });
           
-          // Apply highlight ONLY to sub-components, never the main component
           if (targetChar !== mainComponent && e && e.currentTarget) {
               e.currentTarget.classList.add('active-preview');
           }
       }
   },
 
-  // 2. UPDATED CLICK HANDLER: Master integration of all iOS UI components
-  handleCharClick(e, char) {
+  goBackChar(e) {
+      if (e) e.stopPropagation();
+      if (this.state.charHistory.length > 0) {
+          const prevChar = this.state.charHistory.pop();
+          // Call the click handler with the 'isBackNavigation' flag set to true
+          this.handleCharClick(null, prevChar, '', '', true);
+      }
+  },
+
+  handleCharClick(e, char, fallbackPy = '', fallbackDef = '', isBackNavigation = false) {
       if (e) e.stopPropagation(); 
+      
       const modal = document.getElementById('charModal');
+      const wasOpen = modal ? modal.classList.contains('open') : false;
+      
+      // 🌟 HISTORY TRACKING LOGIC
+      if (!wasOpen) {
+          // If opening fresh, reset history
+          this.state.charHistory = [];
+      } else if (!isBackNavigation && this.state.currentCharModal && this.state.currentCharModal !== char) {
+          // If already open and diving deeper, push current to history
+          this.state.charHistory.push(this.state.currentCharModal);
+      }
+      this.state.currentCharModal = char;
+
       if (modal) modal.classList.add('open'); 
+
+      // 🌟 SCROLL TO TOP LOGIC
+      const modalContent = document.getElementById('charModalContent');
+      if (modalContent) modalContent.scrollTop = 0;
+      
+      // 🌟 DYNAMIC BACK BUTTON INJECTION
+      if (modalContent) {
+          const modalHeader = modalContent.querySelector('h3');
+          if (modalHeader) {
+              if (this.state.charHistory.length > 0) {
+                  modalHeader.innerHTML = `
+                      <div style="display:flex; justify-content:space-between; align-items:center; width:100%; margin-top: -6px;">
+                          <button style="background:rgba(255,158,181,0.15); border:none; padding:6px 12px; border-radius:12px; cursor:pointer; color:var(--primary-dark); display:flex; align-items:center; gap:4px; font-family:'Nunito', sans-serif; font-weight:800; font-size:0.9rem; transition:transform 0.2s;" onclick="App.goBackChar(event)" onmousedown="this.style.transform='scale(0.95)'" onmouseup="this.style.transform='scale(1)'">
+                              <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M15.41 16.59L10.83 12l4.58-4.59L14 6l-6 6 6 6 1.41-1.41z"/></svg> Back
+                          </button>
+                          <span style="color:var(--text-muted); font-size:0.8rem; text-transform:uppercase; letter-spacing:1px; font-weight:800;">Lookup</span>
+                      </div>
+                  `;
+              } else {
+                  modalHeader.innerHTML = 'Character Lookup';
+              }
+          }
+      }
 
       const display = document.getElementById('charDisplay');
       const detail = document.getElementById('charDetail');
       const relatedContainer = document.getElementById('charRelated');
       const link = document.getElementById('charLink');
+      const strokeOrderContainer = document.getElementById('strokeOrderContainer');
+      const strokeOrderFallback = document.getElementById('strokeOrderFallback');
+      const strokeOrderSpinner = document.getElementById('strokeOrderSpinner');
       
-      const charData = DATA.CHARS[char];
-
       display.style.display = 'none'; 
       relatedContainer.innerHTML = '';
       
+      // ✨ FIX: MULTI-CHARACTER WORD CHECK
+      // Check if the string has more than 1 Chinese character
+      const hanziChars = char.match(/[\u4e00-\u9fa5]/g) || [];
+      
+      if (hanziChars.length > 1) {
+          // This is a WORD, not a single character. Break it down!
+          const vocabMatch = DATA.VOCAB.find(v => v.hanzi === char);
+          const pinyin = vocabMatch ? vocabMatch.pinyin : fallbackPy || '---';
+          const def = vocabMatch ? vocabMatch.def : fallbackDef || '---';
+          
+          let html = `<div class="anatomy-master-container">`;
+          
+          // Hero Section for the Word
+          html += `
+              <div class="anatomy-hero-section">
+                  <div class="hero-py">${pinyin}</div>
+                  <div class="hero-def">${def}</div>
+              </div>
+          `;
+
+          // Book/Lesson Banner for the Word
+          if (vocabMatch) {
+              const bColor = window.Utils && window.Utils.getBookColor ? Utils.getBookColor(vocabMatch.book) : '#ec4899';
+              const bBg = window.Utils && window.Utils.getBookBg ? Utils.getBookBg(vocabMatch.book) : '#fce7f3';
+              html += `
+                  <div class="standalone-banner" style="border-left: 4px solid ${bColor}; background: ${bBg}60; border-radius: 0 12px 12px 0; padding: 10px 16px; margin: 0 0 20px 0; display: flex; align-items: center; justify-content: space-between; gap: 12px;">
+                      <div style="display: flex; flex-direction: column; text-align: left; flex: 1; min-width: 0;">
+                          <span style="font-family: 'Nunito', sans-serif; font-size: 0.65rem; font-weight: 800; color: ${bColor}; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 2px;">Word Details</span>
+                          <span style="font-family: 'Nunito', sans-serif; font-size: 0.95rem; font-weight: 700; color: var(--text-main); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${vocabMatch.def}</span>
+                      </div>
+                      <div style="background: white; border: 1px solid ${bColor}40; color: ${bColor}; padding: 4px 8px; border-radius: 8px; font-family: 'Nunito', sans-serif; font-weight: 800; font-size: 0.75rem; white-space: nowrap; box-shadow: 0 2px 4px rgba(0,0,0,0.02);">
+                          B${vocabMatch.book} L${vocabMatch.lesson}
+                      </div>
+                  </div>
+              `;
+          }
+
+          // Individual Characters Grid
+          html += `<div class="dna-section-title" style="margin-top:20px;">Characters in this word</div>`;
+          html += `<div class="ios17-component-grid">`;
+          
+          hanziChars.forEach(c => {
+              const charData = DATA.CHARS[c];
+              const cPy = charData ? Utils.formatNumberedPinyin(Array.isArray(charData.pinyin) ? charData.pinyin[0] : (charData.pinyin || '')) : '---';
+              const cDef = charData ? (charData.def || '').split(/[,;]/)[0] : '---';
+              
+              html += `
+                  <div class="ios17-grid-card interactive-char" onclick="App.handleCharClick(event, '${c}')" title="Explore ${c}">
+                      <div class="grid-py">${cPy}</div>
+                      <div class="grid-hz">${c}</div>
+                      <div class="grid-def">${cDef}</div>
+                  </div>
+              `;
+          });
+          
+          html += `</div></div>`;
+          
+          detail.innerHTML = html;
+          link.href = `https://hanzicraft.com/character/${char}`;
+          
+          // Disable stroke order animation for multi-character words
+          if(strokeOrderContainer) strokeOrderContainer.style.display = 'none';
+          if(strokeOrderSpinner) strokeOrderSpinner.classList.add('hidden');
+          if(strokeOrderFallback) {
+              strokeOrderFallback.classList.remove('hidden');
+              strokeOrderFallback.innerHTML = `<div class="static-fallback-char" style="font-size: clamp(3rem, 15vw, 5rem); letter-spacing: 5px;">${char}</div>`;
+          }
+          return; // Exit early since we rendered a word
+      }
+
+      // --- SINGLE CHARACTER LOGIC (Continues exactly as before) ---
+      let charData = DATA.CHARS[char];
+      let isFallback = false;
+
+      if (!charData) {
+          isFallback = true;
+          let foundTree = null;
+          
+          const findTree = (node, target) => {
+              if (!node) return null;
+              if (node.component === target && node.children && node.children.length > 0) return node;
+              if (node.children) {
+                  for (let child of node.children) {
+                      const res = findTree(child, target);
+                      if (res) return res;
+                  }
+              }
+              return null;
+          };
+
+          for (let k in DATA.CHARS) {
+              let tree = DATA.CHARS[k].deconstruction_tree;
+              foundTree = findTree(tree, char);
+              if (foundTree) break;
+          }
+
+          let finalPy = fallbackPy;
+          let finalDef = fallbackDef;
+          
+          if (foundTree && (!finalPy || finalPy === '---')) {
+              finalPy = Utils.formatNumberedPinyin(Array.isArray(foundTree.pinyin) ? foundTree.pinyin[0] : (foundTree.pinyin || ''));
+          }
+          if (foundTree && (!finalDef || finalDef === '---')) {
+              finalDef = (foundTree.meaning || '').split(/[,;]/)[0];
+          }
+
+          const vocabMatch = DATA.VOCAB.find(v => v.hanzi === char);
+          charData = {
+              hanzi: char,
+              pinyin: vocabMatch ? vocabMatch.pinyin : (finalPy || '---'),
+              def: vocabMatch ? vocabMatch.def : (finalDef || DATA.FALLBACK_DEFS[char] || "Component / Radical"),
+              isGeneratedFallback: true,
+              deconstruction_tree: foundTree
+          };
+      }
+      
       let html = `<div class="anatomy-master-container">`;
 
-      // Clean up any existing sticker from previous opens
       const sheet = detail.closest('.modal-sheet');
       if (sheet) {
           const oldBadge = sheet.querySelector('.rank-sticker');
           if (oldBadge) oldBadge.remove();
-      }
-
-      if (charData) {
-          // 1. STICKER RANK BADGE (Injected into sheet, not scrollable content)
-          if (charData.street_utility && charData.street_utility.frequency_rank && sheet) {
+          
+          if (charData.street_utility && charData.street_utility.frequency_rank) {
               const rank = charData.street_utility.frequency_rank;
               let rankText = "Rare";
               let rankClass = "rank-rare";
@@ -562,130 +714,205 @@ const App = {
               badge.textContent = rankText;
               sheet.appendChild(badge);
           }
+      }
 
-          // 2. THE HERO (Pinyin, Sound Hint, Def)
-          let displayPinyin = charData.pinyin || '';
-          if (charData.chameleon_alert && charData.chameleon_alert.is_polyphone) {
-              const variations = charData.chameleon_alert.pinyin_variations
-                  .map(p => Utils.formatNumberedPinyin(p))
-                  .filter(p => p !== displayPinyin);
-              if (variations.length > 0) {
-                  displayPinyin += ` <span style="color:var(--text-muted); font-size:0.95rem; font-weight:600;">(also: ${variations.join(', ')})</span>`;
-              }
+      let displayPinyin = charData.pinyin || '---';
+      if (charData.chameleon_alert && charData.chameleon_alert.is_polyphone) {
+          const variations = charData.chameleon_alert.pinyin_variations
+              .map(p => Utils.formatNumberedPinyin(p))
+              .filter(p => p !== displayPinyin);
+          if (variations.length > 0) {
+              displayPinyin += ` <span style="color:var(--text-muted); font-size:0.95rem; font-weight:600;">(also: ${variations.join(', ')})</span>`;
           }
+      }
 
-          let soundHintHTML = '';
-          if (charData.phonetic_clue && charData.phonetic_clue.has_clue) {
-              const clueChar = charData.phonetic_clue.indicator_component;
-              const cluePy = Utils.formatNumberedPinyin(charData.phonetic_clue.indicator_pinyin);
-              soundHintHTML = `
-                  <div style="font-family: 'Nunito', sans-serif; font-size: 0.9rem; color: var(--text-muted); font-weight: 600; margin-top: 4px;">
-                      Sound hint: 
-                      <span class="interactive-char" onclick="App.handleCharClick(event, '${clueChar}')" style="cursor: pointer; color: var(--primary); font-family: 'twkai', serif; font-size: 1.2rem; margin: 0 2px;">${clueChar}</span> 
-                      (${cluePy})
+      let soundHintHTML = '';
+      if (charData.phonetic_clue && charData.phonetic_clue.has_clue) {
+          const clueChar = charData.phonetic_clue.indicator_component;
+          const cluePy = Utils.formatNumberedPinyin(charData.phonetic_clue.indicator_pinyin);
+          soundHintHTML = `
+              <div style="font-family: 'Nunito', sans-serif; font-size: 0.9rem; color: var(--text-muted); font-weight: 600; margin-top: 4px;">
+                  Sound hint: 
+                  <span class="interactive-char" onclick="App.handleCharClick(event, '${clueChar}')" style="cursor: pointer; color: var(--primary); font-family: 'twkai', serif; font-size: 1.2rem; margin: 0 2px;">${clueChar}</span> 
+                  (${cluePy})
+              </div>
+          `;
+      }
+
+      html += `
+          <div class="anatomy-hero-section">
+              <div class="hero-py">${displayPinyin}</div>
+              ${soundHintHTML}
+              <div class="hero-def">${charData.def || ''}</div>
+          </div>
+      `;
+
+      const standaloneVocabs = DATA.VOCAB.filter(v => v.hanzi === char).sort((a, b) => {
+          if (a.book !== b.book) return parseInt(a.book || 1) - parseInt(b.book || 1);
+          return parseInt(a.lesson || 0) - parseInt(b.lesson || 0);
+      });
+
+      if (standaloneVocabs.length > 0) {
+          const primaryVocab = standaloneVocabs[0];
+          const bColor = window.Utils && window.Utils.getBookColor ? Utils.getBookColor(primaryVocab.book) : '#ec4899';
+          const bBg = window.Utils && window.Utils.getBookBg ? Utils.getBookBg(primaryVocab.book) : '#fce7f3';
+
+          if (standaloneVocabs.length === 1) {
+              html += `
+                  <div class="standalone-banner" style="border-left: 4px solid ${bColor}; background: ${bBg}60; border-radius: 0 12px 12px 0; padding: 10px 16px; margin: 0 0 20px 0; display: flex; align-items: center; justify-content: space-between; gap: 12px;">
+                      <div style="display: flex; flex-direction: column; text-align: left; flex: 1; min-width: 0;">
+                          <span style="font-family: 'Nunito', sans-serif; font-size: 0.65rem; font-weight: 800; color: ${bColor}; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 2px;">Book Vocab</span>
+                          <div style="display: flex; align-items: baseline; gap: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                              <span style="font-family: 'Nunito', sans-serif; font-size: 0.95rem; font-weight: 700; color: var(--text-main);">${primaryVocab.def}</span>
+                              <span style="font-family: 'Nunito', sans-serif; font-size: 0.85rem; font-weight: 600; color: var(--text-muted);">${primaryVocab.pinyin}</span>
+                          </div>
+                      </div>
+                      <div style="background: white; border: 1px solid ${bColor}40; color: ${bColor}; padding: 4px 8px; border-radius: 8px; font-family: 'Nunito', sans-serif; font-weight: 800; font-size: 0.75rem; white-space: nowrap; box-shadow: 0 2px 4px rgba(0,0,0,0.02);">
+                          B${primaryVocab.book} L${primaryVocab.lesson}
+                      </div>
+                  </div>
+              `;
+          } else {
+              html += `
+                  <div class="standalone-banner-wrapper" onclick="this.classList.toggle('expanded')" style="border-left: 4px solid ${bColor}; background: ${bBg}60; border-radius: 0 12px 12px 0; margin: 0 0 20px 0; overflow: hidden;">
+                      <div style="padding: 10px 16px; display: flex; align-items: center; justify-content: space-between; gap: 12px;">
+                          <div style="display: flex; flex-direction: column; text-align: left; flex: 1; min-width: 0;">
+                              <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 2px;">
+                                  <span style="font-family: 'Nunito', sans-serif; font-size: 0.65rem; font-weight: 800; color: ${bColor}; text-transform: uppercase; letter-spacing: 1px;">Book Vocab</span>
+                                  <span style="font-family: 'Nunito', sans-serif; font-size: 0.65rem; font-weight: 800; color: ${bColor}; background: white; padding: 2px 6px; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); margin-left: 4px;">${standaloneVocabs.length} Meanings</span>
+                              </div>
+                              <div style="display: flex; align-items: baseline; gap: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                                  <span style="font-family: 'Nunito', sans-serif; font-size: 0.95rem; font-weight: 700; color: var(--text-main);">${primaryVocab.def}</span>
+                                  <span style="font-family: 'Nunito', sans-serif; font-size: 0.85rem; font-weight: 600; color: var(--text-muted);">${primaryVocab.pinyin}</span>
+                              </div>
+                          </div>
+                          <div style="display: flex; align-items: center; gap: 6px;">
+                              <div style="background: white; border: 1px solid ${bColor}40; color: ${bColor}; padding: 4px 8px; border-radius: 8px; font-family: 'Nunito', sans-serif; font-weight: 800; font-size: 0.75rem; white-space: nowrap; box-shadow: 0 2px 4px rgba(0,0,0,0.02);">
+                                  B${primaryVocab.book} L${primaryVocab.lesson}
+                              </div>
+                              <svg class="sb-chevron" viewBox="0 0 24 24" width="18" height="18" fill="currentColor" style="color: ${bColor};"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z"/></svg>
+                          </div>
+                      </div>
+                      
+                      <div class="sb-body-wrapper">
+                          <div style="overflow: hidden;">
+                              <div style="padding: 0 16px 12px 16px; border-top: 1px dashed ${bColor}50; margin-top: 2px; display: flex; flex-direction: column; gap: 8px; padding-top: 12px;">
+                                  ${standaloneVocabs.slice(1).map(v => {
+                                      const subBColor = window.Utils && window.Utils.getBookColor ? Utils.getBookColor(v.book) : '#94a3b8';
+                                      return `
+                                      <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px;">
+                                          <div style="display: flex; flex-direction: column; flex: 1; min-width: 0;">
+                                              <span style="font-family: 'Nunito', sans-serif; font-size: 0.9rem; font-weight: 700; color: var(--text-main); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${v.def}</span>
+                                              <span style="font-family: 'Nunito', sans-serif; font-size: 0.8rem; font-weight: 600; color: var(--text-muted);">${v.pinyin}</span>
+                                          </div>
+                                          <div style="font-family: 'Nunito', sans-serif; font-size: 0.7rem; font-weight: 800; color: ${subBColor}; background: white; border: 1px solid ${subBColor}40; padding: 3px 6px; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.02);">
+                                              B${v.book} L${v.lesson}
+                                          </div>
+                                      </div>
+                                      `
+                                  }).join('')}
+                              </div>
+                          </div>
+                      </div>
                   </div>
               `;
           }
-
-          html += `
-              <div class="anatomy-hero-section">
-                  <div class="hero-py">${displayPinyin}</div>
-                  ${soundHintHTML}
-                  <div class="hero-def">${charData.def || ''}</div>
-              </div>
-          `;
-
-          // 3. THE DNA (BENTO COMPONENTS)
-          if (charData.deconstruction_tree && charData.deconstruction_tree.children) {
-              html += `<div class="anatomy-bento-grid">`;
-              
-              charData.deconstruction_tree.children.forEach((child, idx) => {
-                  const charStr = child.component || '?';
-                  const py = Utils.formatNumberedPinyin(Array.isArray(child.pinyin) ? child.pinyin[0] : (child.pinyin || ''));
-                  const def = (child.meaning || '').split(/[,;]/)[0]; 
-                  
-                  const rowId = `appears-row-${char}-${idx}`;
-
-                  let subCharsHTML = '';
-                  if (child.children && child.children.length > 0) {
-                      const lis = child.children.map(c => {
-                          const subC = c.component || '?';
-                          const classSub = subC !== '?' ? 'sub-hz interactive-char' : 'sub-hz';
-                          const clickSubIcon = subC !== '?' ? `onclick="App.handleCharClick(event, '${subC}')"` : '';
-                          const clickSubRow = subC !== '?' ? `onclick="App.updateAppearsIn(event, '${subC}', '${rowId}', '${char}', '${charStr}')"` : '';
-                          
-                          return `
-                              <li class="sub-component-item" ${clickSubRow}>
-                                  <span class="${classSub}" ${clickSubIcon} style="position:relative; z-index:5;">${subC}</span> 
-                                  <span class="sub-def">${(c.meaning || '').split(/[,;]/)[0]}</span>
-                              </li>
-                          `;
-                      }).join('');
-                      subCharsHTML = `<ul class="sub-component-list">${lis}</ul>`;
-                  }
-
-                  const initialRelatedChars = charStr !== '?' ? Object.values(DATA.CHARS)
-                      .filter(c => c.hanzi !== char && c.hanzi !== charStr && c.deconstruction_tree && JSON.stringify(c.deconstruction_tree).includes(`"component":"${charStr}"`))
-                      .map(c => c.hanzi).slice(0, 5) : [];
-
-                  const hasExpandedContent = (child.children && child.children.length > 0) || initialRelatedChars.length > 0;
-                  
-                  let appearsInHTML = '';
-                  if (hasExpandedContent) {
-                      let interactive = `<span style="color:var(--text-muted); font-size: 0.85rem;">None</span>`;
-                      if (initialRelatedChars.length > 0) {
-                          interactive = initialRelatedChars.map(c => `<span class="interactive-char appears-node" onclick="App.handleCharClick(event, '${c}')">${c}</span>`).join('');
-                      }
-                      
-                      appearsInHTML = `
-                          <div class="appears-in-row" id="${rowId}">
-                              <span class="appears-label interactive-char" onclick="App.handleCharClick(event, '${charStr}')" style="cursor:pointer; display:flex; align-items:center; gap:2px; transition:0.2s;" title="Explore ${charStr}">
-                                  in ${charStr} 
-                                  <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg>
-                              </span> 
-                              <div class="appears-list">${interactive}</div>
-                          </div>
-                      `;
-                  }
-
-                  const clickAttr = hasExpandedContent ? `onclick="this.classList.toggle('expanded')"` : '';
-                  
-                  let expandedBodyHTML = '';
-                  if (hasExpandedContent) {
-                      expandedBodyHTML = `
-                          <div class="bento-body-wrapper">
-                              <div class="bento-body-inner">
-                                  ${subCharsHTML}
-                                  ${appearsInHTML}
-                              </div>
-                          </div>`;
-                  }
-
-                  const clickMainIcon = charStr !== '?' ? `onclick="App.handleCharClick(event, '${charStr}')"` : '';
-                  const classMain = charStr !== '?' ? 'bento-icon-hz interactive-char' : 'bento-icon-hz'; 
-
-                  html += `
-                      <div class="bento-node" ${clickAttr} style="${hasExpandedContent ? 'cursor:pointer' : ''}">
-                          <div class="bento-header">
-                              <div class="${classMain}" ${clickMainIcon} style="transition:all 0.2s; position:relative; z-index:5;">${charStr}</div>
-                              <div class="bento-meta">
-                                  <span class="bento-py">${py}</span>
-                                  <span class="bento-def">${def}</span>
-                              </div>
-                              ${hasExpandedContent ? `<div class="bento-chevron"><svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z"/></svg></div>` : '<div style="width:20px;"></div>'}
-                          </div>
-                          ${expandedBodyHTML}
-                      </div>
-                  `;
-              });
-              html += `</div>`; 
-          }
-
-      } else {
-          html += `<div style="text-align:center; padding: 20px 0; color: #64748b; font-weight: 600;">${DATA.FALLBACK_DEFS[char] || "No detailed breakdown available yet."}</div>`;
       }
 
-      // 4. MEMORY HOOK 
+      if (charData.deconstruction_tree && charData.deconstruction_tree.children && charData.deconstruction_tree.children.length > 0) {
+          html += `<div class="anatomy-bento-grid">`;
+          
+          charData.deconstruction_tree.children.forEach((child, idx) => {
+              const charStr = child.component || '?';
+              const py = Utils.formatNumberedPinyin(Array.isArray(child.pinyin) ? child.pinyin[0] : (child.pinyin || ''));
+              const def = (child.meaning || '').split(/[,;]/)[0]; 
+              const safeDef = def.replace(/'/g, "&#39;").replace(/"/g, "&quot;");
+              const safePy = py.replace(/'/g, "&#39;").replace(/"/g, "&quot;");
+              
+              const rowId = `appears-row-${char}-${idx}`;
+
+              let subCharsHTML = '';
+              if (child.children && child.children.length > 0) {
+                  const lis = child.children.map(c => {
+                      const subC = c.component || '?';
+                      const subPy = Utils.formatNumberedPinyin(Array.isArray(c.pinyin) ? c.pinyin[0] : (c.pinyin || ''));
+                      const subDef = (c.meaning || '').split(/[,;]/)[0];
+                      const sDef = subDef.replace(/'/g, "&#39;").replace(/"/g, "&quot;");
+                      const sPy = subPy.replace(/'/g, "&#39;").replace(/"/g, "&quot;");
+                      
+                      const classSub = subC !== '?' ? 'sub-hz interactive-char' : 'sub-hz';
+                      const clickSubIcon = subC !== '?' ? `onclick="App.handleCharClick(event, '${subC}', '${sPy}', '${sDef}')"` : '';
+                      const clickSubRow = subC !== '?' ? `onclick="App.updateAppearsIn(event, '${subC}', '${rowId}', '${char}', '${charStr}')"` : '';
+                      
+                      return `
+                          <li class="sub-component-item" ${clickSubRow}>
+                              <span class="${classSub}" ${clickSubIcon} style="position:relative; z-index:5;">${subC}</span> 
+                              <span class="sub-def">${subDef}</span>
+                          </li>
+                      `;
+                  }).join('');
+                  subCharsHTML = `<ul class="sub-component-list">${lis}</ul>`;
+              }
+
+              const initialRelatedChars = charStr !== '?' ? Object.values(DATA.CHARS)
+                  .filter(c => c.hanzi !== char && c.hanzi !== charStr && c.deconstruction_tree && JSON.stringify(c.deconstruction_tree).includes(`"component":"${charStr}"`))
+                  .map(c => c.hanzi).slice(0, 5) : [];
+
+              const hasExpandedContent = (child.children && child.children.length > 0) || initialRelatedChars.length > 0;
+              
+              let appearsInHTML = '';
+              if (hasExpandedContent) {
+                  let interactive = `<span style="color:var(--text-muted); font-size: 0.85rem;">None</span>`;
+                  if (initialRelatedChars.length > 0) {
+                      interactive = initialRelatedChars.map(c => `<span class="interactive-char appears-node" onclick="App.handleCharClick(event, '${c}')">${c}</span>`).join('');
+                  }
+                  
+                  appearsInHTML = `
+                      <div class="appears-in-row" id="${rowId}">
+                          <span class="appears-label interactive-char" onclick="App.handleCharClick(event, '${charStr}', '${safePy}', '${safeDef}')" style="cursor:pointer; display:flex; align-items:center; gap:2px; transition:0.2s;" title="Explore ${charStr}">
+                              in ${charStr} 
+                              <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg>
+                          </span> 
+                          <div class="appears-list">${interactive}</div>
+                      </div>
+                  `;
+              }
+
+              const clickAttr = hasExpandedContent ? `onclick="this.classList.toggle('expanded')"` : '';
+              
+              let expandedBodyHTML = '';
+              if (hasExpandedContent) {
+                  expandedBodyHTML = `
+                      <div class="bento-body-wrapper">
+                          <div class="bento-body-inner">
+                              ${subCharsHTML}
+                              ${appearsInHTML}
+                          </div>
+                      </div>`;
+              }
+
+              const clickMainIcon = charStr !== '?' ? `onclick="App.handleCharClick(event, '${charStr}', '${safePy}', '${safeDef}')"` : '';
+              const classMain = charStr !== '?' ? 'bento-icon-hz interactive-char' : 'bento-icon-hz'; 
+
+              html += `
+                  <div class="bento-node" ${clickAttr} style="${hasExpandedContent ? 'cursor:pointer' : ''}">
+                      <div class="bento-header">
+                          <div class="${classMain}" ${clickMainIcon} style="transition:all 0.2s; position:relative; z-index:5;">${charStr}</div>
+                          <div class="bento-meta">
+                              <span class="bento-py">${py}</span>
+                              <span class="bento-def">${def}</span>
+                          </div>
+                          ${hasExpandedContent ? `<div class="bento-chevron"><svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z"/></svg></div>` : '<div style="width:20px;"></div>'}
+                      </div>
+                      ${expandedBodyHTML}
+                  </div>
+              `;
+          });
+          html += `</div>`; 
+      } else if (charData.isGeneratedFallback) {
+          html += `<div style="text-align:center; padding: 30px 20px; background: rgba(255,255,255,0.5); border-radius: 20px; border: 1px dashed rgba(255,158,181,0.4); color: #64748b; font-weight: 600; font-size: 0.95rem; margin-bottom: 24px;">No structural breakdown available for this component yet.</div>`;
+      }
+
       let activeHook = charData ? charData.hook : '';
       html += `
         <div class="dna-section-title" style="margin-top:24px;">Your Mnemonics</div>
@@ -706,9 +933,6 @@ const App = {
         </div>
       `;
 
-  // 5. BUTTERY SMOOTH NETWORK UI (Custom Accordions)
-      
-      // A. "Acts as a component in" (Uniform Grid)
       const buildsChars = this.findRelatedCharacters(char).slice(0, 12);
 
       if (buildsChars.length > 0) {
@@ -742,8 +966,8 @@ const App = {
           `;
       }
 
-      // B. "Appears in Vocab" (Inset Grouped List)
       const relatedVocab = DATA.VOCAB.filter(v => v.hanzi.includes(char) && v.hanzi !== char).slice(0, 8);
+      
       if (relatedVocab.length > 0) {
           html += `
               <div class="network-accordion expanded">
@@ -753,7 +977,7 @@ const App = {
                   </div>
                   <div class="network-accordion-body">
                       <div class="network-accordion-inner">
-                          <div class="ios17-grouped-list">
+                          <div class="clean-vocab-list">
           `;
           
           relatedVocab.forEach((v) => {
@@ -767,37 +991,35 @@ const App = {
               }).join('');
               
               const def = (v.def || '').split(/[,;，\/]/)[0].trim();
+              const bColor = window.Utils && window.Utils.getBookColor ? Utils.getBookColor(v.book) : '#ec4899';
+              const bBg = window.Utils && window.Utils.getBookBg ? Utils.getBookBg(v.book) : '#fce7f3';
 
               html += `
-                  <div class="ios17-list-item">
-                      <div class="list-hz">${interactiveHanzi}</div>
-                      <div class="list-info">
-                          <span class="list-py">${v.pinyin}</span>
-                          <span class="list-def">${def}</span>
-                      </div>
-                  </div>
-              `;
+    <div class="clean-vocab-item">
+        <div class="cv-left">
+            <div class="cv-hz">${interactiveHanzi}</div>
+            <div class="cv-tag" style="color: ${bColor}; background: ${bBg}; border: 1px solid ${bColor}40;">
+                <svg viewBox="0 0 24 24" width="10" height="10" fill="currentColor" style="margin-right: 3px; opacity: 0.8;"><path d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-1 9H9V9h10v2zm-4 4H9v-2h6v2zm4-8H9V5h10v2z"/></svg>
+                B${v.book} <span style="opacity: 0.3; margin: 0 3px;">|</span> L${v.lesson}
+            </div>
+        </div>
+        <div class="cv-right">
+            <div class="cv-py">${v.pinyin}</div>
+            <div class="cv-def">${def}</div>
+        </div>
+    </div>
+`;
           });
           html += `</div></div></div></div>`;
       }
 
-      
-
-    
-
-      html += `</div>`; // Close master container
+      html += `</div>`; 
       
       detail.innerHTML = html;
-      link.href = `https://pleco.com/s/${char}`;
-
-      // STROKE ORDER
-      const strokeOrderContainer = document.getElementById('strokeOrderContainer');
-      const strokeOrderFallback = document.getElementById('strokeOrderFallback');
-      const strokeOrderSpinner = document.getElementById('strokeOrderSpinner');
+      link.href = `https://hanzicraft.com/character/${char}`;
 
       if (char.length === 1 && typeof HanziWriter !== 'undefined' && /[\u4e00-\u9fa5]/.test(char)) {
           strokeOrderContainer.style.display = 'none';
-          if (!charData) display.style.display = 'none';
           strokeOrderFallback.classList.add('hidden');
           strokeOrderSpinner.classList.remove('hidden');
           
@@ -814,26 +1036,29 @@ const App = {
                       loop();
                   },
                   onLoadCharDataError: () => {
-                      strokeOrderSpinner.classList.add('hidden');
-                      strokeOrderContainer.style.display = 'none';
-                      if (!charData) display.style.display = '';
-                      strokeOrderFallback.classList.remove('hidden');
+                      if(strokeOrderSpinner) strokeOrderSpinner.classList.add('hidden');
+                      if(strokeOrderContainer) strokeOrderContainer.style.display = 'none';
+                      if(strokeOrderFallback) {
+                          strokeOrderFallback.classList.remove('hidden');
+                          strokeOrderFallback.innerHTML = `<div class="static-fallback-char">${char}</div>`;
+                      }
                   }
               });
               const loop = () => { writer.animateCharacter({ onComplete: () => { this.animTimeout = setTimeout(loop, 2000); } }); };
               strokeOrderContainer.onclick = () => { if (this.animTimeout) clearTimeout(this.animTimeout); loop(); };
           }, 200);
       } else {
-          strokeOrderContainer.style.display = 'none';
-          if (!charData) display.style.display = '';
-          strokeOrderFallback.classList.add('hidden');
-          strokeOrderSpinner.classList.add('hidden');
+          if(strokeOrderSpinner) strokeOrderSpinner.classList.add('hidden');
+          if(strokeOrderContainer) strokeOrderContainer.style.display = 'none';
+          if(strokeOrderFallback) {
+              strokeOrderFallback.classList.remove('hidden');
+              strokeOrderFallback.innerHTML = `<div class="static-fallback-char">${char}</div>`;
+          }
       }
   }
 };
 window.App = App;
 
-// --- THIS GOES AT THE VERY BOTTOM OF APP.JS ---
 const startApp = async () => {
     const loader = document.getElementById('hqLoader');
     const fill = document.getElementById('hqProgressFill');

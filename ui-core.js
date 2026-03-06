@@ -5,9 +5,8 @@ init() {
     this.applyPastelSettingsTheme(); 
     this.applyMobileUXTheme();
       
-    // THE FIX: Use Dynamic Viewport Height so in-app browsers don't cut off the bottom!
     document.body.style.height = '100dvh';
-    document.body.style.minHeight = '-webkit-fill-available'; // Magic fix for iOS Safari/Messenger
+    document.body.style.minHeight = '-webkit-fill-available'; 
     document.body.style.overflowX = 'hidden';
     document.body.style.display = 'flex';
     document.body.style.flexDirection = 'column';
@@ -19,7 +18,6 @@ init() {
     this.container.style.alignItems = 'center';
     this.container.style.overflowY = 'auto';
     this.container.style.webkitOverflowScrolling = 'touch';
-
 
     document.querySelectorAll('.nav-item').forEach(btn => {
       btn.addEventListener('click', (e) => {
@@ -93,7 +91,6 @@ init() {
       });
     });
 
-    // THE FIX: The bindToggle function is now properly closed!
     const bindToggle = (id, propName, onUpdate) => {
         const el = document.getElementById(id);
         if (el) {
@@ -106,7 +103,6 @@ init() {
         }
     };
 
-    // --- DYNAMIC ISLAND TOGGLE LOGIC ---
     const island = document.getElementById('dynamicIsland');
     if (island) {
         island.addEventListener('click', (e) => {
@@ -121,7 +117,6 @@ init() {
         });
     }
 
-    // --- NATIVE SWIPE GESTURES ---
     let touchstartX = 0, touchstartY = 0;
     document.addEventListener('touchstart', e => {
       touchstartX = e.changedTouches[0].screenX;
@@ -360,7 +355,6 @@ showCourseSelector() {
       const existing = document.getElementById('course-selector-modal');
       if (existing) existing.remove();
 
-      // Bubbly, Soft Pastel CSS
       if (!document.getElementById('pastel-styles')) {
           const style = document.createElement('style');
           style.id = 'pastel-styles';
@@ -369,9 +363,9 @@ showCourseSelector() {
                   position: fixed; inset: 0; z-index: 9999;
                   display: flex; align-items: center; justify-content: center;
                   background: rgba(255, 255, 255, 0.6); 
-                  backdrop-filter: blur(4px); /* Reduced for performance */
+                  backdrop-filter: blur(4px); 
                   -webkit-backdrop-filter: blur(4px);
-                  will-change: opacity, backdrop-filter; /* Hardware acceleration */
+                  will-change: opacity, backdrop-filter; 
                   padding: 20px;
                   opacity: 0; transition: opacity 0.3s ease;
               }
@@ -382,11 +376,11 @@ showCourseSelector() {
                   border-radius: 36px;
                   padding: 32px;
                   width: 100%; max-width: 600px;
-                  box-shadow: 0 10px 30px rgba(0,0,0,0.08); /* Simplified shadow */
+                  box-shadow: 0 10px 30px rgba(0,0,0,0.08); 
                   display: flex; flex-direction: column; gap: 28px;
                   transform: scale(0.9) translateY(20px); 
                   transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1); 
-                  will-change: transform; /* Hardware acceleration */
+                  will-change: transform; 
               }
 
               .pastel-btn-icon {
@@ -494,7 +488,6 @@ showCourseSelector() {
           const currentBookColor = Utils.getBookColor(tempBook);
           const currentBookBg = Utils.getBookBg(tempBook);
 
-          // Update Apply Button to match the theme color
           applyBtn.style.background = currentBookColor;
           applyBtn.style.boxShadow = `0 8px 20px ${currentBookColor}40`; 
 
@@ -608,13 +601,11 @@ applyMobileUXTheme() {
       const style = document.createElement('style');
       style.id = 'mobile-ux-styles';
       style.innerHTML = `
-          /* THIS IS THE FIX: scrollbar-gutter locks the layout width permanently! */
           #app { 
               padding-top: 85px !important; 
               overflow-x: hidden !important;
           } 
           
-          /* NEW FIX: Centers the Writing UI so the dock isn't pushed too far down! */
           body.focus-mode #app {
               padding-top: max(20px, env(safe-area-inset-top)) !important;
           }
@@ -697,7 +688,6 @@ applyMobileUXTheme() {
           }
           .island-action-btn.active { background: #ff9eb5; color: white; }
 
-          /* --- THE SOFT, ELEGANT STICKER --- */
           .streak-sticker {
               position: absolute; top: -10px; right: -10px;
               border: 3px solid rgba(255, 255, 255, 0.9); border-radius: 18px;
@@ -728,7 +718,6 @@ applyMobileUXTheme() {
               100% { transform: scale(1) rotate(6deg); opacity: 1; }
           }
 
-          /* --- ELEGANT, SMALLER SENTENCES & EXAMPLES (Global) --- */
           .example-zh { font-size: 1.5rem !important; line-height: 1.5 !important; margin-bottom: 8px !important; }
           .example-py { font-size: 0.95rem !important; font-weight: 800 !important; margin-bottom: 4px !important; }
           .example-en { font-size: 0.95rem !important; color: var(--text-muted) !important; font-weight: 600 !important;}
@@ -736,17 +725,13 @@ applyMobileUXTheme() {
           .sentence-hanzi { font-size: 1.8rem !important; line-height: 1.5 !important; }
           .sentence-hanzi-back { font-size: 1.6rem !important; line-height: 1.5 !important; margin-bottom: 12px !important; }
           
-          /* Tighter spacing so the card doesn't stretch vertically too much */
           .example-section { margin-top: 20px !important; padding-top: 15px !important; padding-bottom: 5px !important; }
 
-          /* --- MOBILE DOWNSIZING & MASSIVE FONTS --- */
           @media (max-width: 768px) {
-              /* Slim down the Vocab/Quiz cards to be perfect small squares */
               .study-card-container, .card-container:not(.sentence-card-container) { 
                   max-width: 75vw !important; width: 75vw !important; 
               }
               
-              /* Make Sentence Cards WIDER and Auto-Height so small text flows beautifully */
               .sentence-card-container {
                   max-width: 90vw !important; width: 90vw !important;
                   aspect-ratio: auto !important; min-height: 180px !important;
@@ -757,19 +742,16 @@ applyMobileUXTheme() {
 
               .card:hover .card__face { animation: none !important; }
               
-              /* THE FIX: Raised the max ceiling to 15rem / 12rem so the vw can actually work! */
               .study-hz-lg { font-size: clamp(5rem, 60vw, 15rem) !important; line-height: 1.1 !important; }
               .study-hz-lg-back { font-size: clamp(4.5rem, 50vw, 12rem) !important; margin: 0 0 0.5rem 0 !important; }
              .quiz-reveal-hz { font-size: clamp(2.5rem, 15vw, 4rem) !important; }
               
-              /* Make sentences even cuter and smaller on phones */
               .example-zh { font-size: 1.35rem !important; }
               .sentence-hanzi { font-size: 1.5rem !important; }
               .sentence-hanzi-back { font-size: 1.35rem !important; }
               .def-display { font-size: 1.05rem !important; line-height: 1.4 !important; }
               .pinyin-display { font-size: 1.15rem !important; }
               
-              /* Ensure the input box doesn't get squished */
               .quiz-input-container { width: 85vw !important; max-width: 100% !important; }
           }
       `;
@@ -781,19 +763,17 @@ applyMobileUXTheme() {
       const style = document.createElement('style');
       style.id = 'pastel-settings-styles';
       style.innerHTML = `
-          /* Center & Blur the Overlay */
           #settingsModal.modal-overlay {
               display: flex !important;
               align-items: center !important;
               justify-content: center !important;
               background: rgba(255, 255, 255, 0.6) !important;
-              backdrop-filter: blur(4px) !important; /* Reduced for performance */
+              backdrop-filter: blur(4px) !important;
               -webkit-backdrop-filter: blur(4px) !important;
               will-change: opacity, backdrop-filter !important;
               padding: 20px !important;
           }
           
-          /* Floating Bouncy Modal - WIDER VERSION */
           #settingsModal .modal-sheet {
               position: relative !important;
               bottom: auto !important;
@@ -802,7 +782,7 @@ applyMobileUXTheme() {
               padding: 32px !important;
               width: 100% !important;
               max-width: 600px !important;
-              box-shadow: 0 10px 30px rgba(0,0,0,0.08) !important; /* Simplified shadow */
+              box-shadow: 0 10px 30px rgba(0,0,0,0.08) !important;
               transform: scale(0.9) translateY(20px) !important; 
               transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
               will-change: transform !important;
@@ -812,7 +792,6 @@ applyMobileUXTheme() {
           }
           #settingsModal.open .modal-sheet { transform: scale(1) translateY(0) !important; }
           
-          /* Close Button */
           #settingsModal .modal-close {
               position: absolute !important; top: 24px !important; right: 24px !important;
               background: #f8fafc !important; color: #94a3b8 !important;
@@ -829,7 +808,6 @@ applyMobileUXTheme() {
           }
           #settingsModal .modal-close:active { transform: scale(0.9) !important; }
           
-          /* Scrollable Content Area */
           #settingsModalContent {
               overflow-y: auto !important; padding-right: 8px !important; margin-right: -4px !important;
           }
@@ -837,7 +815,6 @@ applyMobileUXTheme() {
           #settingsModalContent::-webkit-scrollbar-track { background: transparent !important; }
           #settingsModalContent::-webkit-scrollbar-thumb { background: #cbd5e1 !important; border-radius: 10px !important; }
           
-          /* Headers & Titles */
           #settingsModal .settings-header { border-bottom: none !important; margin-bottom: 24px !important; padding: 0 !important;}
           #settingsModal .settings-header h2 {
               font-family: 'Nunito', sans-serif !important; font-size: 1.8rem !important;
@@ -849,7 +826,6 @@ applyMobileUXTheme() {
               letter-spacing: 1.5px !important; color: #cbd5e1 !important; margin: 0 0 16px 12px !important;
           }
           
-          /* Cards & Rows */
           #settingsModal .setting-card {
               background: #ffffff !important; border: 2px solid #f1f5f9 !important;
               border-radius: 24px !important; padding: 8px 20px !important;
@@ -858,7 +834,6 @@ applyMobileUXTheme() {
           #settingsModal .setting-row { border-bottom: 2px dashed #f1f5f9 !important; padding: 18px 0 !important; margin: 0 !important;}
           #settingsModal .setting-row:last-child { border-bottom: none !important; }
           
-          /* Typography */
           #settingsModal .setting-name {
               font-family: 'Nunito', sans-serif !important; font-weight: 800 !important;
               color: #475569 !important; font-size: 1.05rem !important;
@@ -868,7 +843,6 @@ applyMobileUXTheme() {
               color: #94a3b8 !important; font-size: 0.85rem !important;
           }
           
-          /* Bouncy Toggle Switches */
           #settingsModal .switch { width: 54px !important; height: 32px !important; }
           #settingsModal .slider {
               background-color: #f1f5f9 !important; border-radius: 30px !important;
@@ -882,7 +856,6 @@ applyMobileUXTheme() {
           #settingsModal input:checked + .slider { background-color: #6ea1c6 !important; }
           #settingsModal input:checked + .slider:before { transform: translateX(22px) !important; }
           
-          /* Speed Buttons */
           #settingsModal .speed-group { background: transparent !important; padding: 0 !important; gap: 8px !important; flex-wrap: wrap !important; }
           #settingsModal .speed-btn {
               background: #ffffff !important; color: #94a3b8 !important; border: 2px solid #f1f5f9 !important;
@@ -954,7 +927,6 @@ applyMobileUXTheme() {
             return;
         }
 
-        // Tiered Themes & Modern SVG Icons
         let theme = 'theme-pink';
         let svgIcon = `<path d="M17.66 11.2c-.23-.3-.51-.56-.77-.82-.67-.6-1.43-1.03-2.07-1.66C13.33 7.26 13 4.85 13.95 3c-.95.23-1.78.75-2.49 1.32-2.59 2.08-3.61 5.75-2.39 8.9.04.1.08.2.08.33 0 .22-.15.42-.35.5-.22.1-.46.04-.64-.12a.83.83 0 0 1-.15-.17c-1.1-1.43-1.28-3.48-.53-5.12C5.89 10 5 12.3 5.14 14.47c.04.5.1 1 .27 1.5.14.6.4 1.2.72 1.73 1.04 1.73 2.87 2.97 4.84 3.22 2.1.27 4.35-.12 5.96-1.6 1.8-1.66 2.45-4.32 1.5-6.6l-.13-.26c-.2-.45-.47-.87-.78-1.25zm-3.1 6.3c-.28.24-.73.5-1.08.6-1.1.4-2.2-.16-2.87-1.14-.05-.06-.12-.13-.12-.23 0-.17.15-.3.33-.3.12 0 .24.06.33.14.45.45 1.14.62 1.7.53.64-.1 1.25-.6 1.4-1.28.1-.5-.04-1.03-.35-1.44a.7.7 0 0 1-.14-.3c-.04-.15.02-.32.14-.42.13-.1.3-.13.46-.07.45.18.84.5 1.15.88.58.74.63 1.8.15 2.64z"/>`;
 
@@ -1023,8 +995,8 @@ applyMobileUXTheme() {
 
     if (App.state.mode === 'list') {
         this.container.style.justifyContent = 'flex-start';
-        this.container.style.paddingTop = '20px';
-        this.container.style.alignItems = 'center';
+        this.container.style.paddingTop = '10px'; // 🌟 FIX: Removed the massive gap!
+        this.container.style.alignItems = 'stretch';
     } else if (App.state.mode === 'writing') {
         this.container.style.justifyContent = 'center';
         this.container.style.paddingTop = '0';
@@ -1048,7 +1020,7 @@ applyMobileUXTheme() {
         this.container.innerHTML = ''; 
     }
     
-    if (App.state.activeList.length === 0) {
+    if (App.state.activeList.length === 0 && App.state.mode !== 'list') {
       if (App.state.hideLearned && App.state.learnedItems.size > 0 && App.state.mode === 'study') {
           this.container.innerHTML = `<div style="text-align:center; padding:40px; color:var(--text-main);"><div style="font-size:4rem; margin-bottom:20px;">🎉</div><h2>All items learned!</h2><p style="color:var(--text-muted); margin-bottom:20px;">Great job clearing the list.</p><button class="btn-sec" onclick="App.state.hideLearned=false; App.saveSettings(); App.updateActiveList(); UI.render();">Review All</button></div>`;
       } else {
@@ -1071,9 +1043,10 @@ applyMobileUXTheme() {
         return;
     }
 
-    const showProgress = ['study', 'sentences', 'quiz', 'listening', 'writing', 'builder'].includes(App.state.mode);
+    const showProgress = ['study', 'sentences', 'quiz', 'listening', 'writing', 'builder', 'list'].includes(App.state.mode);
     const hasList = App.state.activeList && App.state.activeList.length > 0;
     const islandIsland = document.getElementById('dynamicIsland');
+    
     if (islandIsland) {
         islandIsland.style.display = (showProgress && hasList) ? 'flex' : 'none';
     }
@@ -1133,7 +1106,6 @@ applyMobileUXTheme() {
     const sessionMistakes = App.state.sessionMistakes || [];
     const hasMistakes = sessionMistakes.length > 0;
     
-    // Look how clean this HTML is now!
     const html = `
       <div class="fade-in screen-message">
         <div class="screen-icon">🎉</div>

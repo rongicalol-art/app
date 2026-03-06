@@ -1,7 +1,4 @@
 const Utils = {
-  // Add this inside the Utils object in utils.js
-
-  // Helper to convert "lao3" -> "lǎo"
   formatNumberedPinyin(pinyinStr) {
       if (!pinyinStr || pinyinStr === "_stroke") return "";
       const toneMap = {
@@ -20,7 +17,6 @@ const Utils = {
       let text = match[1].toLowerCase();
       let tone = parseInt(match[2]) - 1;
       
-      // Vowel priority rule for pinyin placement
       let targetVowel = 'a';
       if (text.includes('a')) targetVowel = 'a';
       else if (text.includes('e')) targetVowel = 'e';
@@ -30,22 +26,18 @@ const Utils = {
       return text.replace(targetVowel, toneMap[targetVowel][tone] || targetVowel);
   },
 
-
- // The Premium Expanding Thread Builder
   buildPremiumTree(node) {
       if (!node) return '';
       const char = node.component || '?';
-      const meaning = (node.meaning || 'Component').split(/[,;]/)[0]; // Keep meaning short
+      const meaning = (node.meaning || 'Component').split(/[,;]/)[0]; 
       const pinyinRaw = Array.isArray(node.pinyin) ? node.pinyin[0] : (node.pinyin || '');
       const pinyin = this.formatNumberedPinyin(pinyinRaw);
       const hasChildren = node.children && node.children.length > 0;
 
-      // Determine icon (Chevron if expandable, Dot if it's a final stroke)
       let icon = hasChildren 
           ? `<div class="p-chevron"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M9 18l6-6-6-6"/></svg></div>`
           : `<div class="p-leaf-dot"></div>`;
 
-      // Build children recursively
       let childrenHTML = '';
       if (hasChildren) {
           let innerHTML = '';
@@ -53,7 +45,6 @@ const Utils = {
           childrenHTML = `<div class="p-children-wrapper"><div class="p-children-inner">${innerHTML}</div></div>`;
       }
 
-      // Interaction Logic
       const cursor = hasChildren ? 'cursor: pointer;' : 'cursor: default;';
       const onClick = hasChildren ? `onclick="this.parentElement.classList.toggle('expanded'); event.stopPropagation();"` : `onclick="event.stopPropagation();"`;
 
@@ -70,13 +61,13 @@ const Utils = {
           ${childrenHTML}
       </div>`;
   },
-  // Pinyin Coloring Palette
+  
   colors: ['#ec4899', '#8b5cf6'],
   
   getBookColor(bookId) {
     switch(String(bookId)) {
         case '2': return '#fb923c'; 
-        case '3': return '#fa6060'; 
+        case '3': return '#a855f7'; 
         case '4': return '#6eaa73'; 
         default: return '#6ea1c6'; 
     }
@@ -85,7 +76,7 @@ const Utils = {
   getBookBg(bookId) {
     switch(String(bookId)) {
         case '2': return '#ffedd5'; 
-        case '3': return '#ffcec8'; 
+        case '3': return '#f3e8ff'; 
         case '4': return '#dcfce7'; 
         default: return '#e0f2fe'; 
     }
@@ -153,7 +144,8 @@ const Utils = {
        return `<span class="${cls}" data-action="show-char-details" data-char="${c}" style="${style}">${c}</span>`;
     }).join('');
   },
-createInteractiveSentence(text, highlightSource = null) {
+
+  createInteractiveSentence(text, highlightSource = null) {
     if (!text) return '';
 
     if (!this._vocabSet || this._vocabSet.size === 0) {
@@ -187,7 +179,8 @@ createInteractiveSentence(text, highlightSource = null) {
             let matchedTarget = targetWords.find(tw => text.startsWith(tw, currentIndex));
             
             if (matchedTarget) {
-                html += `<span class="interactive-word" data-action="show-char-details" data-char="${matchedTarget}" style="color: #a2a2fd; font-weight: bold; cursor:pointer; display:inline-block; transition:all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1); border-radius:10px; padding:2px 4px; margin: 0 -2px;">${matchedTarget}</span>`;
+                // ✨ Clean CSS classes instead of inline styles
+                html += `<span class="interactive-word highlighted" data-action="show-char-details" data-char="${matchedTarget}">${matchedTarget}</span>`;
                 currentIndex += matchedTarget.length;
                 continue;
             }
@@ -205,10 +198,11 @@ createInteractiveSentence(text, highlightSource = null) {
                 html += segment; 
             } else if (segment.length > 1) {
                 if (this._vocabSet.has(segment)) {
-                    html += `<span class="interactive-word" data-action="show-char-details" data-char="${segment}" style="color: inherit; cursor:pointer; display:inline-block; transition:all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1); border-radius:10px; padding:2px 4px; margin: 0 -2px;">${segment}</span>`;
+                    // ✨ Clean CSS class
+                    html += `<span class="interactive-word" data-action="show-char-details" data-char="${segment}">${segment}</span>`;
                 } else {
                     for (let c of segment) {
-                         html += `<span class="interactive-char" data-action="show-char-details" data-char="${c}" style="color: inherit;">${c}</span>`;
+                         html += `<span class="interactive-char" data-action="show-char-details" data-char="${c}">${c}</span>`;
                     }
                 }
             } else {
@@ -217,8 +211,8 @@ createInteractiveSentence(text, highlightSource = null) {
                     if (tw.length === 2 && tw.includes(segment)) isTargetHalf = true;
                 });
                 
-                const style = isTargetHalf ? `color: #a2a2fd; font-weight: bold;` : `color: inherit;`;
-                html += `<span class="interactive-char" data-action="show-char-details" data-char="${segment}" style="${style}">${segment}</span>`;
+                const cls = isTargetHalf ? 'interactive-word highlighted' : 'interactive-char';
+                html += `<span class="${cls}" data-action="show-char-details" data-char="${segment}">${segment}</span>`;
             }
             
             currentIndex += segment.length;
@@ -246,7 +240,7 @@ createInteractiveSentence(text, highlightSource = null) {
   },
 
   convertTones(text) {
-    if (!text) return ''; // Saftey check added here!
+    if (!text) return ''; 
     const map = { 'a': 'āáǎà', 'e': 'ēéěè', 'i': 'īíǐì', 'o': 'ōóǒò', 'u': 'ūúǔù', 'v': 'ǖǘǚǜ', 'ü': 'ǖǘǚǜ' };
     return text.replace(/([a-z:üv]+)([1-5])/gi, (match, syl, num) => {
       const tone = parseInt(num) - 1;
