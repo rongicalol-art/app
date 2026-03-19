@@ -535,6 +535,19 @@ updateActiveList(preserveState = false) {
           return UI.render();
       }
 
+      // Inject the smooth pop animation styles if they don't exist
+      if (!document.getElementById('fast-pop-styles')) {
+          const style = document.createElement('style');
+          style.id = 'fast-pop-styles';
+          style.innerHTML = `
+              .pop-in-next { animation: fastPopNext 0.25s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; }
+              .pop-in-prev { animation: fastPopPrev 0.25s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; }
+              @keyframes fastPopNext { 0% { opacity: 0; transform: scale(0.92) translateX(15px); } 100% { opacity: 1; transform: scale(1) translateX(0); } }
+              @keyframes fastPopPrev { 0% { opacity: 0; transform: scale(0.92) translateX(-15px); } 100% { opacity: 1; transform: scale(1) translateX(0); } }
+          `;
+          document.head.appendChild(style);
+      }
+
       const container = document.getElementById('mainContainer');
       
       // 🌟 ULTIMATE LOCK
@@ -547,7 +560,7 @@ updateActiveList(preserveState = false) {
       if (newWrapper) {
           newWrapper.classList.remove('fade-in');
           void newWrapper.offsetWidth; 
-          newWrapper.classList.add(direction === 'next' ? 'view-enter-right' : 'view-enter-left');
+          newWrapper.classList.add(direction === 'next' ? 'pop-in-next' : 'pop-in-prev');
       }
       
       // Release lock extremely fast to allow rapid tapping
