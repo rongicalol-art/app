@@ -1,6 +1,6 @@
 Object.assign(window.UI, {
   renderStudy(item) {
-    const pinyinStyle = App.state.noPinyin ? 'display:none' : 'font-size: 1.5rem; margin-bottom: 0.5rem;';
+    const pinyinStyle = App.state.noPinyin ? 'display:none' : 'font-size: 1.5rem;';
 
     const searchTerms = (item.hanzi || item.zh || '')
         .split(/[\/，,]/) 
@@ -155,18 +155,43 @@ Object.assign(window.UI, {
 
     item._convertedPy = item._convertedPy || Utils.convertTones(item._cleanPy);
 
-    const posMap = {
-        'N': 'Noun', 'V': 'Verb', 'Vi': 'Intransitive Verb', 'Vt': 'Transitive Verb',
-        'Vs': 'Stative Verb', 'Vst': 'Stative Verb', 'Vs-attr': 'Stative Verb',
-        'Vs-pred': 'Stative Verb', 'V-sep': 'Separable Verb', 'Vp': 'Process Verb',
-        'Vpt': 'Process Verb', 'Vp-sep': 'Separable Process Verb', 'Adv': 'Adverb',
-        'Conj': 'Conjunction', 'Prep': 'Preposition', 'M': 'Measure Word',
-        'Ptc': 'Particle', 'Ph': 'Phrase', 'Det': 'Determiner', 'Num': 'Number',
-        'Name': 'Name', 'Suf': 'Suffix'
+    const posDetails = {
+        'N': { name: 'Noun', desc: 'A person, place, thing, or idea.' },
+        'V': { name: 'Verb', desc: 'An action or state of being.' },
+        'Vi': { name: 'Intransitive Verb', desc: 'An action that does not take a direct object.' },
+        'Vt': { name: 'Transitive Verb', desc: 'An action that takes a direct object.' },
+        'Vs': { name: 'Stative Verb', desc: 'Describes a state or condition, often used like an adjective.' },
+        'Vst': { name: 'Stative Verb', desc: 'Describes a state or condition.' },
+        'Vs-attr': { name: 'Stative Verb', desc: 'Describes a state or condition.' },
+        'Vs-pred': { name: 'Stative Verb', desc: 'Describes a state or condition.' },
+        'V-sep': { name: 'Separable Verb', desc: 'A verb that can be split to insert other words.' },
+        'Vp': { name: 'Process Verb', desc: 'Describes a process or change of state.' },
+        'Vpt': { name: 'Process Verb', desc: 'Describes a process or change of state.' },
+        'Vp-sep': { name: 'Separable Process Verb', desc: 'A process verb that can be split.' },
+        'Adv': { name: 'Adverb', desc: 'Modifies a verb, adjective, or other adverb.' },
+        'Conj': { name: 'Conjunction', desc: 'Connects words, phrases, or clauses.' },
+        'Prep': { name: 'Preposition', desc: 'Shows the relationship between a noun and other words.' },
+        'M': { name: 'Measure Word', desc: 'Used with numbers to count nouns or actions.' },
+        'Ptc': { name: 'Particle', desc: 'A functional word with grammatical meaning.' },
+        'Ph': { name: 'Phrase', desc: 'A small group of words standing together as a unit.' },
+        'Det': { name: 'Determiner', desc: 'Specifies a noun (e.g. this, that, every).' },
+        'Num': { name: 'Number', desc: 'A numerical value.' },
+        'Name': { name: 'Name', desc: 'A proper noun or name.' },
+        'Suf': { name: 'Suffix', desc: 'Attached to the end of a word to change its meaning.' }
     };
-    let displayType = '';
-    if (item.type) displayType = item.type.split(/[\/,]/).map(t => posMap[t.trim()] || t.trim()).join(' / ');
-    let typeHtml = displayType ? `<div class="pos-tag" style="font-size: 0.85rem; color: #fff; background: rgba(148, 163, 184, 0.9); padding: 4px 10px; border-radius: 8px; display: inline-block; margin-bottom: 12px; font-weight: 700; letter-spacing: 0.5px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">${displayType}</div>` : '';
+    let displayTypes = [];
+    if (item.type) {
+        displayTypes = item.type.split(/[\/,]/).map(t => {
+            const cleanT = t.trim();
+            const detail = posDetails[cleanT];
+            if (detail) {
+                const safeDesc = detail.desc.replace(/'/g, "\\'");
+                return `<span class="pos-tag" onclick="if(window.UI && UI.showToast) { UI.showToast('${safeDesc}'); event.stopPropagation(); }" style="font-size: 0.65rem; color: #94a3b8; background: transparent; border: 1px solid #e2e8f0; padding: 2px 6px; border-radius: 6px; cursor: pointer; transition: 0.2s; letter-spacing: 0.5px; display: inline-block;">${detail.name}</span>`;
+            }
+            return `<span class="pos-tag" style="font-size: 0.65rem; color: #94a3b8; background: transparent; border: 1px solid #e2e8f0; padding: 2px 6px; border-radius: 6px; letter-spacing: 0.5px; display: inline-block;">${cleanT}</span>`;
+        });
+    }
+    let typeHtml = displayTypes.length > 0 ? `<div style="display:flex; gap:6px; flex-wrap: wrap; align-items: center; margin-left: 8px; margin-bottom: 2px;">${displayTypes.join('')}</div>` : '';
 
     let exampleGroupsHtml = '';
     const allExamples = primaryExample ? [primaryExample, ...otherExamples] : otherExamples;
@@ -252,11 +277,13 @@ Object.assign(window.UI, {
     backFace.innerHTML = `
         <div class="face-content vocab-content">
             <div class="study-back-main" style="min-height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center; width: 100%;">
-                <div class="pinyin-display" style="${pinyinStyle}">${item._convertedPy}</div>
+                <div style="display: flex; justify-content: center; align-items: center; flex-wrap: wrap; margin-bottom: 0.5rem;">
+                    <div class="pinyin-display" style="${pinyinStyle}">${item._convertedPy}</div>
+                    ${typeHtml}
+                </div>
                 <div class="hanzi-display hanzi-display hz-hero">${item._plainHanzi}</div>
-                ${typeHtml}
                 ${App.state.showHooks && item.hook ? `<div class="memory-hook"><span>💡</span> <span>${item.hook}</span></div>` : ''}
-                <div class="def-display study-def" style="${App.state.noTranslation ? 'display:none' : ''}">${item.def}</div>
+                <div class="def-display study-def" style="color: #334155; font-weight: 600; ${App.state.noTranslation ? 'display:none' : ''}">${item.def}</div>
             </div>
             
             ${exampleGroupsHtml ? `
