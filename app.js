@@ -558,7 +558,8 @@ updateActiveList(preserveState = false) {
       
       const newWrapper = container ? container.firstElementChild : null;
       if (newWrapper) {
-          newWrapper.classList.remove('fade-in');
+          // REMOVE ALL previous animation classes so the browser re-triggers the animation
+          newWrapper.classList.remove('fade-in', 'pop-in-next', 'pop-in-prev', 'view-enter-right', 'view-enter-left');
           void newWrapper.offsetWidth; 
           newWrapper.classList.add(direction === 'next' ? 'pop-in-next' : 'pop-in-prev');
       }
@@ -704,7 +705,7 @@ updateActiveList(preserveState = false) {
     this.state.skipFlipAnimationOnce = true;
     this.state.builderTokens = [];
     this.state.builderAnswer = [];
-    setTimeout(() => this.preloadUpcomingChars(), 100);
+    setTimeout(() => this.preloadUpcomingChars(), 280);
     this.animateAndRender('next'); 
   },
 
@@ -911,7 +912,7 @@ updateActiveList(preserveState = false) {
     this.state.skipFlipAnimationOnce = true;
     this.state.builderTokens = [];
     this.state.builderAnswer = [];
-    setTimeout(() => this.preloadUpcomingChars(), 100);
+    setTimeout(() => this.preloadUpcomingChars(), 280);
     this.animateAndRender('prev'); 
   },
 
