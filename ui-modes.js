@@ -955,12 +955,14 @@ Object.assign(window.UI, {
     targetEl.style.height = `${dynamicSize}px`;
 
     const writer = this._currentWriter = HanziWriter.create('writingTarget', currentChar, {
-        renderer: 'canvas', // 🌟 Bypasses expensive SVG DOM calculations
+        renderer: 'svg', // 🌟 Use SVG for perfectly sharp retina quality
         width: dynamicSize, height: dynamicSize, padding: 5, 
         showCharacter: false, showOutline: App.state.writingShowOutline, 
         outlineColor: '#e2e8f0', strokeAnimationSpeed: 1, delayBetweenStrokes: 100,
         strokeColor: '#ff9eb5', radicalColor: '#8b5cf6', highlightColor: '#ff85a2',
-        drawingWidth: 25, drawingFadeDuration: isMobile ? 100 : 400, // 🌟 Faster fade on mobile GPU
+        drawingWidth: App.state.writingHideDrawing ? 0 : 25, 
+        drawingColor: App.state.writingHideDrawing ? 'transparent' : '#333333',
+        drawingFadeDuration: isMobile ? 100 : 400, // 🌟 Faster fade on mobile GPU
         onLoadCharDataSuccess: () => {
             document.getElementById('writingMessage').style.display = 'none';
             [animateBtn, resetBtn, outlineToggle].forEach(b => b.disabled = false);

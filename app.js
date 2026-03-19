@@ -32,7 +32,8 @@ const App = {
     fastNext: true,
     listeningHard: false,
     listeningToneTest: false,
-    writingShowOutline: true,
+    writingShowOutline: false,
+    writingHideDrawing: false,
     writingFullscreen: true,
     activeList: [],
     showHooks: true,
@@ -278,7 +279,8 @@ const App = {
         this.state.fastNext = parsed.fastNext ?? true;
         this.state.listeningHard = parsed.listeningHard || false;
         this.state.listeningToneTest = parsed.listeningToneTest || false;
-        this.state.writingShowOutline = parsed.writingShowOutline ?? true;
+        this.state.writingShowOutline = parsed.writingShowOutline ?? false;
+        this.state.writingHideDrawing = parsed.writingHideDrawing || false;
         this.state.showHooks = parsed.showHooks ?? true;
         this.state.streak = parsed.streak || 0;
         this.state.hideLearned = parsed.hideLearned !== undefined ? parsed.hideLearned : true;
@@ -315,6 +317,7 @@ const App = {
       listeningHard: this.state.listeningHard,
       listeningToneTest: this.state.listeningToneTest,
       writingShowOutline: this.state.writingShowOutline,
+      writingHideDrawing: this.state.writingHideDrawing,
       showHooks: this.state.showHooks,
       streak: this.state.streak,
       hideLearned: this.state.hideLearned,
@@ -2332,7 +2335,7 @@ updateActiveList(preserveState = false) {
               }
               strokeOrderContainer.innerHTML = '';
               this.state.currentWriter = HanziWriter.create('strokeOrderContainer', char, {
-                  renderer: 'canvas', // 🌟 Use Canvas instead of SVG for better mobile performance
+                  renderer: 'svg', // 🌟 Use SVG for perfectly sharp retina quality
                   width: 150, height: 150, padding: 5, showOutline: App.state.writingShowOutline,
                   strokeAnimationSpeed: 1, delayBetweenStrokes: 100,
                   strokeColor: '#ff9eb5', radicalColor: '#8b5cf6',

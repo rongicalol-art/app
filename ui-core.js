@@ -176,6 +176,7 @@ init() {
     bindToggle('fastNextToggle', 'fastNext');
     bindToggle('listeningToneTestToggle', 'listeningToneTest', () => { if (App.state.mode === 'listening') UI.render(); });
     bindToggle('writingGuidelinesToggle', 'writingShowOutline', () => { if (App.state.mode === 'writing') UI.render(); });
+    bindToggle('writingHideDrawingToggle', 'writingHideDrawing', () => { if (App.state.mode === 'writing') UI.render(); });
     bindToggle('showHooksToggle', 'showHooks', () => UI.render());
 
     const qToggle = document.getElementById('quizTypeToggle');
