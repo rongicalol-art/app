@@ -21,7 +21,23 @@ Object.assign(window.UI, {
         isFromOtherLesson = cached.isFromOtherLesson;
     } else {
         if (searchTerms.length > 0 && DATA.SENTENCES.length > 0) {
-            const allMatches = DATA.SENTENCES.filter(s => searchTerms.some(term => s.zh.includes(term)));
+            const allMatchesSet = new Set();
+            searchTerms.forEach(term => {
+                if (!term) return;
+                const zhChars = term.match(/[\u4e00-\u9fa5]/g);
+                if (!zhChars || zhChars.length === 0) {
+                    DATA.SENTENCES.forEach(s => { if (s.zh.includes(term)) allMatchesSet.add(s); });
+                    return;
+                }
+                const firstChar = zhChars[0];
+                const candidates = DATA.SENTENCES_BY_CHAR[firstChar] || [];
+                if (term.length === 1 && term === firstChar) {
+                    candidates.forEach(m => allMatchesSet.add(m));
+                } else {
+                    candidates.forEach(m => { if (m.zh.includes(term)) allMatchesSet.add(m); });
+                }
+            });
+            const allMatches = Array.from(allMatchesSet);
 
             const itemBook = String(item.book_id || item.book || '');
             const itemLesson = String(item.lesson_id !== undefined ? item.lesson_id : (item.lesson || '0'));
@@ -103,11 +119,22 @@ Object.assign(window.UI, {
 
     card.classList.remove('showing-example');
     
-    item._plainHanzi = item._plainHanzi || Utils.createInteractiveHanzi(item.hanzi || item.zh, false);
-    if (!App.state.noHanziColor) {
-        item._colorHanzi = item._colorHanzi || Utils.colorHanzi(item.hanzi || item.zh);
+    if (item._cleanHz === undefined) {
+        let hz = item.hanzi || item.zh || '';
+        let py = item.pinyin || item.py || '';
+        if (hz.includes('/') || hz.includes('／')) {
+            hz = hz.split(/[\/／]/)[0];
+            py = py.split(/[\/／]/)[0];
+        }
+        item._cleanHz = hz.replace(/[（(].*?[）)]/g, '').trim();
+        item._cleanPy = py.replace(/[（(].*?[）)]/g, '').trim();
     }
-    item._convertedPy = item._convertedPy || Utils.convertTones(item.pinyin || item.py);
+
+    item._plainHanzi = item._plainHanzi || Utils.createInteractiveHanzi(item._cleanHz, false);
+    if (!App.state.noHanziColor) {
+        item._colorHanzi = item._colorHanzi || Utils.colorHanzi(item._cleanHz);
+    }
+    item._convertedPy = item._convertedPy || Utils.convertTones(item._cleanPy);
 
     let exampleGroupsHtml = '';
     const allExamples = primaryExample ? [primaryExample, ...otherExamples] : otherExamples;
@@ -275,9 +302,14 @@ Object.assign(window.UI, {
     let promptLabel = '';
 
     if (!isTrans && !isDefOnly) {
+        if (item._cleanHz === undefined) {
+            let hz = item.hanzi || item.zh || '';
+            if (hz.includes('/') || hz.includes('／')) hz = hz.split(/[\/／]/)[0];
+            item._cleanHz = hz.replace(/[（(].*?[）)]/g, '').trim();
+        }
         if (charLen === 3) lenClass = 'chars-3';
         else if (charLen >= 4) lenClass = 'chars-long';
-        prompt = item._plainHanzi || (item._plainHanzi = Utils.createInteractiveHanzi(item.hanzi || item.zh, false));
+        prompt = item._plainHanzi || (item._plainHanzi = Utils.createInteractiveHanzi(item._cleanHz, false));
         promptLabel = 'Type Pinyin';
         fontFam = "font-family: 'twkai', serif;";
     } else {
@@ -331,12 +363,12 @@ Object.assign(window.UI, {
     else if (App.state.lastSwipe === 'left') animClass = 'swipe-in-left';
 
     this.container.innerHTML = `
-        <div class="qz-wrap ${animClass}" id="quizWrap">
+        <div class="qz-wrap ${animClass}" id="quizWrap" onclick="var el=document.getElementById('userAnswer'); if(el && document.activeElement !== el) el.focus();">
             <div class="qz-card" id="quizCard">
                 <div class="qz-label">${promptLabel}</div>
                 <div class="qz-prompt ${lenClass}" style="${fontFam}">${prompt}</div>
                 <div class="qz-input-wrap">
-                    <input type="text" id="userAnswer" class="qz-input" placeholder="Your answer..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="done">
+                    <input type="text" id="userAnswer" autofocus class="qz-input" placeholder="Your answer..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="done">
                 </div>
                 <div class="qz-feedback" id="quizFeedback"></div>
             </div>
@@ -375,8 +407,13 @@ Object.assign(window.UI, {
       const target = (isTrans ? item.py : item.pinyin || item.py).trim();
       const isCorrect = Utils.checkAnswer(val, target);
       
-      const pinyinText = item._convertedPy || (item._convertedPy = Utils.convertTones(item.pinyin || item.py));
-      const hanzi = item._plainHanzi || (item._plainHanzi = Utils.createInteractiveHanzi(item.hanzi || item.zh, false));
+      if (item._cleanPy === undefined) {
+          let py = item.pinyin || item.py || '';
+          if (py.includes('/') || py.includes('／')) py = py.split(/[\/／]/)[0];
+          item._cleanPy = py.replace(/[（(].*?[）)]/g, '').trim();
+      }
+      const pinyinText = item._convertedPy || (item._convertedPy = Utils.convertTones(item._cleanPy));
+      const hanzi = item._plainHanzi || (item._plainHanzi = Utils.createInteractiveHanzi(item._cleanHz || item.hanzi || item.zh, false));
       const def = item.def || item.en;
       
       const themeColor = isCorrect ? '#34d399' : '#fb7185';
@@ -437,7 +474,12 @@ Object.assign(window.UI, {
         if (charLen === 3) lenClass = 'chars-3';
         else if (charLen >= 4) lenClass = 'chars-long';
     }
-    const prompt = item._plainHanzi || (item._plainHanzi = Utils.createInteractiveHanzi(item.hanzi || item.zh, false));
+    if (item._cleanHz === undefined) {
+        let hz = item.hanzi || item.zh || '';
+        if (hz.includes('/') || hz.includes('／')) hz = hz.split(/[\/／]/)[0];
+        item._cleanHz = hz.replace(/[（(].*?[）)]/g, '').trim();
+    }
+    const prompt = item._plainHanzi || (item._plainHanzi = Utils.createInteractiveHanzi(item._cleanHz, false));
     const correctDef = (item.def || item.en).trim();
     const fontFam = isTrans ? "font-family: 'twkai', serif;" : "font-family: 'twkai', serif;";
 
@@ -522,8 +564,13 @@ Object.assign(window.UI, {
                     if (b !== btn) b.style.opacity = '0.4';
                 });
                 
-                const pinyinText = item._convertedPy || (item._convertedPy = Utils.convertTones(item.pinyin || item.py));
-                const hanzi = item._plainHanzi || (item._plainHanzi = Utils.createInteractiveHanzi(item.hanzi || item.zh, false));
+                if (item._cleanPy === undefined) {
+                    let py = item.pinyin || item.py || '';
+                    if (py.includes('/') || py.includes('／')) py = py.split(/[\/／]/)[0];
+                    item._cleanPy = py.replace(/[（(].*?[）)]/g, '').trim();
+                }
+                const pinyinText = item._convertedPy || (item._convertedPy = Utils.convertTones(item._cleanPy));
+                const hanzi = item._plainHanzi || (item._plainHanzi = Utils.createInteractiveHanzi(item._cleanHz || item.hanzi || item.zh, false));
                 
                 App.speakText(item.hanzi || item.zh);
                 
@@ -955,14 +1002,14 @@ Object.assign(window.UI, {
     targetEl.style.height = `${dynamicSize}px`;
 
     const writer = this._currentWriter = HanziWriter.create('writingTarget', currentChar, {
-        renderer: 'svg', // 🌟 Use SVG for perfectly sharp retina quality
+        renderer: 'canvas', // 🌟 Switch to canvas for much better drawing performance
         width: dynamicSize, height: dynamicSize, padding: 5, 
         showCharacter: false, showOutline: App.state.writingShowOutline, 
         outlineColor: '#e2e8f0', strokeAnimationSpeed: 1, delayBetweenStrokes: 100,
         strokeColor: '#ff9eb5', radicalColor: '#8b5cf6', highlightColor: '#ff85a2',
         drawingWidth: App.state.writingHideDrawing ? 0 : 25, 
         drawingColor: App.state.writingHideDrawing ? 'transparent' : '#333333',
-        drawingFadeDuration: isMobile ? 100 : 400, // 🌟 Faster fade on mobile GPU
+        drawingFadeDuration: 300, // 🌟 Adjusted to be consistent and visible on all devices
         onLoadCharDataSuccess: () => {
             document.getElementById('writingMessage').style.display = 'none';
             [animateBtn, resetBtn, outlineToggle].forEach(b => b.disabled = false);

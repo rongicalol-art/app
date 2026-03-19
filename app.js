@@ -2,6 +2,7 @@ const DATA = {
   VOCAB: [],
   SENTENCES: [],
   SENTENCES_BY_LESSON: {},
+  SENTENCES_BY_CHAR: {},
   CHARS: {},
   FALLBACK_DEFS: {},
   VOCAB_EXACT_MATCH: {},
@@ -221,6 +222,7 @@ const App = {
 
     DATA.SENTENCES = [];
     DATA.SENTENCES_BY_LESSON = {};
+    DATA.SENTENCES_BY_CHAR = {};
     (window.sentences || []).forEach(s => {
         const book = String(s.book_id || '1').replace(/^[a-z]+/i, '');
         const lesson = String(parseInt(s.lesson_id || '0', 10));
@@ -239,6 +241,12 @@ const App = {
         const key = `${book}-${lesson}`;
         if (!DATA.SENTENCES_BY_LESSON[key]) DATA.SENTENCES_BY_LESSON[key] = [];
         DATA.SENTENCES_BY_LESSON[key].push(entry);
+        
+        const chars = new Set(entry.zh.split(''));
+        chars.forEach(c => {
+            if (!DATA.SENTENCES_BY_CHAR[c]) DATA.SENTENCES_BY_CHAR[c] = [];
+            DATA.SENTENCES_BY_CHAR[c].push(entry);
+        });
     });
 
     const userHooks = JSON.parse(localStorage.getItem('fc_user_hooks') || '{}');
@@ -689,7 +697,7 @@ updateActiveList(preserveState = false) {
     this.state.skipFlipAnimationOnce = true;
     this.state.builderTokens = [];
     this.state.builderAnswer = [];
-    this.preloadUpcomingChars();
+    setTimeout(() => this.preloadUpcomingChars(), 400);
     this.animateAndRender('next'); 
   },
 
@@ -896,7 +904,7 @@ updateActiveList(preserveState = false) {
     this.state.skipFlipAnimationOnce = true;
     this.state.builderTokens = [];
     this.state.builderAnswer = [];
-    this.preloadUpcomingChars();
+    setTimeout(() => this.preloadUpcomingChars(), 400);
     this.animateAndRender('prev'); 
   },
 
@@ -1588,7 +1596,7 @@ updateActiveList(preserveState = false) {
         this.saveSettings(); 
         UI.render(); 
         if (typeof UI.updateStreak === 'function') UI.updateStreak();
-        this.preloadUpcomingChars();
+        setTimeout(() => this.preloadUpcomingChars(), 400);
 
         const newWrapper = container.firstElementChild;
         if (newWrapper) {
@@ -2335,7 +2343,7 @@ updateActiveList(preserveState = false) {
               }
               strokeOrderContainer.innerHTML = '';
               this.state.currentWriter = HanziWriter.create('strokeOrderContainer', char, {
-                  renderer: 'svg', // 🌟 Use SVG for perfectly sharp retina quality
+                  renderer: 'canvas', // 🌟 Switch to canvas for better drawing performance
                   width: 150, height: 150, padding: 5, showOutline: App.state.writingShowOutline,
                   strokeAnimationSpeed: 1, delayBetweenStrokes: 100,
                   strokeColor: '#ff9eb5', radicalColor: '#8b5cf6',
