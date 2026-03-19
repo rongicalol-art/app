@@ -126,15 +126,47 @@ Object.assign(window.UI, {
             hz = hz.split(/[\/／]/)[0];
             py = py.split(/[\/／]/)[0];
         }
-        item._cleanHz = hz.replace(/[（(].*?[）)]/g, '').trim();
-        item._cleanPy = py.replace(/[（(].*?[）)]/g, '').trim();
+        item._cleanHz = hz.trim();
+        item._cleanPy = py.trim();
     }
 
-    item._plainHanzi = item._plainHanzi || Utils.createInteractiveHanzi(item._cleanHz, false);
-    if (!App.state.noHanziColor) {
-        item._colorHanzi = item._colorHanzi || Utils.colorHanzi(item._cleanHz);
+    if (!item._processedHanzi) {
+        let hzStr = item._cleanHz;
+        let plainHtml = '';
+        let colorHtml = '';
+        
+        const parts = hzStr.split(/([（(].*?[）)])/g);
+        parts.forEach(part => {
+            if (!part) return;
+            if (part.match(/^[（(].*[）)]$/)) {
+                let inner = Utils.createInteractiveHanzi(part, false);
+                let cInner = Utils.colorHanzi(part);
+                plainHtml += `<span style="font-size: 0.55em; opacity: 0.7; margin: 0 2px; display: inline-block; vertical-align: middle;">${inner}</span>`;
+                colorHtml += `<span style="font-size: 0.55em; opacity: 0.7; margin: 0 2px; display: inline-block; vertical-align: middle;">${cInner}</span>`;
+            } else {
+                plainHtml += Utils.createInteractiveHanzi(part, false);
+                colorHtml += Utils.colorHanzi(part);
+            }
+        });
+        item._plainHanzi = plainHtml;
+        item._colorHanzi = colorHtml;
+        item._processedHanzi = true;
     }
+
     item._convertedPy = item._convertedPy || Utils.convertTones(item._cleanPy);
+
+    const posMap = {
+        'N': 'Noun', 'V': 'Verb', 'Vi': 'Intransitive Verb', 'Vt': 'Transitive Verb',
+        'Vs': 'Stative Verb', 'Vst': 'Stative Verb', 'Vs-attr': 'Stative Verb',
+        'Vs-pred': 'Stative Verb', 'V-sep': 'Separable Verb', 'Vp': 'Process Verb',
+        'Vpt': 'Process Verb', 'Vp-sep': 'Separable Process Verb', 'Adv': 'Adverb',
+        'Conj': 'Conjunction', 'Prep': 'Preposition', 'M': 'Measure Word',
+        'Ptc': 'Particle', 'Ph': 'Phrase', 'Det': 'Determiner', 'Num': 'Number',
+        'Name': 'Name', 'Suf': 'Suffix'
+    };
+    let displayType = '';
+    if (item.type) displayType = item.type.split(/[\/,]/).map(t => posMap[t.trim()] || t.trim()).join(' / ');
+    let typeHtml = displayType ? `<div class="pos-tag" style="font-size: 0.85rem; color: #fff; background: rgba(148, 163, 184, 0.9); padding: 4px 10px; border-radius: 8px; display: inline-block; margin-bottom: 12px; font-weight: 700; letter-spacing: 0.5px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">${displayType}</div>` : '';
 
     let exampleGroupsHtml = '';
     const allExamples = primaryExample ? [primaryExample, ...otherExamples] : otherExamples;
@@ -222,6 +254,7 @@ Object.assign(window.UI, {
             <div class="study-back-main" style="min-height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center; width: 100%;">
                 <div class="pinyin-display" style="${pinyinStyle}">${item._convertedPy}</div>
                 <div class="hanzi-display hanzi-display hz-hero">${item._plainHanzi}</div>
+                ${typeHtml}
                 ${App.state.showHooks && item.hook ? `<div class="memory-hook"><span>💡</span> <span>${item.hook}</span></div>` : ''}
                 <div class="def-display study-def" style="${App.state.noTranslation ? 'display:none' : ''}">${item.def}</div>
             </div>
@@ -305,11 +338,26 @@ Object.assign(window.UI, {
         if (item._cleanHz === undefined) {
             let hz = item.hanzi || item.zh || '';
             if (hz.includes('/') || hz.includes('／')) hz = hz.split(/[\/／]/)[0];
-            item._cleanHz = hz.replace(/[（(].*?[）)]/g, '').trim();
+            item._cleanHz = hz.trim();
+        }
+        if (!item._processedHanzi) {
+            let hzStr = item._cleanHz;
+            let plainHtml = '';
+            const parts = hzStr.split(/([（(].*?[）)])/g);
+            parts.forEach(part => {
+                if (!part) return;
+                if (part.match(/^[（(].*[）)]$/)) {
+                    plainHtml += `<span style="font-size: 0.55em; opacity: 0.7; margin: 0 2px; display: inline-block; vertical-align: middle;">${Utils.createInteractiveHanzi(part, false)}</span>`;
+                } else {
+                    plainHtml += Utils.createInteractiveHanzi(part, false);
+                }
+            });
+            item._plainHanzi = plainHtml;
+            item._processedHanzi = true;
         }
         if (charLen === 3) lenClass = 'chars-3';
         else if (charLen >= 4) lenClass = 'chars-long';
-        prompt = item._plainHanzi || (item._plainHanzi = Utils.createInteractiveHanzi(item._cleanHz, false));
+        prompt = item._plainHanzi;
         promptLabel = 'Type Pinyin';
         fontFam = "font-family: 'twkai', serif;";
     } else {
@@ -363,7 +411,7 @@ Object.assign(window.UI, {
     else if (App.state.lastSwipe === 'left') animClass = 'swipe-in-left';
 
     this.container.innerHTML = `
-        <div class="qz-wrap ${animClass}" id="quizWrap" onclick="var el=document.getElementById('userAnswer'); if(el && document.activeElement !== el) el.focus();">
+        <div class="qz-wrap ${animClass}" id="quizWrap">
             <div class="qz-card" id="quizCard">
                 <div class="qz-label">${promptLabel}</div>
                 <div class="qz-prompt ${lenClass}" style="${fontFam}">${prompt}</div>
@@ -420,7 +468,6 @@ Object.assign(window.UI, {
       
       if(isCorrect) {
          isProcessing = true;
-         input.blur();
          input.classList.add('state-correct');
          
          feedback.innerHTML = `
@@ -462,7 +509,8 @@ Object.assign(window.UI, {
     };
 
     input.onkeyup = (e) => { if(e.key === 'Enter') check(); };
-    setTimeout(() => { if (input) input.focus(); }, 350);
+    setTimeout(() => { if (input) input.focus(); }, 10);
+    setTimeout(() => { if (input) input.focus(); }, 360);
   },
 
   renderQuizMC(item) {
@@ -477,9 +525,24 @@ Object.assign(window.UI, {
     if (item._cleanHz === undefined) {
         let hz = item.hanzi || item.zh || '';
         if (hz.includes('/') || hz.includes('／')) hz = hz.split(/[\/／]/)[0];
-        item._cleanHz = hz.replace(/[（(].*?[）)]/g, '').trim();
+        item._cleanHz = hz.trim();
     }
-    const prompt = item._plainHanzi || (item._plainHanzi = Utils.createInteractiveHanzi(item._cleanHz, false));
+    if (!item._processedHanzi) {
+        let hzStr = item._cleanHz;
+        let plainHtml = '';
+        const parts = hzStr.split(/([（(].*?[）)])/g);
+        parts.forEach(part => {
+            if (!part) return;
+            if (part.match(/^[（(].*[）)]$/)) {
+                plainHtml += `<span style="font-size: 0.55em; opacity: 0.7; margin: 0 2px; display: inline-block; vertical-align: middle;">${Utils.createInteractiveHanzi(part, false)}</span>`;
+            } else {
+                plainHtml += Utils.createInteractiveHanzi(part, false);
+            }
+        });
+        item._plainHanzi = plainHtml;
+        item._processedHanzi = true;
+    }
+    const prompt = item._plainHanzi;
     const correctDef = (item.def || item.en).trim();
     const fontFam = isTrans ? "font-family: 'twkai', serif;" : "font-family: 'twkai', serif;";
 
@@ -567,10 +630,10 @@ Object.assign(window.UI, {
                 if (item._cleanPy === undefined) {
                     let py = item.pinyin || item.py || '';
                     if (py.includes('/') || py.includes('／')) py = py.split(/[\/／]/)[0];
-                    item._cleanPy = py.replace(/[（(].*?[）)]/g, '').trim();
+                    item._cleanPy = py.trim();
                 }
                 const pinyinText = item._convertedPy || (item._convertedPy = Utils.convertTones(item._cleanPy));
-                const hanzi = item._plainHanzi || (item._plainHanzi = Utils.createInteractiveHanzi(item._cleanHz || item.hanzi || item.zh, false));
+                const hanzi = item._plainHanzi;
                 
                 App.speakText(item.hanzi || item.zh);
                 
