@@ -536,30 +536,24 @@ updateActiveList(preserveState = false) {
       }
 
       const container = document.getElementById('mainContainer');
-      const innerWrapper = container ? container.firstElementChild : null;
-      if (!innerWrapper) return UI.render();
       
       // 🌟 ULTIMATE LOCK
       document.documentElement.classList.add('is-animating');
 
-      innerWrapper.classList.remove('view-enter-left', 'view-enter-right');
-      innerWrapper.classList.add(direction === 'next' ? 'view-leave-left' : 'view-leave-right');
-
+      // Render instantly without the 200ms artificial animation delay
+      UI.render(); 
+      
+      const newWrapper = container ? container.firstElementChild : null;
+      if (newWrapper) {
+          newWrapper.classList.remove('fade-in');
+          void newWrapper.offsetWidth; 
+          newWrapper.classList.add(direction === 'next' ? 'view-enter-right' : 'view-enter-left');
+      }
+      
+      // Release lock extremely fast to allow rapid tapping
       setTimeout(() => {
-          UI.render(); 
-          
-          const newWrapper = container.firstElementChild;
-          if (newWrapper) {
-              newWrapper.classList.remove('fade-in', 'view-leave-left', 'view-leave-right');
-              void newWrapper.offsetWidth; 
-              newWrapper.classList.add(direction === 'next' ? 'view-enter-right' : 'view-enter-left');
-          }
-          
-          setTimeout(() => {
-              // 🌟 RELEASE LOCK
-              document.documentElement.classList.remove('is-animating');
-          }, 350);
-      }, 200);
+          document.documentElement.classList.remove('is-animating');
+      }, 150);
   },
 
   markLearned(isLearned) {
@@ -603,7 +597,7 @@ updateActiveList(preserveState = false) {
             this.state.skipFadeInOnce = true;
 
             clearTimeout(this._markLearnedAnimTimer);
-            this._markLearnedAnimTimer = setTimeout(() => this.next(false), 200);
+            this._markLearnedAnimTimer = setTimeout(() => this.next(false), 80);
             return;
         }
     }
@@ -697,7 +691,7 @@ updateActiveList(preserveState = false) {
     this.state.skipFlipAnimationOnce = true;
     this.state.builderTokens = [];
     this.state.builderAnswer = [];
-    setTimeout(() => this.preloadUpcomingChars(), 400);
+    setTimeout(() => this.preloadUpcomingChars(), 100);
     this.animateAndRender('next'); 
   },
 
@@ -904,7 +898,7 @@ updateActiveList(preserveState = false) {
     this.state.skipFlipAnimationOnce = true;
     this.state.builderTokens = [];
     this.state.builderAnswer = [];
-    setTimeout(() => this.preloadUpcomingChars(), 400);
+    setTimeout(() => this.preloadUpcomingChars(), 100);
     this.animateAndRender('prev'); 
   },
 
@@ -1359,7 +1353,7 @@ updateActiveList(preserveState = false) {
               this.state.skipSwipeAnimationOnce = true;
               this.state.skipFadeInOnce = true;
               this.markLearned(dir > 0);
-          }, 180);
+          }, 100);
           resetSwipe(260, true);
       };
 
@@ -1450,7 +1444,7 @@ updateActiveList(preserveState = false) {
           if (!['study', 'sentences', 'writing'].includes(this.state.mode)) return;
 
           // Prevent ghost clicks after a swipe
-          if (Date.now() - lastSwipeTime < 800) return;
+          if (Date.now() - lastSwipeTime < 400) return;
 
           const width = window.innerWidth;
           const x = e.clientX;
@@ -1596,7 +1590,7 @@ updateActiveList(preserveState = false) {
         this.saveSettings(); 
         UI.render(); 
         if (typeof UI.updateStreak === 'function') UI.updateStreak();
-        setTimeout(() => this.preloadUpcomingChars(), 400);
+        setTimeout(() => this.preloadUpcomingChars(), 100);
 
         const newWrapper = container.firstElementChild;
         if (newWrapper) {
@@ -1612,9 +1606,9 @@ updateActiveList(preserveState = false) {
             // 🌟 RELEASE LOCK: Unfreeze the document
             document.documentElement.classList.remove('is-animating');
             container.style.pointerEvents = 'auto';
-        }, 350);
+        }, 200);
       }
-    }, 200); 
+    }, 50); 
   },
   
   findRelatedCharacters(char) {

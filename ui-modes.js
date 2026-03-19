@@ -156,28 +156,28 @@ Object.assign(window.UI, {
     item._convertedPy = item._convertedPy || Utils.convertTones(item._cleanPy);
 
     const posDetails = {
-        'N': { name: 'Noun', desc: 'A person, place, thing, or idea.' },
-        'V': { name: 'Verb', desc: 'An action or state of being.' },
-        'Vi': { name: 'Intransitive Verb', desc: 'An action that does not take a direct object.' },
-        'Vt': { name: 'Transitive Verb', desc: 'An action that takes a direct object.' },
-        'Vs': { name: 'Stative Verb', desc: 'Describes a state or condition, often used like an adjective.' },
-        'Vst': { name: 'Stative Verb', desc: 'Describes a state or condition.' },
-        'Vs-attr': { name: 'Stative Verb', desc: 'Describes a state or condition.' },
-        'Vs-pred': { name: 'Stative Verb', desc: 'Describes a state or condition.' },
-        'V-sep': { name: 'Separable Verb', desc: 'A verb that can be split to insert other words.' },
-        'Vp': { name: 'Process Verb', desc: 'Describes a process or change of state.' },
-        'Vpt': { name: 'Process Verb', desc: 'Describes a process or change of state.' },
-        'Vp-sep': { name: 'Separable Process Verb', desc: 'A process verb that can be split.' },
-        'Adv': { name: 'Adverb', desc: 'Modifies a verb, adjective, or other adverb.' },
-        'Conj': { name: 'Conjunction', desc: 'Connects words, phrases, or clauses.' },
-        'Prep': { name: 'Preposition', desc: 'Shows the relationship between a noun and other words.' },
-        'M': { name: 'Measure Word', desc: 'Used with numbers to count nouns or actions.' },
-        'Ptc': { name: 'Particle', desc: 'A functional word with grammatical meaning.' },
-        'Ph': { name: 'Phrase', desc: 'A small group of words standing together as a unit.' },
-        'Det': { name: 'Determiner', desc: 'Specifies a noun (e.g. this, that, every).' },
-        'Num': { name: 'Number', desc: 'A numerical value.' },
-        'Name': { name: 'Name', desc: 'A proper noun or name.' },
-        'Suf': { name: 'Suffix', desc: 'Attached to the end of a word to change its meaning.' }
+        'N': { name: 'Noun', desc: 'A person, place, or thing.' },
+        'V': { name: 'Action Verb', desc: 'A general action or behavior.' },
+        'Vi': { name: 'Intransitive Action Verb', desc: 'An action that does not take an object (e.g. 哭 to cry).' },
+        'Vt': { name: 'Transitive Action Verb', desc: 'An action that takes a direct object (e.g. 吃 to eat).' },
+        'Vs': { name: 'Stative Verb', desc: 'Functions as an adjective in Chinese. Describes a state or property (e.g. 大 big, 漂亮 pretty).' },
+        'Vst': { name: 'Transitive Stative Verb', desc: 'A stative verb that takes an object (e.g. 喜歡 to like, 怕 to fear).' },
+        'Vs-attr': { name: 'Attributive Stative Verb', desc: 'A modifier placed directly before a noun (e.g. 男 male, 金 gold).' },
+        'Vs-pred': { name: 'Predicative Stative Verb', desc: 'Acts as the main verb/predicate of a sentence, but cannot directly modify a noun.' },
+        'V-sep': { name: 'Separable Verb', desc: 'A verb-object phrase that can be split to insert other words (e.g. 睡覺 -> 睡了一個好覺).' },
+        'Vp': { name: 'Intransitive Process Verb', desc: 'Describes a natural process or change of state without an object (e.g. 死 to die, 破 to break).' },
+        'Vpt': { name: 'Transitive Process Verb', desc: 'Describes a process or change of state that affects an object.' },
+        'Vp-sep': { name: 'Separable Process Verb', desc: 'A process verb that can be split into parts.' },
+        'Adv': { name: 'Adverb', desc: 'Modifies verbs or stative verbs (e.g. 很 very, 都 all).' },
+        'Conj': { name: 'Conjunction', desc: 'Connects words, phrases, or clauses (e.g. 和 and, 因為 because).' },
+        'Prep': { name: 'Preposition', desc: 'Placed before a noun to indicate location, time, or direction (e.g. 在 at, 從 from).' },
+        'M': { name: 'Measure Word', desc: 'A classifier used with numbers or determiners to count nouns (e.g. 個, 本).' },
+        'Ptc': { name: 'Particle', desc: 'A grammatical marker usually placed at the end of a sentence (e.g. 嗎, 呢, 了).' },
+        'Ph': { name: 'Phrase', desc: 'A set phrase, idiom, or common expression (e.g. 對不起 sorry).' },
+        'Det': { name: 'Determiner', desc: 'Specifies a noun, often preceding a measure word (e.g. 這 this, 那 that, 哪 which).' },
+        'Num': { name: 'Number', desc: 'A numerical value (e.g. 一, 二).' },
+        'Name': { name: 'Proper Noun', desc: 'A specific name of a person or place (e.g. 台灣 Taiwan).' },
+        'Suf': { name: 'Suffix', desc: 'Added to the end of words (e.g. 們 for plural).' }
     };
     let displayTypes = [];
     if (item.type) {
@@ -186,7 +186,8 @@ Object.assign(window.UI, {
             const detail = posDetails[cleanT];
             if (detail) {
                 const safeDesc = detail.desc.replace(/'/g, "\\'");
-                return `<span class="pos-tag" onclick="if(window.UI && UI.showToast) { UI.showToast('${safeDesc}'); event.stopPropagation(); }" style="font-size: 0.65rem; color: #94a3b8; background: transparent; border: 1px solid #e2e8f0; padding: 2px 6px; border-radius: 6px; cursor: pointer; transition: 0.2s; letter-spacing: 0.5px; display: inline-block;">${detail.name}</span>`;
+                const safeName = detail.name.replace(/'/g, "\\'");
+                return `<span class="pos-tag" onclick="const box=document.getElementById('pos-explanation-box'); if(box){ box.innerHTML='<span style=\\'color:var(--primary-dark);font-weight:800;\\'>${safeName}:</span> ${safeDesc}'; box.style.display='block'; } event.stopPropagation();" style="font-size: 0.65rem; color: #94a3b8; background: transparent; border: 1px solid #e2e8f0; padding: 2px 6px; border-radius: 6px; cursor: pointer; transition: 0.2s; letter-spacing: 0.5px; display: inline-block;">${detail.name}</span>`;
             }
             return `<span class="pos-tag" style="font-size: 0.65rem; color: #94a3b8; background: transparent; border: 1px solid #e2e8f0; padding: 2px 6px; border-radius: 6px; letter-spacing: 0.5px; display: inline-block;">${cleanT}</span>`;
         });
@@ -281,6 +282,7 @@ Object.assign(window.UI, {
                     <div class="pinyin-display" style="${pinyinStyle}">${item._convertedPy}</div>
                     ${typeHtml}
                 </div>
+                <div id="pos-explanation-box" style="display:none; background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:8px 12px; margin-bottom:12px; font-size:0.85rem; color:#475569; text-align:center; max-width:85%; box-shadow:inset 0 2px 4px rgba(0,0,0,0.02); line-height:1.4;"></div>
                 <div class="hanzi-display hanzi-display hz-hero">${item._plainHanzi}</div>
                 ${App.state.showHooks && item.hook ? `<div class="memory-hook"><span>💡</span> <span>${item.hook}</span></div>` : ''}
                 <div class="def-display study-def" style="color: #334155; font-weight: 600; ${App.state.noTranslation ? 'display:none' : ''}">${item.def}</div>
