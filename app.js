@@ -289,7 +289,7 @@ const App = {
         this.state.currentIndex = parsed.currentIndex || 0;
         this.state.isFinished = parsed.isFinished || false;
         this.state.sessionMistakes = parsed.sessionMistakes || [];
-        this.state.modeCache = parsed.modeCache || {};
+        this.state.modeCache = {}; // Start fresh to avoid memory issues and stale caches across reloads
       } catch (e) {
         localStorage.removeItem('fc_settings');
       }
@@ -324,8 +324,8 @@ const App = {
       mode: this.state.mode,
       currentIndex: this.state.currentIndex,
       isFinished: this.state.isFinished,
-      sessionMistakes: this.state.sessionMistakes,
-      modeCache: this.state.modeCache
+      sessionMistakes: this.state.sessionMistakes
+      // DO NOT save modeCache to localStorage, as it contains large arrays that freeze the UI
     }));
   },
 
@@ -1453,9 +1453,23 @@ updateActiveList(preserveState = false) {
     if (this.state.mode === newMode) return; 
 
     this.state.previousMode = this.state.mode;
+    
+    // Create a filter key so we can check if filters changed while we were away
+    const filterKey = JSON.stringify({
+        b: this.state.bookFilter,
+        l: this.state.lessonFilter,
+        d: this.state.dialogueFilter,
+        h: this.state.hideLearned,
+        s: this.state.separateMode,
+        sh: this.state.shuffle
+    });
+
     this.state.modeCache[this.state.mode] = {
-        list: this.state.activeList, index: this.state.currentIndex,
-        isFinished: this.state.isFinished, sessionMistakes: this.state.sessionMistakes
+        list: this.state.activeList, 
+        index: this.state.currentIndex,
+        isFinished: this.state.isFinished, 
+        sessionMistakes: this.state.sessionMistakes,
+        filterKey: filterKey
     };
 
     const container = document.getElementById('mainContainer');
@@ -1498,7 +1512,16 @@ updateActiveList(preserveState = false) {
             document.body.classList.remove('focus-mode');
         }
 
-        if (this.state.modeCache[newMode]) {
+        const currentFilterKey = JSON.stringify({
+            b: this.state.bookFilter,
+            l: this.state.lessonFilter,
+            d: this.state.dialogueFilter,
+            h: this.state.hideLearned,
+            s: this.state.separateMode,
+            sh: this.state.shuffle
+        });
+
+        if (this.state.modeCache[newMode] && this.state.modeCache[newMode].filterKey === currentFilterKey && this.state.modeCache[newMode].list) {
             this.state.activeList = this.state.modeCache[newMode].list;
             this.state.currentIndex = this.state.modeCache[newMode].index;
             this.state.isFinished = this.state.modeCache[newMode].isFinished || false;
