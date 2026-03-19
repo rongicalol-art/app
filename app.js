@@ -69,8 +69,9 @@ const App = {
     // 🌟 FIX: Tell the list generator to preserve the exact state we just loaded
     this.updateActiveList(true); 
     
-    if (this.state.activeList.length === 0 && DATA.VOCAB.length > 0) {
+    if (this.state.activeList.length === 0 && DATA.VOCAB.length > 0 && !this.state.hideLearned) {
       this.state.lessonFilter = ['All'];
+      this.state.bookFilter = ['All'];
       this.updateActiveList(false); // Reset only if the list is broken/empty
       this.saveSettings();
     }
@@ -375,6 +376,77 @@ const App = {
     localStorage.setItem('fc_learned_items', JSON.stringify(Array.from(this.state.learnedItems)));
   },
 
+  _getFilteredItems(source) {
+      // FIX: Force filters to be arrays to prevent crash if UI accidentally sets them as strings
+      if (!Array.isArray(this.state.bookFilter)) {
+          this.state.bookFilter = [this.state.bookFilter || 'All'];
+      }
+      if (!Array.isArray(this.state.lessonFilter)) {
+          this.state.lessonFilter = [this.state.lessonFilter || 'All'];
+      }
+
+      const bookFilterAll = this.state.bookFilter.some(b => String(b).toLowerCase() === 'all');
+      const validBooks = new Set(this.state.bookFilter.map(b => {
+          if (String(b).toLowerCase() === 'all') return 'All';
+          const m = String(b).match(/\d+/);
+          return m ? String(parseInt(m[0], 10)) : String(b);
+      }));
+
+      const lessonFilterAll = this.state.lessonFilter.some(l => String(l).toLowerCase() === 'all');
+      const validLessons = new Set();
+      const validBookLessons = new Set();
+
+      if (!lessonFilterAll) {
+          this.state.lessonFilter.forEach(l => {
+              const str = String(l);
+              const nums = str.match(/\d+/g);
+              if (nums && nums.length === 1) {
+                  validLessons.add(String(parseInt(nums[0], 10)));
+              } else if (nums && nums.length >= 2) {
+                  const b = String(parseInt(nums[0], 10));
+                  const lesson = String(parseInt(nums[nums.length - 1], 10));
+                  validBookLessons.add(`${b}-${lesson}`);
+              }
+          });
+      }
+
+      const dialogueFilterObj = this.state.dialogueFilter || {};
+
+      return source.filter(i => {
+          // Normalize source book/lesson to strict integer strings (e.g. "01" -> "1")
+          const iBook = String(parseInt(String(i.book).match(/\d+/)?.[0] || '1', 10));
+          const iLesson = String(parseInt(String(i.lesson).match(/\d+/)?.[0] || '0', 10));
+          const iBookLesson = `${iBook}-${iLesson}`;
+
+          if (!bookFilterAll && !validBooks.has(iBook)) return false;
+          
+          if (!lessonFilterAll) {
+              if (!validLessons.has(iLesson) && !validBookLessons.has(iBookLesson)) {
+                  return false;
+              }
+          }
+          
+          const lKeyPadded = iLesson.padStart(2, '0');
+          const dFilters = dialogueFilterObj[iLesson] || 
+                           dialogueFilterObj[lKeyPadded] || 
+                           dialogueFilterObj[`B${iBook}L${iLesson}`] || 
+                           dialogueFilterObj[`B${iBook}L${lKeyPadded}`] ||
+                           dialogueFilterObj[iBookLesson];
+          
+          if (dFilters && Array.isArray(dFilters) && dFilters.length > 0) {
+              const validDialogues = new Set(dFilters.map(d => {
+                  const m = String(d).match(/\d+/g);
+                  return m ? String(parseInt(m[m.length - 1], 10)) : '0';
+              }));
+              const currentDialogue = String(parseInt(String(i.dialogue).match(/\d+/)?.[0] || '0', 10));
+              
+              if (!validDialogues.has(currentDialogue)) return false;
+          }
+          
+          return true;
+      });
+  },
+
 updateActiveList(preserveState = false) {
     const isSentencesSource = (this.state.mode === 'listening' && this.state.listeningHard) ||
                               ['sentences', 'builder'].includes(this.state.mode) ||
@@ -383,27 +455,14 @@ updateActiveList(preserveState = false) {
     const source = isSentencesSource ? DATA.SENTENCES : DATA.VOCAB;
     const fromVocab = !isSentencesSource;
 
-    const bookFilterAll = this.state.bookFilter.includes('All');
-    const bookFilterSet = new Set(this.state.bookFilter.map(String));
-    const lessonFilterAll = this.state.lessonFilter.includes('All');
-    const lessonFilterSet = new Set(this.state.lessonFilter);
-    const dialogueFilterObj = this.state.dialogueFilter || {};
-    const hideLearned = this.state.hideLearned;
-    const learnedItems = this.state.learnedItems;
+    let filtered = this._getFilteredItems(source);
 
-    let filtered = source.filter(i => {
-        if (!bookFilterAll && !bookFilterSet.has(String(i.book))) return false;
-        if (!lessonFilterAll && !lessonFilterSet.has(String(i.lesson))) return false;
-        const dFilters = dialogueFilterObj[String(i.lesson)];
-        if (dFilters && Array.isArray(dFilters) && dFilters.length > 0) {
-            if (!dFilters.includes(String(i.dialogue))) return false;
-        }
-        if (hideLearned) {
+    if (this.state.hideLearned) {
+        filtered = filtered.filter(i => {
             const id = i.id || i.hanzi || i.zh;
-            if (learnedItems.has(id)) return false;
-        }
-        return true;
-    });
+            return !this.state.learnedItems.has(id);
+        });
+    }
     
     if (fromVocab) {
         if (this.state.separateMode === 'all') {
@@ -797,21 +856,7 @@ updateActiveList(preserveState = false) {
                                 (['quiz', 'quiz-mc'].includes(this.state.mode) && this.state.quizType === 'translate');
       const source = isSentencesSource ? DATA.SENTENCES : DATA.VOCAB;
 
-      const bookFilterAll = this.state.bookFilter.includes('All');
-      const bookFilterSet = new Set(this.state.bookFilter.map(String));
-      const lessonFilterAll = this.state.lessonFilter.includes('All');
-      const lessonFilterSet = new Set(this.state.lessonFilter);
-      const dialogueFilterObj = this.state.dialogueFilter || {};
-
-      const filteredSource = source.filter(i => {
-          if (!bookFilterAll && !bookFilterSet.has(String(i.book))) return false;
-          if (!lessonFilterAll && !lessonFilterSet.has(String(i.lesson))) return false;
-          const dFilters = dialogueFilterObj[String(i.lesson)];
-          if (dFilters && Array.isArray(dFilters) && dFilters.length > 0) {
-              if (!dFilters.includes(String(i.dialogue))) return false;
-          }
-          return true;
-      });
+      const filteredSource = this._getFilteredItems(source);
 
       // ONLY unlearn items if we are in study mode! Quiz mode should just restart the list.
       if (this.state.mode === 'study') {

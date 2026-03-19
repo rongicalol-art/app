@@ -508,8 +508,8 @@ showCourseSelector() {
       overlay.id = 'course-selector-modal';
       overlay.className = 'pastel-modal-wrapper';
       
-      let tempBook = App.state.bookFilter;
-      let tempLessons = [...App.state.lessonFilter];
+      let tempBook = Array.isArray(App.state.bookFilter) ? [...App.state.bookFilter] : [App.state.bookFilter || '1'];
+      let tempLessons = Array.isArray(App.state.lessonFilter) ? [...App.state.lessonFilter] : [App.state.lessonFilter || 'All'];
       let tempDialogues = App.state.dialogueFilter ? JSON.parse(JSON.stringify(App.state.dialogueFilter)) : {};
       if (Array.isArray(tempDialogues)) tempDialogues = {};
       let focusedLesson = tempLessons.length > 0 && tempLessons[0] !== 'All' ? tempLessons[tempLessons.length - 1] : null;
@@ -552,8 +552,9 @@ showCourseSelector() {
 
       const updateVisuals = () => {
           const isAllLessons = tempLessons.includes('All');
-          const currentBookColor = Utils.getBookColor(tempBook);
-          const currentBookBg = Utils.getBookBg(tempBook);
+          const primaryBook = tempBook[0] || '1';
+          const currentBookColor = Utils.getBookColor(primaryBook);
+          const currentBookBg = Utils.getBookBg(primaryBook);
 
           lessonContainer.querySelectorAll('.pastel-chip').forEach(btn => {
               const l = btn.dataset.lesson;
@@ -628,7 +629,7 @@ showCourseSelector() {
                                         ['sentences', 'builder'].includes(App.state.mode) ||
                                         (['quiz', 'quiz-mc'].includes(App.state.mode) && App.state.quizType === 'translate');
               const source = isSentencesSource ? DATA.SENTENCES : DATA.VOCAB;
-              const lessonItems = source.filter(i => String(i.book) === tempBook && String(i.lesson) === l);
+              const lessonItems = source.filter(i => tempBook.includes(String(i.book)) && String(i.lesson) === l);
 
               const availableDialogues = Array.from(new Set(
                   lessonItems.map(v => String(v.dialogue))
@@ -653,12 +654,16 @@ showCourseSelector() {
                           if (!activeSet) activeSet = [...availableDialogues];
                           
                           if (activeSet.includes(d)) {
+                              if (activeSet.length === 1) {
+                                  UI.showToast("At least one part must be selected");
+                                  return;
+                              }
                               activeSet = activeSet.filter(x => x !== d);
                           } else {
                               activeSet.push(d);
                           }
                           
-                          if (activeSet.length === availableDialogues.length || activeSet.length === 0) {
+                          if (activeSet.length === availableDialogues.length) {
                               delete tempDialogues[l];
                           } else {
                               tempDialogues[l] = activeSet;
@@ -674,7 +679,7 @@ showCourseSelector() {
 
       const renderBookAndLessons = () => {
           bookContainer.innerHTML = books.map((b, i) => {
-              const isActive = b === tempBook;
+              const isActive = tempBook.includes(b);
               const activeColor = Utils.getBookColor(b);
               const activeBg = Utils.getBookBg(b);
               const activeStyle = isActive ? `color: ${activeColor}; background: ${activeBg}; border-color: ${activeColor};` : '';
@@ -689,7 +694,18 @@ showCourseSelector() {
           bookContainer.querySelectorAll('.pastel-chip').forEach(btn => {
               btn.onclick = () => { 
                   if (window.Sound) window.Sound.play('click');
-                  tempBook = btn.dataset.book; 
+                  const b = btn.dataset.book;
+                  if (tempBook.includes(b)) {
+                      if (tempBook.length > 1) { // Prevent unselecting the last remaining book
+                          tempBook = tempBook.filter(x => x !== b);
+                      } else {
+                          UI.showToast("At least one book must be selected");
+                          return;
+                      }
+                  } else {
+                      tempBook.push(b);
+                      tempBook.sort((x, y) => Number(x) - Number(y)); // Keep B1 before B2
+                  }
                   tempLessons = ['All']; 
                   tempDialogues = {};
                   focusedLesson = null;
@@ -699,7 +715,7 @@ showCourseSelector() {
               };
           });
 
-          const availableLessons = Array.from(new Set(DATA.VOCAB.filter(v => String(v.book) === tempBook).map(v => String(v.lesson)))).sort((a, b) => Number(a) - Number(b));
+          const availableLessons = Array.from(new Set(DATA.VOCAB.filter(v => tempBook.includes(String(v.book))).map(v => String(v.lesson)))).sort((a, b) => Number(a) - Number(b));
           
           let lessonHtml = `
               <div class="pastel-chip" data-lesson="All" style="grid-column: 1 / -1; animation-delay: 0s;">
@@ -729,15 +745,15 @@ showCourseSelector() {
                       if (tempLessons.includes('All')) tempLessons = [];
                       
                       if (tempLessons.includes(l)) {
-                          if (focusedLesson === l) {
-                              tempLessons = tempLessons.filter(x => x !== l);
-                              delete tempDialogues[l];
-                              focusedLesson = tempLessons.length > 0 ? tempLessons[tempLessons.length - 1] : null;
+                          if (focusedLesson !== l) {
+                              focusedLesson = l; // Just switch focus!
                           } else {
-                              focusedLesson = l;
+                              tempLessons = tempLessons.filter(x => x !== l);
+                              focusedLesson = tempLessons.length > 0 ? tempLessons[tempLessons.length - 1] : null;
                           }
                       } else {
                           tempLessons.push(l);
+                          tempLessons.sort((a, b) => Number(a) - Number(b));
                           focusedLesson = l;
                       }
                       
@@ -759,7 +775,7 @@ showCourseSelector() {
       requestAnimationFrame(() => requestAnimationFrame(() => overlay.classList.add('open')));
       
       const closeFn = () => {
-          const hasChanged = tempBook !== App.state.bookFilter || 
+          const hasChanged = JSON.stringify(tempBook) !== JSON.stringify(App.state.bookFilter) || 
                              JSON.stringify(tempLessons) !== JSON.stringify(App.state.lessonFilter) ||
                              JSON.stringify(tempDialogues) !== JSON.stringify(App.state.dialogueFilter);
 
@@ -1405,18 +1421,29 @@ applyMobileUXTheme() {
   updateLessonBadge() {
     const badge = document.getElementById('lessonBadge');
     if (!badge) return;
-    const book = App.state.bookFilter;
-    const filters = App.state.lessonFilter;
+    const books = Array.isArray(App.state.bookFilter) ? App.state.bookFilter : [App.state.bookFilter || '1'];
+    const filters = Array.isArray(App.state.lessonFilter) ? App.state.lessonFilter : ['All'];
     const diaFilters = App.state.dialogueFilter || {};
-    let lessonText = filters.includes('All') ? 'All' : filters.map(l => {
-        const parts = diaFilters[l];
-        if (parts && parts.length > 0) return `L${l}(D${parts.join(',')})`;
-        return `L${l}`;
-    }).join(', ');
     
-    badge.textContent = `B${book} • ${lessonText}`;
-    badge.style.backgroundColor = Utils.getBookBg(book);
-    badge.style.color = Utils.getBookColor(book);
+    let lessonText = 'All';
+    if (!filters.includes('All')) {
+        if (filters.length > 3) {
+            lessonText = `${filters.length} Lessons`;
+        } else {
+            lessonText = filters.map(l => {
+                const parts = diaFilters[l];
+                if (parts && parts.length > 0) return `L${l}(D${parts.join(',')})`;
+                return `L${l}`;
+            }).join(', ');
+        }
+    }
+    
+    const primaryBook = books[0] || '1';
+    const bookText = books.length > 2 ? `${books.length} Books` : `B${books.join(',')}`;
+    
+    badge.textContent = `${bookText} • ${lessonText}`;
+    badge.style.backgroundColor = Utils.getBookBg(primaryBook);
+    badge.style.color = Utils.getBookColor(primaryBook);
     badge.style.transition = 'background-color 0.3s, color 0.3s';
   },
 
