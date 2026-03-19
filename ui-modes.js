@@ -177,11 +177,16 @@ Object.assign(window.UI, {
         }).join('');
     }
 
+    // 20% chance to show a subtle hint at the bottom of the card
+    const showHoldHint = Math.random() < 0.2;
+    const holdHintHtml = showHoldHint ? `<div style="position: absolute; bottom: 25px; left: 0; right: 0; text-align: center; font-size: 0.75rem; color: #cbd5e1; font-weight: 700; pointer-events: none; letter-spacing: 0.5px; opacity: 0.7;">Hold to practice writing</div>` : '';
+
     frontFace.innerHTML = `
         <div class="face-content vocab-content">
             <div class="card-center-layout">
                 <div class="hanzi-display hanzi-display hz-hero">${App.state.noHanziColor ? item._plainHanzi : item._colorHanzi}</div>
             </div>
+            ${holdHintHtml}
         </div>
     `;
 
@@ -954,7 +959,7 @@ Object.assign(window.UI, {
         width: dynamicSize, height: dynamicSize, padding: 5, 
         showCharacter: false, showOutline: App.state.writingShowOutline, 
         outlineColor: '#e2e8f0', strokeAnimationSpeed: 1, delayBetweenStrokes: 100,
-        strokeColor: '#ff9eb5', highlightColor: '#ff85a2',
+        strokeColor: '#ff9eb5', radicalColor: '#8b5cf6', highlightColor: '#ff85a2',
         drawingWidth: 25, drawingFadeDuration: isMobile ? 100 : 400, // 🌟 Faster fade on mobile GPU
         onLoadCharDataSuccess: () => {
             document.getElementById('writingMessage').style.display = 'none';

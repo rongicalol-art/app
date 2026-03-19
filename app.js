@@ -29,7 +29,7 @@ const App = {
     noHanziColor: true,
     noTranslation: false,
     separateMode: 'off',
-    fastNext: false,
+    fastNext: true,
     listeningHard: false,
     listeningToneTest: false,
     writingShowOutline: true,
@@ -275,7 +275,7 @@ const App = {
                 }
         this.state.noTranslation = parsed.noTranslation || false;
         this.state.separateMode = parsed.separateMode || 'off';
-        this.state.fastNext = parsed.fastNext || false;
+        this.state.fastNext = parsed.fastNext ?? true;
         this.state.listeningHard = parsed.listeningHard || false;
         this.state.listeningToneTest = parsed.listeningToneTest || false;
         this.state.writingShowOutline = parsed.writingShowOutline ?? true;
@@ -411,6 +411,17 @@ const App = {
       }
 
       const dialogueFilterObj = this.state.dialogueFilter || {};
+      
+      // 🚀 PERFORMANCE FIX: Pre-calculate valid dialogues outside the massive filter loop
+      const parsedDialogues = {};
+      for (const [lKey, dFilters] of Object.entries(dialogueFilterObj)) {
+          if (Array.isArray(dFilters) && dFilters.length > 0) {
+              parsedDialogues[lKey] = new Set(dFilters.map(d => {
+                  const m = String(d).match(/\d+/g);
+                  return m ? String(parseInt(m[m.length - 1], 10)) : '0';
+              }));
+          }
+      }
 
       return source.filter(i => {
           // Normalize source book/lesson to strict integer strings (e.g. "01" -> "1")
@@ -427,20 +438,15 @@ const App = {
           }
           
           const lKeyPadded = iLesson.padStart(2, '0');
-          const dFilters = dialogueFilterObj[iLesson] || 
-                           dialogueFilterObj[lKeyPadded] || 
-                           dialogueFilterObj[`B${iBook}L${iLesson}`] || 
-                           dialogueFilterObj[`B${iBook}L${lKeyPadded}`] ||
-                           dialogueFilterObj[iBookLesson];
+          const validSet = parsedDialogues[iLesson] || 
+                           parsedDialogues[lKeyPadded] || 
+                           parsedDialogues[`B${iBook}L${iLesson}`] || 
+                           parsedDialogues[`B${iBook}L${lKeyPadded}`] ||
+                           parsedDialogues[iBookLesson];
           
-          if (dFilters && Array.isArray(dFilters) && dFilters.length > 0) {
-              const validDialogues = new Set(dFilters.map(d => {
-                  const m = String(d).match(/\d+/g);
-                  return m ? String(parseInt(m[m.length - 1], 10)) : '0';
-              }));
+          if (validSet) {
               const currentDialogue = String(parseInt(String(i.dialogue).match(/\d+/)?.[0] || '0', 10));
-              
-              if (!validDialogues.has(currentDialogue)) return false;
+              if (!validSet.has(currentDialogue)) return false;
           }
           
           return true;
@@ -2327,7 +2333,7 @@ updateActiveList(preserveState = false) {
               strokeOrderContainer.innerHTML = '';
               this.state.currentWriter = HanziWriter.create('strokeOrderContainer', char, {
                   renderer: 'canvas', // 🌟 Use Canvas instead of SVG for better mobile performance
-                  width: 150, height: 150, padding: 5, showOutline: true,
+                  width: 150, height: 150, padding: 5, showOutline: App.state.writingShowOutline,
                   strokeAnimationSpeed: 1, delayBetweenStrokes: 100,
                   strokeColor: '#ff9eb5', radicalColor: '#8b5cf6',
                   onLoadCharDataSuccess: () => {

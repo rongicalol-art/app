@@ -1413,6 +1413,14 @@ applyMobileUXTheme() {
     if (['quiz', 'quiz-mc', 'listening'].includes(App.state.mode)) {
         this.updateStreak();
     }
+
+    // Auto-focus the input field in quiz mode
+    if (App.state.mode === 'quiz') {
+        setTimeout(() => {
+            const input = this.container.querySelector('input[type="text"], input:not([type="radio"]):not([type="checkbox"])');
+            if (input) input.focus();
+        }, 50);
+    }
   },
 
   celebrate() {
