@@ -38,6 +38,10 @@ const App = {
     writingFullscreen: true,
     activeList: [],
     showHooks: true,
+    quizPrompt: 'hz',
+    quizAnswer: 'py',
+    mcPrompt: 'hz',
+    mcAnswer: 'def',
     builderTokens: [],
     builderAnswer: [],
     quizStats: { correct: 0, total: 0 },
@@ -51,6 +55,11 @@ const App = {
     currentWriter: null,
     hideDock: false,
     autoPlay: false,
+    ttsReadWord: true,
+    ttsReadMeaning: false,
+    ttsReadExample: true,
+    ttsItemInterval: 1.0,
+    ttsCardInterval: 2.0,
   },
   
  async init() {
@@ -226,16 +235,19 @@ const App = {
     (window.sentences || []).forEach(s => {
         const book = String(s.book_id || '1').replace(/^[a-z]+/i, '');
         const lesson = String(parseInt(s.lesson_id || '0', 10));
+        const zh = s.sentence ? s.sentence.replace(/<br\s*\/?>/gi, ' ') : '';
+        const py = s.pinyin ? s.pinyin.replace(/<br\s*\/?>/gi, ' ') : '';
+        const en = s.english ? s.english.replace(/<br\s*\/?>/gi, ' ') : '';
         const entry = {
             id: s.source_id,
-            zh: s.sentence || '',
-            py: s.pinyin || '',
-            en: s.english || '',
+            zh: zh,
+            py: py,
+            en: en,
             book,
             lesson,
             dialogue: String(s.dialogue_id || '0'),
             seq: parseInt(s.sentence_id || 0, 10),
-            searchKey: Utils.normalizeSearch(`${s.sentence}${s.pinyin}${s.english}`)
+            searchKey: Utils.normalizeSearch(`${zh}${py}${en}`)
         };
         DATA.SENTENCES.push(entry);
         const key = `${book}-${lesson}`;
@@ -294,6 +306,15 @@ const App = {
         this.state.hideLearned = parsed.hideLearned !== undefined ? parsed.hideLearned : true;
         this.state.hideDock = parsed.hideDock || false;
         this.state.autoPlay = parsed.autoPlay || false;
+        this.state.ttsReadWord = parsed.ttsReadWord !== undefined ? parsed.ttsReadWord : true;
+        this.state.ttsReadMeaning = parsed.ttsReadMeaning !== undefined ? parsed.ttsReadMeaning : false;
+        this.state.ttsReadExample = parsed.ttsReadExample !== undefined ? parsed.ttsReadExample : true;
+        this.state.ttsItemInterval = parsed.ttsItemInterval !== undefined ? parsed.ttsItemInterval : 1.0;
+        this.state.ttsCardInterval = parsed.ttsCardInterval !== undefined ? parsed.ttsCardInterval : 2.0;
+        this.state.quizPrompt = parsed.quizPrompt || 'hz';
+        this.state.quizAnswer = parsed.quizAnswer || 'py';
+        this.state.mcPrompt = parsed.mcPrompt || 'hz';
+        this.state.mcAnswer = parsed.mcAnswer || 'def';
         
         // 🌟 NEW: Restore exact session location
         this.state.mode = parsed.mode || 'study';
@@ -331,6 +352,15 @@ const App = {
       hideLearned: this.state.hideLearned,
       hideDock: this.state.hideDock,
       autoPlay: this.state.autoPlay,
+      ttsReadWord: this.state.ttsReadWord,
+      ttsReadMeaning: this.state.ttsReadMeaning,
+      ttsReadExample: this.state.ttsReadExample,
+      ttsItemInterval: this.state.ttsItemInterval,
+      ttsCardInterval: this.state.ttsCardInterval,
+      quizPrompt: this.state.quizPrompt,
+      quizAnswer: this.state.quizAnswer,
+      mcPrompt: this.state.mcPrompt,
+      mcAnswer: this.state.mcAnswer,
       
       // 🌟 NEW: Save exact session location
       mode: this.state.mode,
@@ -356,8 +386,9 @@ const App = {
       this._componentIndex = {};
       this._fallbackTreeIndex = {};
       
-      const extractComponents = (node, set) => {
-          if (!node) return;
+      const extractComponents = (node, set, visited = new Set()) => {
+          if (!node || visited.has(node)) return;
+          visited.add(node);
           if (node.component && node.children && node.children.length > 0) {
               if (!this._fallbackTreeIndex[node.component]) {
                   this._fallbackTreeIndex[node.component] = node;
@@ -365,7 +396,7 @@ const App = {
           }
           if (node.component) set.add(node.component);
           if (Array.isArray(node.children)) {
-              node.children.forEach(child => extractComponents(child, set));
+              node.children.forEach(child => extractComponents(child, set, visited));
           }
       };
 
@@ -385,6 +416,45 @@ const App = {
 
   saveLearned() {
     localStorage.setItem('fc_learned_items', JSON.stringify(Array.from(this.state.learnedItems)));
+  },
+
+  getSmartExamples(item) {
+      if (!item) return [];
+      const targetText = item.hanzi || item.zh || '';
+      let allSentences = [];
+      
+      if (targetText) {
+          const exactMatches = DATA.SENTENCES.filter(s => s.zh.includes(targetText));
+          if (exactMatches.length > 0) {
+              allSentences = exactMatches;
+          } else {
+              // Fallback to searching by individual characters if no exact word matches
+              const chars = targetText.split('');
+              chars.forEach(c => {
+                  if (DATA.SENTENCES_BY_CHAR[c]) allSentences.push(...DATA.SENTENCES_BY_CHAR[c]);
+              });
+              allSentences = [...new Set(allSentences)]; // Remove duplicates
+          }
+      }
+
+      if (allSentences.length === 0) return [];
+
+      const activeBooks = Array.isArray(this.state.bookFilter) ? this.state.bookFilter : [this.state.bookFilter];
+      const activeLessons = Array.isArray(this.state.lessonFilter) ? this.state.lessonFilter : [this.state.lessonFilter];
+      const bookFilterAll = activeBooks.includes('All') || activeBooks.length === 0;
+      const lessonFilterAll = activeLessons.includes('All') || activeLessons.length === 0;
+
+      const sorted = allSentences.map(s => {
+          let score = 0;
+          if (s.zh.includes(targetText)) score += 100; // Exact vocab match priority
+          if (!bookFilterAll && activeBooks.includes(s.book)) score += 50; // Active Book priority
+          if (!lessonFilterAll && activeLessons.includes(s.lesson)) score += 30; // Active Lesson priority
+          score -= s.zh.length; // Tie-breaker: shorter sentences are easier to read and score higher
+          return { ...s, _score: score };
+      }).sort((a, b) => b._score - a._score).slice(0, 4); // Only return top 4 matches
+      
+      if (sorted.length > 0) this.state.currentExample = sorted[0];
+      return sorted;
   },
 
   _getFilteredItems(source) {
@@ -928,54 +998,6 @@ updateActiveList(preserveState = false) {
     UI.updateFlipState();
   },
 
-  speakSequence(parts, onDone) {
-      if (!window.speechSynthesis) {
-          if (onDone) onDone();
-          return;
-      }
-
-      const token = this._autoPlayToken || 0;
-      const next = (idx) => {
-          if (!this.state.autoPlay || token !== this._autoPlayToken) return;
-          if (idx >= parts.length) {
-              if (onDone) onDone();
-              return;
-          }
-
-          const part = parts[idx] || {};
-          const text = (part.text || '').trim();
-          if (!text) return next(idx + 1);
-
-          const lang = part.lang || 'zh-TW';
-          if (lang.startsWith('zh')) this.ensureCachedVoice();
-          if (lang.startsWith('en')) this.ensureEnglishVoice();
-          const u = new SpeechSynthesisUtterance(text);
-          const isEnglish = lang.startsWith('en');
-          u.rate = isEnglish ? 1.0 : this.state.ttsRate;
-          u.lang = lang;
-          if (u.lang.startsWith('zh') && this._cachedVoice) u.voice = this._cachedVoice;
-          if (u.lang.startsWith('en') && this._cachedEnVoice) u.voice = this._cachedEnVoice;
-
-          const advance = () => {
-              if (!this.state.autoPlay || token !== this._autoPlayToken) return;
-              const gap = Number(part.pauseMs) || 0;
-              if (gap > 0) {
-                  setTimeout(() => next(idx + 1), gap);
-              } else {
-                  next(idx + 1);
-              }
-          };
-
-          u.onend = advance;
-          u.onerror = advance;
-
-          window.speechSynthesis.speak(u);
-      };
-
-      window.speechSynthesis.cancel();
-      next(0);
-  },
-
   cleanDefinitionForTTS(defText) {
       if (!defText) return '';
       let cleaned = String(defText);
@@ -985,19 +1007,20 @@ updateActiveList(preserveState = false) {
       return cleaned.trim();
   },
 
-  extractMeasureWords(defText) {
-      if (!defText) return [];
-      const text = String(defText);
-      const matches = text.match(/\b(?:m|mw|measure word)\s*[:：]\s*[^;|/,\uFF0C\uFF1B]+/gi) || [];
-      const words = [];
-      matches.forEach(seg => {
-          const raw = seg.replace(/^[;|/,\uFF0C\uFF1B]\s*/i, '').replace(/^(?:m|mw|measure word)\s*[:：]\s*/i, '');
-          raw.split(/[,/;|\uFF0C\uFF1B\u3001]/g).forEach(part => {
-              const hanzi = (part.match(/[\u4e00-\u9fa5]+/g) || []).join('');
-              if (hanzi) words.push(hanzi);
-          });
-      });
-      return words;
+  async requestWakeLock() {
+      if ('wakeLock' in navigator) {
+          try {
+              this._wakeLock = await navigator.wakeLock.request('screen');
+          } catch (err) {
+              console.log('Wake lock failed:', err);
+          }
+      }
+  },
+
+  releaseWakeLock() {
+      if (this._wakeLock) {
+          this._wakeLock.release().then(() => { this._wakeLock = null; }).catch(() => {});
+      }
   },
 
   startAutoPlay() {
@@ -1006,6 +1029,7 @@ updateActiveList(preserveState = false) {
       this._autoPlayToken = (this._autoPlayToken || 0) + 1;
       this._autoPlayJustStarted = true;
       this.saveSettings();
+      this.requestWakeLock();
       this.runAutoPlayStep();
   },
 
@@ -1023,9 +1047,10 @@ updateActiveList(preserveState = false) {
       }
       if (window.speechSynthesis) window.speechSynthesis.cancel();
       this.saveSettings();
+      this.releaseWakeLock();
   },
 
-  runAutoPlayStep() {
+  async runAutoPlayStep() {
       if (!this.state.autoPlay) return;
       if (!['study', 'sentences'].includes(this.state.mode)) {
           this.stopAutoPlay();
@@ -1041,39 +1066,48 @@ updateActiveList(preserveState = false) {
 
       if (!this.state.isFlipped) this.toggleFlip(true);
 
-      const hanziText = item.hanzi || item.zh || '';
-      const rawDef = item.def || item.en || '';
-      const defText = this.cleanDefinitionForTTS(rawDef);
-      const measureWords = this.extractMeasureWords(rawDef);
-
-      const gap = 700;
-      const parts = [
-          { text: hanziText, lang: 'zh-TW', pauseMs: gap }
-      ];
-
-      parts.push({ text: defText, lang: 'en-US', pauseMs: gap });
-
-      measureWords.forEach(mw => {
-          parts.push({ text: 'measure word', lang: 'en-US', pauseMs: 300 });
-          parts.push({ text: mw, lang: 'zh-TW', pauseMs: gap });
-      });
-
       const token = this._autoPlayToken || 0;
-      const stepStart = Date.now();
-      const isFirstStep = !!this._autoPlayJustStarted;
-      this._autoPlayJustStarted = false;
-      const minCycleMs = isFirstStep ? 900 : 450;
+      const checkToken = () => this.state.autoPlay && token === this._autoPlayToken;
 
-      this.speakSequence(parts, () => {
-          if (!this.state.autoPlay || token !== this._autoPlayToken) return;
-          const elapsed = Date.now() - stepStart;
-          const waitMs = Math.max(0, minCycleMs - elapsed);
-          this._autoPlayTimer = setTimeout(() => {
-              if (!this.state.autoPlay || token !== this._autoPlayToken) return;
-              this.next(false);
-              this._autoPlayTimer = setTimeout(() => this.runAutoPlayStep(), 450);
-          }, waitMs);
-      });
+      // Give the card a moment to flip before reading starts
+      await new Promise(r => setTimeout(r, 600));
+      if (!checkToken()) return;
+
+      if (this.state.ttsReadWord) {
+          const text = item.hanzi || item.zh || '';
+          await this.speakText(text, 'zh-TW');
+          if (!checkToken()) return;
+          await new Promise(r => setTimeout(r, this.state.ttsItemInterval * 1000));
+          if (!checkToken()) return;
+      }
+
+      if (this.state.ttsReadMeaning) {
+          const rawDef = item.def || item.en || '';
+          const defText = this.cleanDefinitionForTTS(rawDef);
+          if (defText) {
+              await this.speakText(defText, 'en-US');
+              if (!checkToken()) return;
+              await new Promise(r => setTimeout(r, this.state.ttsItemInterval * 1000));
+              if (!checkToken()) return;
+          }
+      }
+
+      if (this.state.ttsReadExample && !item.zh) {
+          const exNode = document.querySelector('.example-item .example-zh') || document.querySelector('.smart-example-item .example-zh');
+          if (exNode && exNode.textContent) {
+              await this.speakText(exNode.textContent, 'zh-TW');
+              if (!checkToken()) return;
+              await new Promise(r => setTimeout(r, this.state.ttsItemInterval * 1000));
+              if (!checkToken()) return;
+          }
+      }
+
+      // Final pause before jumping to the next card
+      await new Promise(r => setTimeout(r, this.state.ttsCardInterval * 1000));
+      if (!checkToken()) return;
+
+      this.next(false);
+      this._autoPlayTimer = setTimeout(() => this.runAutoPlayStep(), 50);
   },
 
   updateCardScrollIndicator() {
@@ -1129,26 +1163,34 @@ updateActiveList(preserveState = false) {
     }
   },
 
-  speakText(text) {
-      if (!text || !window.speechSynthesis) return;
-      window.speechSynthesis.cancel();
+  speakText(text, lang = 'zh-TW') {
+      return new Promise(resolve => {
+          if (!text || !window.speechSynthesis) return resolve();
+          window.speechSynthesis.cancel();
 
-      const u = new SpeechSynthesisUtterance(text);
-      u.rate = this.state.ttsRate;
-      u.lang = 'zh-TW';
-      
-      this.ensureCachedVoice();
-      
-      if (this._cachedVoice) u.voice = this._cachedVoice;
-      
-      window._tts_utterances = window._tts_utterances || [];
-      window._tts_utterances.push(u);
-      const cleanup = () => { window._tts_utterances = window._tts_utterances.filter(x => x !== u); };
-      u.onend = cleanup;
-      u.onerror = cleanup;
-      
-      // Slight delay ensures the 3D flip animation starts BEFORE the audio engine hogs the CPU
-      setTimeout(() => window.speechSynthesis.speak(u), 50);
+          const u = new SpeechSynthesisUtterance(text);
+          u.rate = lang.startsWith('en') ? 1.0 : this.state.ttsRate;
+          u.lang = lang;
+          
+          if (lang.startsWith('zh')) {
+              this.ensureCachedVoice();
+              if (this._cachedVoice) u.voice = this._cachedVoice;
+          } else if (lang.startsWith('en')) {
+              this.ensureEnglishVoice();
+              if (this._cachedEnVoice) u.voice = this._cachedEnVoice;
+          }
+          
+          window._tts_utterances = window._tts_utterances || [];
+          window._tts_utterances.push(u);
+          const cleanup = () => { 
+              window._tts_utterances = window._tts_utterances.filter(x => x !== u); 
+          };
+          u.onend = () => { cleanup(); resolve(); };
+          u.onerror = () => { cleanup(); resolve(); };
+          
+          // Slight delay ensures the 3D flip animation starts BEFORE the audio engine hogs the CPU
+          setTimeout(() => window.speechSynthesis.speak(u), 50);
+      });
   },
 
   ensureCachedVoice() {
@@ -1193,6 +1235,9 @@ updateActiveList(preserveState = false) {
       document.addEventListener('visibilitychange', () => {
           if (document.visibilityState === 'hidden') {
               this.saveSettings();
+          } else if (document.visibilityState === 'visible') {
+              // Re-acquire the wake lock if returning to the app and autoplay is still running
+              if (this.state.autoPlay) this.requestWakeLock();
           }
       });
 
@@ -1630,11 +1675,12 @@ updateActiveList(preserveState = false) {
       if (!this._componentIndex) {
           this._componentIndex = {};
           
-          const extractComponents = (node, set) => {
-              if (!node) return;
+          const extractComponents = (node, set, visited = new Set()) => {
+              if (!node || visited.has(node)) return;
+              visited.add(node);
               if (node.component) set.add(node.component);
               if (Array.isArray(node.children)) {
-                  node.children.forEach(child => extractComponents(child, set));
+                  node.children.forEach(child => extractComponents(child, set, visited));
               }
           };
 
@@ -1657,19 +1703,46 @@ updateActiveList(preserveState = false) {
 
   getVocabHint(hz) {
       if (!hz) return null;
+
+      // 🚀 O(1) Cache lookup to prevent freezing on repeated clicks
+      if (this._vocabHintCache && this._vocabHintCache[hz] !== undefined) {
+          return this._vocabHintCache[hz];
+      }
+      if (!this._vocabHintCache) this._vocabHintCache = {};
+
       const exact = (DATA.VOCAB_EXACT_MATCH[hz] || []);
       const any = (DATA.VOCAB_BY_CHAR[hz] || []);
       const list = exact.length ? exact : any;
-      if (!list.length) return null;
-      const sorted = list.slice().sort((a, b) => Number(a.book) - Number(b.book) || Number(a.lesson) - Number(b.lesson));
-      const v = sorted[0];
-      return {
-          book: v.book,
-          lesson: v.lesson,
-          color: Utils.getBookColor(v.book),
-          bg: Utils.getBookBg(v.book),
+      
+      if (!list.length) {
+          this._vocabHintCache[hz] = null;
+          return null;
+      }
+
+      // 🚀 O(N) single pass to find the minimum book/lesson instead of heavy sorting
+      let best = list[0];
+      let bestScore = (Number(best.book) || 99) * 1000 + (Number(best.lesson) || 99);
+
+      for (let i = 1; i < list.length; i++) {
+          const v = list[i];
+          if (!v) continue;
+          const score = (Number(v.book) || 99) * 1000 + (Number(v.lesson) || 99);
+          if (score < bestScore) {
+              best = v;
+              bestScore = score;
+          }
+      }
+
+      const hint = {
+          book: best.book,
+          lesson: best.lesson,
+          color: window.Utils && window.Utils.getBookColor ? Utils.getBookColor(best.book) : '#ec4899',
+          bg: window.Utils && window.Utils.getBookBg ? Utils.getBookBg(best.book) : '#fce7f3',
           isExact: exact.length > 0
       };
+
+      this._vocabHintCache[hz] = hint;
+      return hint;
   },
 
   updateAppearsIn(e, searchChar, rowId, heroChar, mainComponent) {
@@ -1811,8 +1884,10 @@ updateActiveList(preserveState = false) {
   _generateVocabBannersHTML(char) {
       // Spread into a new array to prevent .sort() from mutating our cached index
       const standaloneVocabs = [...(DATA.VOCAB_EXACT_MATCH[char] || [])].sort((a, b) => {
-          if (a.book !== b.book) return parseInt(a.book || 1) - parseInt(b.book || 1);
-          return parseInt(a.lesson || 0) - parseInt(b.lesson || 0);
+          const aBook = parseInt(a.book, 10) || 1;
+          const bBook = parseInt(b.book, 10) || 1;
+          if (aBook !== bBook) return aBook - bBook;
+          return (parseInt(a.lesson, 10) || 0) - (parseInt(b.lesson, 10) || 0);
       });
 
       if (standaloneVocabs.length === 0) return '';
@@ -2029,11 +2104,25 @@ updateActiveList(preserveState = false) {
       if (buildsChars.length > 0) {
           const totalBuilds = buildsChars.length;
           const grouped = {};
-          buildsChars.forEach((c) => {
-              const hint = this.getVocabHint(c.hanzi);
+
+          // 🚀 PERFORMANCE FIX: Limit to 60 items to prevent the browser DOM from freezing on common radicals!
+          const processedBuilds = buildsChars.map(c => {
+              return { c: c, hint: this.getVocabHint(c.hanzi) };
+          }).sort((a, b) => {
+              if (a.hint && b.hint) {
+                  const bDiff = (Number(a.hint.book) || 99) - (Number(b.hint.book) || 99);
+                  if (bDiff !== 0) return bDiff;
+                  return (Number(a.hint.lesson) || 99) - (Number(b.hint.lesson) || 99);
+              }
+              if (a.hint) return -1;
+              if (b.hint) return 1;
+              return 0;
+          }).slice(0, 60);
+
+          processedBuilds.forEach(({c, hint}) => {
               const key = hint ? `B${hint.book}` : 'Other';
               if (!grouped[key]) grouped[key] = { hint, items: [] };
-              grouped[key].items.push({ c, hint });
+              grouped[key].items.push({ c: c, hint: hint });
           });
 
           const groups = Object.entries(grouped).map(([key, value]) => {
@@ -2090,7 +2179,7 @@ updateActiveList(preserveState = false) {
           html.push(`
               <div class="network-accordion">
                   <div class="network-accordion-header" onclick="this.parentElement.classList.toggle('expanded')">
-                      <span>Acts as a component (${totalBuilds})</span>
+                      <span>Acts as a component (${totalBuilds > 60 ? 'Top 60 of ' + totalBuilds : totalBuilds})</span>
                       <svg class="network-chevron" viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z"/></svg>
                   </div>
                   <div class="network-accordion-body">

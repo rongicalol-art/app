@@ -230,9 +230,19 @@ Object.assign(window.UI, {
                 const lessonTag = ex.lesson != null ? `L${ex.lesson}` : 'L?';
                 const lessonBg = ex.book != null ? Utils.getBookBg(ex.book) : 'rgba(255, 255, 255, 0.9)';
                 const lessonColor = ex.book != null ? Utils.getBookColor(ex.book) : 'var(--text-muted)';
+                const primaryBadge = isPrimary ? `<span class="example-lesson-tag" style="background:var(--primary); color:white; margin-left:6px; box-shadow: 0 2px 4px rgba(255,158,181,0.3); border:none;">⭐ Closest Exam</span>` : '';
+                
                 return `
                     <div class="example-item ${isPrimary ? 'is-primary' : ''}">
-                        <div class="example-item-meta"><span class="example-lesson-tag" style="background:${lessonBg}; color:${lessonColor};">${lessonTag}</span></div>
+                        <div class="example-item-meta" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                            <div>
+                                <span class="example-lesson-tag" style="background:${lessonBg}; color:${lessonColor}; border: 1px solid ${lessonColor}40;">${lessonTag}</span>
+                                ${primaryBadge}
+                            </div>
+                            <button class="ex-speaker-btn" data-action="speak" data-text="${ex.zh}" title="Play Audio" style="background:rgba(255,158,181,0.15); border:none; color:var(--primary); cursor:pointer; padding:6px; border-radius:50%; display:flex; align-items:center; justify-content:center; box-shadow: 0 2px 6px rgba(255,158,181,0.2);">
+                                <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>
+                            </button>
+                        </div>
                         <div class="example-zh">${ex._cachedInteractive[item.hanzi || item.zh]}</div>
                         <div class="example-py" style="${App.state.noPinyin || App.state.noExamplePinyin ? 'display:none' : ''}">${ex._convertedPy}</div>
                         <div class="example-en" style="${App.state.noTranslation ? 'display:none' : ''}">${ex.en}</div>
@@ -353,101 +363,92 @@ Object.assign(window.UI, {
   },
 
   renderQuiz(item) {
-    const isTrans = App.state.quizType === 'translate';
-    const isDefOnly = !isTrans && App.state.quizDefOnly;
+    App.state.quizPrompt = App.state.quizPrompt || 'hz';
+    App.state.quizAnswer = App.state.quizAnswer || 'py';
     
+    if (App.state.quizPrompt === App.state.quizAnswer) {
+        App.state.quizAnswer = App.state.quizPrompt === 'py' ? 'hz' : 'py';
+    }
+
+    const pType = App.state.quizPrompt;
+    const aType = App.state.quizAnswer;
+
     const rawHz = (item.hanzi || item.zh || '').replace(/[^\u4e00-\u9fa5]/g, '');
     const charLen = rawHz.length || 1;
     let lenClass = '';
-    let fontFam = '';
-    let prompt = '';
-    let promptLabel = '';
+    if (charLen === 3) lenClass = 'chars-3';
+    else if (charLen >= 4) lenClass = 'chars-long';
 
-    if (!isTrans && !isDefOnly) {
-        if (item._cleanHz === undefined) {
-            let hz = item.hanzi || item.zh || '';
-            if (hz.includes('/') || hz.includes('／')) hz = hz.split(/[\/／]/)[0];
-            item._cleanHz = hz.trim();
-        }
-        if (!item._processedHanzi) {
-            let hzStr = item._cleanHz;
-            let plainHtml = '';
-            const parts = hzStr.split(/([（(].*?[）)])/g);
-            parts.forEach(part => {
-                if (!part) return;
-                if (part.match(/^[（(].*[）)]$/)) {
-                    plainHtml += `<span style="font-size: 0.55em; opacity: 0.7; margin: 0 2px; display: inline-block; vertical-align: middle;">${Utils.createInteractiveHanzi(part, false)}</span>`;
-                } else {
-                    plainHtml += Utils.createInteractiveHanzi(part, false);
-                }
-            });
-            item._plainHanzi = plainHtml;
-            item._processedHanzi = true;
-        }
-        if (charLen === 3) lenClass = 'chars-3';
-        else if (charLen >= 4) lenClass = 'chars-long';
-        prompt = item._plainHanzi;
-        promptLabel = 'Type Pinyin';
-        fontFam = "font-family: 'twkai', serif;";
-    } else {
-        prompt = item.def || item.en || '';
-        promptLabel = isTrans ? 'Translate' : 'Type Definition';
-        fontFam = "font-family: 'Nunito', sans-serif; font-size: 1.4rem; line-height: 1.5;";
+    if (item._cleanHz === undefined) {
+        let hz = item.hanzi || item.zh || '';
+        if (hz.includes('/') || hz.includes('／')) hz = hz.split(/[\/／]/)[0];
+        item._cleanHz = hz.trim();
+    }
+    if (!item._processedHanzi) {
+        let hzStr = item._cleanHz;
+        let plainHtml = '';
+        const parts = hzStr.split(/([（(].*?[）)])/g);
+        parts.forEach(part => {
+            if (!part) return;
+            if (part.match(/^[（(].*[）)]$/)) {
+                plainHtml += `<span style="font-size: 0.55em; opacity: 0.7; margin: 0 2px; display: inline-block; vertical-align: middle;">${Utils.createInteractiveHanzi(part, false)}</span>`;
+            } else {
+                plainHtml += Utils.createInteractiveHanzi(part, false);
+            }
+        });
+        item._plainHanzi = plainHtml;
+        item._processedHanzi = true;
+    }
+    if (item._cleanPy === undefined) {
+        let py = item.pinyin || item.py || '';
+        if (py.includes('/') || py.includes('／')) py = py.split(/[\/／]/)[0];
+        item._cleanPy = py.replace(/[（(].*?[）)]/g, '').trim();
     }
 
-    if (!document.getElementById('quiz-shared-styles')) {
-        const style = document.createElement('style');
-        style.id = 'quiz-shared-styles';
-        style.innerHTML = `
-            .qz-wrap { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; width: 100%; padding: 20px; box-sizing: border-box; transition: all 0.4s cubic-bezier(0.2, 0.8, 0.2, 1); }
-            .qz-card { width: 100%; max-width: 400px; background: #ffffff; border-radius: 28px; box-shadow: 0 10px 40px rgba(0,0,0,0.06); padding: 35px 25px; display: flex; flex-direction: column; align-items: center; border: 1px solid rgba(0,0,0,0.03); transition: all 0.4s cubic-bezier(0.2, 0.8, 0.2, 1); }
-            .qz-label { font-family: 'Nunito', sans-serif; font-size: 0.8rem; font-weight: 800; letter-spacing: 1.5px; text-transform: uppercase; color: #cbd5e1; margin-bottom: 15px; transition: all 0.3s; }
-            .qz-prompt { font-size: 4.5rem; line-height: 1.2; color: var(--text-main); text-align: center; word-break: break-word; transition: all 0.4s cubic-bezier(0.2, 0.8, 0.2, 1); margin-bottom: 25px; }
-            .qz-prompt.chars-long { font-size: 2.2rem; }
-            .qz-prompt.chars-3 { font-size: 3rem; }
-            .qz-input-wrap { width: 100%; position: relative; }
-            .qz-input { width: 80%; margin: 0 auto; display: block; font-family: 'Nunito', sans-serif; font-size: 1.4rem; font-weight: 700; text-align: center; border: none; border-bottom: 2px solid #e2e8f0; border-radius: 0; padding: 8px 0; color: var(--text-main); background: transparent; outline: none; transition: border-color 0.3s ease, color 0.3s ease; box-sizing: border-box; -webkit-appearance: none; }
-            .qz-input:focus { border-bottom-color: #94a3b8; }
-            .qz-input::placeholder { color: #cbd5e1; font-weight: 600; font-size: 1.2rem; }
-            .qz-input.state-correct { border-bottom-color: #34d399; color: #34d399; }
-            .qz-input.state-wrong { border-bottom-color: #fb7185; color: #fb7185; animation: qz-shake 0.4s cubic-bezier(0.36, 0.07, 0.19, 0.97) both; }
-            .qz-input.state-correct::placeholder, .qz-input.state-wrong::placeholder { color: transparent; }
-            .qz-feedback { width: 100%; max-height: 0; opacity: 0; overflow: hidden; display: flex; flex-direction: column; align-items: center; transition: all 0.5s cubic-bezier(0.2, 0.8, 0.2, 1); }
-            .qz-feedback.show { max-height: 300px; opacity: 1; margin-top: 16px; padding-top: 16px; border-top: 1px solid #f1f5f9; }
-            .qz-fb-py { font-family: 'Nunito', sans-serif; font-size: 1.1rem; font-weight: 800; margin-bottom: 4px; text-align: center; }
-            .qz-fb-def { font-family: 'Nunito', sans-serif; font-size: 1.05rem; font-weight: 700; color: #64748b; text-align: center; padding: 0 10px; line-height: 1.4; }
-            .mc-option-btn { font-family: 'Nunito', sans-serif; background: #ffffff; border: 2px solid #e2e8f0; border-radius: 16px; padding: 16px; font-size: 1.1rem; font-weight: 700; color: var(--text-main); cursor: pointer; transition: all 0.2s cubic-bezier(0.2, 0.8, 0.2, 1); text-align: center; width: 100%; box-sizing: border-box; box-shadow: 0 2px 8px rgba(0,0,0,0.02); }
-            .mc-option-btn:active { transform: scale(0.96); background: #f8fafc; }
-            .mc-option-btn.state-correct { background: #34d399; border-color: #34d399; color: white; transform: scale(1.02); box-shadow: 0 8px 20px rgba(52,211,153,0.3); }
-            .mc-option-btn.state-wrong { background: #fb7185; border-color: #fb7185; color: white; animation: qz-shake 0.4s cubic-bezier(0.36, 0.07, 0.19, 0.97) both; box-shadow: 0 8px 20px rgba(251,113,133,0.3); }
-            .mc-option-btn.disabled { pointer-events: none; }
-            @keyframes qz-shake { 0%, 100% { transform: translateX(0); } 20%, 60% { transform: translateX(-6px); } 40%, 80% { transform: translateX(6px); } }
-            
-            @media (max-width: 768px) {
-                .qz-wrap.keyboard-open { justify-content: flex-start; padding-top: 25px; }
-                .qz-wrap.keyboard-open .qz-card { padding: 20px 20px; border-radius: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.04); }
-                .qz-wrap.keyboard-open .qz-label { margin-bottom: 5px; opacity: 0.6; font-size: 0.7rem; }
-                .qz-wrap.keyboard-open .qz-prompt { font-size: 2.8rem; margin-bottom: 15px; }
-                .qz-wrap.keyboard-open .qz-prompt.chars-long { font-size: 1.6rem; }
-                .qz-wrap.keyboard-open .qz-prompt.chars-3 { font-size: 2rem; }
-            }
-        `;
-        document.head.appendChild(style);
+    const pinyinText = item._convertedPy || (item._convertedPy = Utils.convertTones(item._cleanPy));
+    const hanziText = item._plainHanzi;
+    const pureHanzi = item._cleanHz;
+    const defText = (item.def || item.en || '').trim();
+
+    let prompt = '';
+    let promptLabel = aType === 'hz' ? 'Type Character(s)' : 'Type Pinyin';
+    let target = aType === 'hz' ? pureHanzi : item._cleanPy;
+    let fontFam = '';
+
+    if (pType === 'hz') {
+        prompt = hanziText;
+        fontFam = "font-family: 'twkai', serif;";
+    } else if (pType === 'py') {
+        prompt = pinyinText;
+        fontFam = "font-family: 'Nunito', sans-serif; font-size: 1.8rem; color: var(--primary-dark);";
+        lenClass = 'chars-long';
+    } else if (pType === 'def') {
+        prompt = defText;
+        fontFam = "font-family: 'Nunito', sans-serif; font-size: 1.6rem; line-height: 1.4;";
+        lenClass = 'chars-long';
     }
     
+    const typeNames = { hz: 'Hz', py: 'Py', def: 'En' };
+
     let animClass = App.state.skipFadeInOnce ? '' : 'fade-in';
     if (App.state.lastSwipe === 'right') animClass = 'swipe-in-right';
     else if (App.state.lastSwipe === 'left') animClass = 'swipe-in-left';
 
     this.container.innerHTML = `
         <div class="qz-wrap ${animClass}" id="quizWrap">
-            <div class="qz-card" id="quizCard">
+            <div class="qz-card" id="quizCard" style="padding-bottom: 55px;">
+                <button class="qz-mode-toggle" onclick="UI.cycleQuizPrompt(event, 'typing')" title="Change Question" style="position: absolute; top: 16px; right: 16px; z-index: 10;">
+                    <span class="qz-mode-text">Q: ${typeNames[pType]}</span>
+                </button>
                 <div class="qz-label">${promptLabel}</div>
                 <div class="qz-prompt ${lenClass}" style="${fontFam}">${prompt}</div>
                 <div class="qz-input-wrap">
                     <input type="text" id="userAnswer" autofocus class="qz-input" placeholder="Your answer..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="done">
                 </div>
                 <div class="qz-feedback" id="quizFeedback"></div>
+                <button class="qz-mode-toggle" onclick="UI.cycleQuizAnswer(event, 'typing')" title="Change Answer" style="position: absolute; bottom: 16px; right: 16px; z-index: 10;">
+                    <span class="qz-mode-text">A: ${typeNames[aType]}</span>
+                </button>
             </div>
         </div>
     `;
@@ -481,17 +482,13 @@ Object.assign(window.UI, {
       if (isProcessing) return;
       const val = input.value.trim();
       if (!val) return;
-      const target = (isTrans ? item.py : item.pinyin || item.py).trim();
-      const isCorrect = Utils.checkAnswer(val, target);
       
-      if (item._cleanPy === undefined) {
-          let py = item.pinyin || item.py || '';
-          if (py.includes('/') || py.includes('／')) py = py.split(/[\/／]/)[0];
-          item._cleanPy = py.replace(/[（(].*?[）)]/g, '').trim();
+      let isCorrect = false;
+      if (aType === 'py') {
+          isCorrect = (window.Utils && Utils.checkAnswer) ? Utils.checkAnswer(val, target) : val.replace(/\s+/g,'').toLowerCase() === target.replace(/\s+/g,'').toLowerCase();
+      } else {
+          isCorrect = val.replace(/\s+/g,'') === target.replace(/\s+/g,'');
       }
-      const pinyinText = item._convertedPy || (item._convertedPy = Utils.convertTones(item._cleanPy));
-      const hanzi = item._plainHanzi || (item._plainHanzi = Utils.createInteractiveHanzi(item._cleanHz || item.hanzi || item.zh, false));
-      const def = item.def || item.en;
       
       const themeColor = isCorrect ? '#34d399' : '#fb7185';
       
@@ -501,7 +498,7 @@ Object.assign(window.UI, {
          
          feedback.innerHTML = `
              <div class="qz-fb-py" style="color: ${themeColor};">${pinyinText}</div>
-             <div class="qz-fb-def">${def}</div>
+             <div class="qz-fb-def">${defText}</div>
          `;
          feedback.classList.add('show');
          
@@ -543,14 +540,20 @@ Object.assign(window.UI, {
   },
 
   renderQuizMC(item) {
-    const isTrans = App.state.quizType === 'translate';
+    App.state.mcPrompt = App.state.mcPrompt || 'hz';
+    App.state.mcAnswer = App.state.mcAnswer || 'def';
+    
+    if (App.state.mcPrompt === App.state.mcAnswer) {
+        const alts = ['def', 'hz', 'py'].filter(x => x !== App.state.mcPrompt);
+        App.state.mcAnswer = alts[0];
+    }
+    
+    const pType = App.state.mcPrompt;
+    const aType = App.state.mcAnswer;
+    
     const rawHz = (item.hanzi || item.zh || '').replace(/[^\u4e00-\u9fa5]/g, '');
     const charLen = rawHz.length || 1;
     let lenClass = '';
-    if (!isTrans) {
-        if (charLen === 3) lenClass = 'chars-3';
-        else if (charLen >= 4) lenClass = 'chars-long';
-    }
     if (item._cleanHz === undefined) {
         let hz = item.hanzi || item.zh || '';
         if (hz.includes('/') || hz.includes('／')) hz = hz.split(/[\/／]/)[0];
@@ -571,63 +574,103 @@ Object.assign(window.UI, {
         item._plainHanzi = plainHtml;
         item._processedHanzi = true;
     }
-    const prompt = item._plainHanzi;
-    const correctDef = (item.def || item.en).trim();
-    const fontFam = isTrans ? "font-family: 'twkai', serif;" : "font-family: 'twkai', serif;";
-
-    if (!document.getElementById('quiz-shared-styles')) {
-        const style = document.createElement('style');
-        style.id = 'quiz-shared-styles';
-        style.innerHTML = `
-            .qz-wrap { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; width: 100%; padding: 20px; box-sizing: border-box; transition: all 0.4s cubic-bezier(0.2, 0.8, 0.2, 1); }
-            .qz-card { width: 100%; max-width: 400px; background: #ffffff; border-radius: 28px; box-shadow: 0 10px 40px rgba(0,0,0,0.06); padding: 35px 25px; display: flex; flex-direction: column; align-items: center; border: 1px solid rgba(0,0,0,0.03); transition: all 0.4s cubic-bezier(0.2, 0.8, 0.2, 1); }
-            .qz-label { font-family: 'Nunito', sans-serif; font-size: 0.8rem; font-weight: 800; letter-spacing: 1.5px; text-transform: uppercase; color: #cbd5e1; margin-bottom: 15px; transition: all 0.3s; }
-            .qz-prompt { font-size: 4.5rem; line-height: 1.2; color: var(--text-main); text-align: center; word-break: break-word; transition: all 0.4s cubic-bezier(0.2, 0.8, 0.2, 1); margin-bottom: 25px; }
-            .qz-prompt.chars-long { font-size: 2.2rem; }
-            .qz-prompt.chars-3 { font-size: 3rem; }
-            .qz-input-wrap { width: 100%; position: relative; }
-            .qz-input { width: 80%; margin: 0 auto; display: block; font-family: 'Nunito', sans-serif; font-size: 1.4rem; font-weight: 700; text-align: center; border: none; border-bottom: 2px solid #e2e8f0; border-radius: 0; padding: 8px 0; color: var(--text-main); background: transparent; outline: none; transition: border-color 0.3s ease, color 0.3s ease; box-sizing: border-box; -webkit-appearance: none; }
-            .qz-input:focus { border-bottom-color: #94a3b8; }
-            .qz-input::placeholder { color: #cbd5e1; font-weight: 600; font-size: 1.2rem; }
-            .qz-input.state-correct { border-bottom-color: #34d399; color: #34d399; }
-            .qz-input.state-wrong { border-bottom-color: #fb7185; color: #fb7185; animation: qz-shake 0.4s cubic-bezier(0.36, 0.07, 0.19, 0.97) both; }
-            .qz-input.state-correct::placeholder, .qz-input.state-wrong::placeholder { color: transparent; }
-            .qz-feedback { width: 100%; max-height: 0; opacity: 0; overflow: hidden; display: flex; flex-direction: column; align-items: center; transition: all 0.5s cubic-bezier(0.2, 0.8, 0.2, 1); }
-            .qz-feedback.show { max-height: 300px; opacity: 1; margin-top: 16px; padding-top: 16px; border-top: 1px solid #f1f5f9; }
-            .qz-fb-py { font-family: 'Nunito', sans-serif; font-size: 1.1rem; font-weight: 800; margin-bottom: 4px; text-align: center; }
-            .qz-fb-def { font-family: 'Nunito', sans-serif; font-size: 1.05rem; font-weight: 700; color: #64748b; text-align: center; padding: 0 10px; line-height: 1.4; }
-            .mc-option-btn { font-family: 'Nunito', sans-serif; background: #ffffff; border: 2px solid #e2e8f0; border-radius: 16px; padding: 16px; font-size: 1.1rem; font-weight: 700; color: var(--text-main); cursor: pointer; transition: all 0.2s cubic-bezier(0.2, 0.8, 0.2, 1); text-align: center; width: 100%; box-sizing: border-box; box-shadow: 0 2px 8px rgba(0,0,0,0.02); }
-            .mc-option-btn:active { transform: scale(0.96); background: #f8fafc; }
-            .mc-option-btn.state-correct { background: #34d399; border-color: #34d399; color: white; transform: scale(1.02); box-shadow: 0 8px 20px rgba(52,211,153,0.3); }
-            .mc-option-btn.state-wrong { background: #fb7185; border-color: #fb7185; color: white; animation: qz-shake 0.4s cubic-bezier(0.36, 0.07, 0.19, 0.97) both; box-shadow: 0 8px 20px rgba(251,113,133,0.3); }
-            .mc-option-btn.disabled { pointer-events: none; }
-            @keyframes qz-shake { 0%, 100% { transform: translateX(0); } 20%, 60% { transform: translateX(-6px); } 40%, 80% { transform: translateX(6px); } }
+    if (item._cleanPy === undefined) {
+        let py = item.pinyin || item.py || '';
+        if (py.includes('/') || py.includes('／')) py = py.split(/[\/／]/)[0];
+        item._cleanPy = py.trim();
+    }
+    const pinyinText = item._convertedPy || (item._convertedPy = Utils.convertTones(item._cleanPy));
+    const defText = (item.def || item.en || '').trim();
+    const hanziText = item._plainHanzi;
+    const pureHanzi = item._cleanHz;
+    
+    let prompt = '';
+    let promptLabel = aType === 'def' ? 'Choose Meaning' : aType === 'hz' ? 'Choose Character(s)' : 'Choose Pinyin';
+    let fontFam = '';
+    let correctAns = '';
+    let options = [];
+    
+    const getDistractors = (type) => {
+        const pool = App.state.activeList;
+        const choices = new Set();
+        choices.add(correctAns);
+        const targetCount = aType === 'hz' ? 4 : 3;
+        let attempts = 0;
+        const isTargetSingle = type === 'hz' && correctAns.length === 1;
+        while(choices.size < targetCount && attempts < 150 && choices.size < pool.length) {
+            attempts++;
+            const randItem = pool[Math.floor(Math.random() * pool.length)];
+            if (!randItem) continue;
+            let wrongStr = type === 'hz' ? (randItem.hanzi || randItem.zh || '').split(/[\/／]/)[0].trim() :
+                           type === 'py' ? (randItem._convertedPy || Utils.convertTones((randItem.pinyin || randItem.py || '').split(/[\/／]/)[0].trim())) :
+                           (randItem.def || randItem.en || '').trim();
             
-            @media (max-width: 768px) {
-                .qz-wrap.keyboard-open { justify-content: flex-start; padding-top: 25px; }
-                .qz-wrap.keyboard-open .qz-card { padding: 20px 20px; border-radius: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.04); }
-                .qz-wrap.keyboard-open .qz-label { margin-bottom: 5px; opacity: 0.6; font-size: 0.7rem; }
-                .qz-wrap.keyboard-open .qz-prompt { font-size: 2.8rem; margin-bottom: 15px; }
-                .qz-wrap.keyboard-open .qz-prompt.chars-long { font-size: 1.6rem; }
-                .qz-wrap.keyboard-open .qz-prompt.chars-3 { font-size: 2rem; }
+            if (type === 'hz') {
+                if (isTargetSingle && wrongStr.length !== 1) continue;
+                if (!isTargetSingle && wrongStr.length === 1) continue;
             }
-        `;
-        document.head.appendChild(style);
+            if (wrongStr) choices.add(wrongStr);
+        }
+        return Array.from(choices).sort(() => Math.random() - 0.5);
+    };
+
+    if (pType === 'hz') {
+        prompt = hanziText;
+        fontFam = "font-family: 'twkai', serif;";
+        if (charLen === 3) lenClass = 'chars-3'; else if (charLen >= 4) lenClass = 'chars-long';
+    } else if (pType === 'py') {
+        prompt = pinyinText;
+        fontFam = "font-family: 'Nunito', sans-serif; font-size: 1.8rem; color: var(--primary-dark);";
+        lenClass = 'chars-long';
+    } else if (pType === 'def') {
+        prompt = defText;
+        fontFam = "font-family: 'Nunito', sans-serif; font-size: 1.6rem; line-height: 1.4;";
+        lenClass = 'chars-long';
+    }
+
+    if (aType === 'def') {
+        correctAns = defText;
+        options = (window.Utils && Utils.generateDefDistractors) ? Utils.generateDefDistractors(item) : getDistractors('def');
+        if (options.length > 3) {
+            const wrong = options.filter(o => o !== correctAns).slice(0, 2);
+            options = [correctAns, ...wrong].sort(() => Math.random() - 0.5);
+        }
+    } else if (aType === 'hz') {
+        correctAns = pureHanzi;
+        options = getDistractors('hz');
+    } else if (aType === 'py') {
+        correctAns = pinyinText;
+        options = getDistractors('py');
     }
     
+    const typeNames = { hz: 'Hz', py: 'Py', def: 'En' };
+
     let animClass = App.state.skipFadeInOnce ? '' : 'fade-in';
     if (App.state.lastSwipe === 'right') animClass = 'swipe-in-right';
     else if (App.state.lastSwipe === 'left') animClass = 'swipe-in-left';
+    
+    let optionsContainerStyle = aType === 'hz'
+        ? 'width:100%; display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-top:30px;'
+        : 'width:100%; display:flex; flex-direction:column; gap:12px; margin-top:30px;';
+        
+    let optionBtnStyle = aType === 'hz' ? "font-size: 2.8rem; font-family: 'twkai', serif; padding: 20px 10px; line-height: 1.1;" : "";
 
     this.container.innerHTML = `
         <div class="qz-wrap ${animClass}" id="quizMcWrap">
-            <div class="qz-card" id="quizMcCard">
-                <div class="qz-label">Choose Meaning</div>
+            <div class="qz-card" id="quizMcCard" style="padding-bottom: 55px;">
+                <button class="qz-mode-toggle" onclick="UI.cycleQuizPrompt(event, 'mc')" title="Change Question" style="position: absolute; top: 16px; right: 16px; z-index: 10;">
+                    <span class="qz-mode-text">Q: ${typeNames[pType]}</span>
+                </button>
+                <div class="qz-label">${promptLabel}</div>
                 <div class="qz-prompt ${lenClass}" style="${fontFam}">${prompt}</div>
                 
-                <div id="mcOptionsContainer" style="width:100%; display:flex; flex-direction:column; gap:12px; margin-top:30px;"></div>
+                <div id="mcOptionsContainer" style="${optionsContainerStyle}"></div>
                 
                 <div class="qz-feedback" id="quizMcFeedback"></div>
+                
+                <button class="qz-mode-toggle" onclick="UI.cycleQuizAnswer(event, 'mc')" title="Change Answer" style="position: absolute; bottom: 16px; right: 16px; z-index: 10;">
+                    <span class="qz-mode-text">A: ${typeNames[aType]}</span>
+                </button>
             </div>
         </div>
     `;
@@ -635,10 +678,8 @@ Object.assign(window.UI, {
     const optionsContainer = document.getElementById('mcOptionsContainer');
     const feedback = document.getElementById('quizMcFeedback');
     
-    const options = Utils.generateDefDistractors(item);
-    
     optionsContainer.innerHTML = options.map((opt, i) => `
-        <button class="mc-option-btn fade-in" data-def="${opt.replace(/"/g, '&quot;')}">${opt}</button>
+        <button class="mc-option-btn fade-in" style="${optionBtnStyle}" data-opt="${opt.replace(/"/g, '&quot;')}">${opt}</button>
     `).join('');
 
     let isProcessing = false;
@@ -646,23 +687,15 @@ Object.assign(window.UI, {
     optionsContainer.querySelectorAll('.mc-option-btn').forEach(btn => {
         btn.onclick = () => {
             if (isProcessing) return;
-            const selectedDef = btn.dataset.def;
+            const selectedOpt = btn.dataset.opt;
             
-            if (selectedDef === correctDef) {
+            if (selectedOpt === correctAns) {
                 btn.classList.add('state-correct');
                 isProcessing = true;
                 optionsContainer.querySelectorAll('.mc-option-btn').forEach(b => {
                     b.classList.add('disabled');
                     if (b !== btn) b.style.opacity = '0.4';
                 });
-                
-                if (item._cleanPy === undefined) {
-                    let py = item.pinyin || item.py || '';
-                    if (py.includes('/') || py.includes('／')) py = py.split(/[\/／]/)[0];
-                    item._cleanPy = py.trim();
-                }
-                const pinyinText = item._convertedPy || (item._convertedPy = Utils.convertTones(item._cleanPy));
-                const hanzi = item._plainHanzi;
                 
                 App.speakText(item.hanzi || item.zh);
                 
@@ -697,6 +730,34 @@ Object.assign(window.UI, {
             }
         };
     });
+  },
+
+  cycleQuizPrompt(e, mode) {
+      if (e) e.stopPropagation();
+      const pModes = ['hz', 'py', 'def'];
+      if (mode === 'typing') {
+          const idx = pModes.indexOf(App.state.quizPrompt || 'hz');
+          App.state.quizPrompt = pModes[(idx + 1) % pModes.length];
+      } else {
+          const idx = pModes.indexOf(App.state.mcPrompt || 'hz');
+          App.state.mcPrompt = pModes[(idx + 1) % pModes.length];
+      }
+      App.saveSettings();
+      UI.render();
+  },
+  cycleQuizAnswer(e, mode) {
+      if (e) e.stopPropagation();
+      if (mode === 'typing') {
+          const aModes = ['py', 'hz'];
+          const idx = aModes.indexOf(App.state.quizAnswer || 'py');
+          App.state.quizAnswer = aModes[(idx + 1) % aModes.length];
+      } else {
+          const aModes = ['def', 'hz', 'py'];
+          const idx = aModes.indexOf(App.state.mcAnswer || 'def');
+          App.state.mcAnswer = aModes[(idx + 1) % aModes.length];
+      }
+      App.saveSettings();
+      UI.render();
   },
 
   renderList() {

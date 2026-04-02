@@ -92,6 +92,21 @@ init() {
       if (settingsContent) settingsContent.scrollTop = 0;
       document.getElementById('settingsModal').classList.add('open');
     });
+    // --- NEW TAB SWITCHING LOGIC ---
+    document.querySelectorAll('.settings-tab').forEach(tab => {
+        tab.addEventListener('click', (e) => {
+            // Remove active state from all tabs
+            document.querySelectorAll('.settings-tab').forEach(t => t.classList.remove('active'));
+            // Add active state to the clicked tab
+            e.target.classList.add('active');
+            
+            // Hide all content panes
+            document.querySelectorAll('.settings-section-pane').forEach(p => p.classList.remove('active'));
+            // Show the target pane
+            const targetId = e.target.dataset.tab;
+            document.getElementById(targetId)?.classList.add('active');
+        });
+    });
 
     document.getElementById('shuffleBtn')?.addEventListener('click', () => {
       const btn = document.getElementById('shuffleBtn');
@@ -147,6 +162,23 @@ init() {
         }
     };
 
+    const bindSlider = (id, propName, displayId, formatText, onUpdate) => {
+        const el = document.getElementById(id);
+        const displayEl = document.getElementById(displayId);
+        if (el) {
+            el.value = App.state[propName] || el.value;
+            if (displayEl) displayEl.textContent = formatText(el.value);
+            el.addEventListener('input', (e) => {
+                if (displayEl) displayEl.textContent = formatText(e.target.value);
+            });
+            el.addEventListener('change', (e) => {
+                App.state[propName] = parseFloat(e.target.value);
+                App.saveSettings();
+                if (onUpdate) onUpdate();
+            });
+        }
+    };
+
     const island = document.getElementById('dynamicIsland');
     if (island) {
         island.addEventListener('click', (e) => {
@@ -178,6 +210,19 @@ init() {
     bindToggle('writingGuidelinesToggle', 'writingShowOutline', () => { if (App.state.mode === 'writing') UI.render(); });
     bindToggle('writingHideDrawingToggle', 'writingHideDrawing', () => { if (App.state.mode === 'writing') UI.render(); });
     bindToggle('showHooksToggle', 'showHooks', () => UI.render());
+
+    // --- AUDIO & AUTO-PLAY CUSTOMIZATION ---
+    if (typeof App.state.ttsReadWord === 'undefined') App.state.ttsReadWord = true;
+    if (typeof App.state.ttsReadMeaning === 'undefined') App.state.ttsReadMeaning = false;
+    if (typeof App.state.ttsReadExample === 'undefined') App.state.ttsReadExample = true;
+    if (typeof App.state.ttsItemInterval === 'undefined') App.state.ttsItemInterval = 1.0;
+    if (typeof App.state.ttsCardInterval === 'undefined') App.state.ttsCardInterval = 2.0;
+
+    bindToggle('ttsReadWordToggle', 'ttsReadWord');
+    bindToggle('ttsReadMeaningToggle', 'ttsReadMeaning');
+    bindToggle('ttsReadExampleToggle', 'ttsReadExample');
+    bindSlider('ttsItemIntervalSlider', 'ttsItemInterval', 'ttsItemIntervalVal', v => `${v}s`);
+    bindSlider('ttsCardIntervalSlider', 'ttsCardInterval', 'ttsCardIntervalVal', v => `${v}s`);
 
     const qToggle = document.getElementById('quizTypeToggle');
     if (qToggle) {
@@ -503,7 +548,7 @@ showCourseSelector() {
               .pastel-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
           `;
           document.head.appendChild(style);
-      }
+      } 
 
       const overlay = document.createElement('div');
       overlay.id = 'course-selector-modal';
@@ -1036,6 +1081,39 @@ applyMobileUXTheme() {
               color: #db2777 !important; /* Sophisticated, deep pink */
               transform: translateY(-2px); /* Subtle lift instead of bulging */
           }
+
+          /* 🌟 ENHANCED HIGHLIGHT FOR TOP MATCH EXAMPLES */
+          .example-item.is-primary {
+              background: #fff6fa !important;
+              border: 2px solid rgba(255, 158, 181, 0.5) !important;
+              border-radius: 16px !important;
+              padding: 14px !important;
+              box-shadow: 0 6px 16px rgba(255, 158, 181, 0.15) !important;
+          }
+
+          /* 🌟 SMART EXAMPLES STYLING */
+          .smart-example-item {
+              padding: 16px; border-radius: 16px; background: #f8fafc;
+              border: 1px solid #e2e8f0; margin-bottom: 12px; transition: all 0.2s ease;
+          }
+          .smart-example-item.priority-match {
+              background: #fff6fa; border-color: rgba(255, 158, 181, 0.4);
+              box-shadow: 0 4px 12px rgba(255, 158, 181, 0.1);
+          }
+          .smart-ex-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; margin-bottom: 6px; }
+          .smart-ex-tags { display: flex; gap: 6px; align-items: center; }
+          .smart-ex-tag {
+              font-family: 'Nunito', sans-serif; font-size: 0.75rem; font-weight: 800;
+              color: #64748b; background: #e2e8f0; padding: 3px 8px; border-radius: 8px;
+          }
+          .priority-match .smart-ex-tag { color: var(--primary-dark); background: #fce7f3; }
+          .ex-speaker-btn {
+              background: transparent; border: none; color: #94a3b8; cursor: pointer;
+              padding: 6px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+              transition: all 0.2s ease; margin-top: -4px; margin-right: -4px;
+          }
+          .ex-speaker-btn:hover { color: var(--primary); background: rgba(255, 158, 181, 0.15); }
+          .ex-speaker-btn:active { transform: scale(0.85); }
       `;
       document.head.appendChild(style);
   },
@@ -1135,6 +1213,34 @@ applyMobileUXTheme() {
           #settingsModal input:checked + .slider { background-color: #6ea1c6 !important; }
           #settingsModal input:checked + .slider:before { transform: translateX(22px) !important; }
           
+          /* --- CHARACTER LOOKUP MODAL STYLES --- */
+          #charModal.modal-overlay {
+              display: flex !important;
+              align-items: flex-end !important;
+              justify-content: center !important;
+              background: rgba(0, 0, 0, 0.6) !important;
+              padding: 0 !important;
+              opacity: 0; pointer-events: none; transition: opacity 0.3s ease;
+              z-index: 10000 !important;
+          }
+          #charModal.open { opacity: 1 !important; pointer-events: auto !important; }
+          
+          #charModal .modal-sheet {
+              background: #ffffff !important;
+              border-radius: 32px 32px 0 0 !important;
+              padding: 32px 24px 40px 24px !important;
+              width: 100% !important;
+              max-width: 600px !important;
+              box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.2) !important;
+              transform: translateY(100%) !important; 
+              transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
+              will-change: transform !important;
+              max-height: 90vh !important;
+              display: flex !important;
+              flex-direction: column !important;
+              margin: 0 !important;
+          }
+#charModal.modal-overlay.open .modal-sheet { transform: translateY(0) !important; }          
           #settingsModal .speed-group { background: transparent !important; padding: 0 !important; gap: 8px !important; flex-wrap: wrap !important; }
           #settingsModal .speed-btn {
               background: #ffffff !important; color: #94a3b8 !important; border: 2px solid #f1f5f9 !important;
@@ -1143,14 +1249,67 @@ applyMobileUXTheme() {
               transition: all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1) !important; cursor: pointer !important;
           }
           #settingsModal .speed-btn:hover { transform: translateY(-3px) !important; box-shadow: 0 6px 12px rgba(255, 158, 181, 0.12) !important; border-color: #e2e8f0 !important; }
-          #settingsModal .speed-btn:active { transform: scale(0.9) !important; }
+          #settingsModal .speed-btn:active, #charModal .modal-close:active { transform: scale(0.9) !important; }
           #settingsModal .speed-btn.active {
-              background: #e0f2fe !important; color: #6ea1c6 !important; border-color: #6ea1c6 !important;
-              transform: translateY(-2px) !important; box-shadow: 0 8px 16px rgba(110,161,198,0.2) !important;
+            background: #e0f2fe !important; color: #6ea1c6 !important; border-color: #6ea1c6 !important;
+            transform: translateY(-2px) !important; box-shadow: 0 8px 16px rgba(110,161,198,0.2) !important;
+        }
+
+        /* --- SETTINGS TABS --- */
+        #settingsModal .settings-tabs {
+            display: flex !important; gap: 8px !important; margin-top: 16px !important;
+            background: #f1f5f9 !important; padding: 6px !important; border-radius: 20px !important;
+        }
+        #settingsModal .settings-tab {
+            flex: 1 !important; background: transparent !important; border: none !important;
+            padding: 10px !important; border-radius: 14px !important; font-family: 'Nunito', sans-serif !important;
+            font-weight: 800 !important; font-size: 0.95rem !important; color: #64748b !important;
+            cursor: pointer !important; transition: all 0.25s ease !important;
+        }
+        #settingsModal .settings-tab.active {
+            background: #ffffff !important; color: #1f2937 !important; box-shadow: 0 4px 12px rgba(0,0,0,0.06) !important;
+        }
+        #settingsModal .settings-section-pane { display: none !important; }
+        #settingsModal .settings-section-pane.active { 
+            display: block !important; animation: fadeInScale 0.3s ease-out forwards !important; 
+        }
+
+        /* --- RANGE SLIDERS FOR AUDIO SETTINGS --- */
+        #settingsModal input[type=range] {
+            -webkit-appearance: none; width: 100%; background: transparent; margin: 10px 0;
+        }
+        #settingsModal input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none; height: 22px; width: 22px;
+            border-radius: 50%; background: #6ea1c6; cursor: pointer;
+            margin-top: -8px; box-shadow: 0 4px 10px rgba(110, 161, 198, 0.4);
+            transition: transform 0.1s ease;
+        }
+        #settingsModal input[type=range]::-webkit-slider-thumb:active { transform: scale(1.15); }
+        #settingsModal input[type=range]::-webkit-slider-runnable-track {
+            width: 100%; height: 6px; cursor: pointer;
+            background: #e2e8f0; border-radius: 4px; box-shadow: inset 0 1px 2px rgba(0,0,0,0.05);
+        }
+        .slider-value-badge {
+            background: #f1f5f9; color: #64748b; padding: 4px 10px; border-radius: 12px; font-weight: 800; font-size: 0.85rem; display: inline-block; min-width: 45px; text-align: center;
+        }
+
+          #charModal .modal-close {
+              position: absolute !important; top: 20px !important; right: 20px !important;
+              background: #f8fafc !important; color: #94a3b8 !important;
+              width: 40px !important; height: 40px !important;
+              border-radius: 50% !important; border: 2px solid #f1f5f9 !important;
+              display: flex !important; align-items: center !important; justify-content: center !important;
+              font-family: 'Nunito', sans-serif !important; font-weight: 800 !important;
+              font-size: 1.2rem !important; line-height: 0 !important; padding-bottom: 4px !important;
+              cursor: pointer !important; transition: all 0.2s ease !important; z-index: 10;
           }
-      `;
-      document.head.appendChild(style);
-  },
+          #charModalContent { overflow-y: auto !important; padding-right: 10px !important; }
+          #charModalContent::-webkit-scrollbar { width: 6px !important; }
+          #charModalContent::-webkit-scrollbar-track { background: transparent !important; }
+          #charModalContent::-webkit-scrollbar-thumb { background: #cbd5e1 !important; border-radius: 10px !important; }
+    `;
+    document.head.appendChild(style);
+},
 
   closePopups() {
     document.querySelectorAll('.nav-popup').forEach(p => { p.classList.remove('active'); setTimeout(() => p.remove(), 200); });

@@ -184,97 +184,128 @@
       <div class="modal-content" id="settingsModalContent">
         <div class="settings-header">
           <h2>Settings</h2>
+          <div class="settings-tabs">
+            <button class="settings-tab active" data-tab="tab-audio">Audio</button>
+            <button class="settings-tab" data-tab="tab-display">Display</button>
+            <button class="settings-tab" data-tab="tab-quiz">Quiz</button>
+          </div>
         </div>
         
-        <div class="settings-section">
-          <div class="settings-section-title">Learning & Audio</div>
-          <div class="setting-card">
-            <div class="setting-row">
-              <div class="setting-label">
-                <span class="setting-name">Audio Speed</span>
-                <span class="setting-desc">TTS playback rate</span>
+        <div class="settings-section-pane active" id="tab-audio">
+          <div class="settings-section">
+            <div class="settings-section-title">Learning & Audio</div>
+            <div class="setting-card">
+              <div class="setting-row">
+                <div class="setting-label">
+                  <span class="setting-name">Audio Speed</span>
+                  <span class="setting-desc">TTS playback rate</span>
+                </div>
+                <div class="speed-group">
+                  <button class="speed-btn" data-rate="0.45">0.45x</button>
+                  <button class="speed-btn" data-rate="0.6">0.6x</button>
+                  <button class="speed-btn" data-rate="0.8">0.8x</button>
+                  <button class="speed-btn" data-rate="1.0">1.0x</button>
+                  <button class="speed-btn" data-rate="1.2">1.2x</button>
+                </div>
               </div>
-              <div class="speed-group">
-                <button class="speed-btn" data-rate="0.45">0.45x</button>
-                <button class="speed-btn" data-rate="0.6">0.6x</button>
-                <button class="speed-btn" data-rate="0.8">0.8x</button>
-                <button class="speed-btn" data-rate="1.0">1.0x</button>
-                <button class="speed-btn" data-rate="1.2">1.2x</button>
+              <div class="setting-row">
+                <div class="setting-label"><span class="setting-name">Tone Test</span><span class="setting-desc">For listening mode</span></div>
+                <label class="switch"><input type="checkbox" id="listeningToneTestToggle"><span class="slider"></span></label>
+              </div>
+              <div class="setting-row">
+                <div class="setting-label"><span class="setting-name">Hard Mode</span><span class="setting-desc">Type pinyin for listening</span></div>
+                <label class="switch"><input type="checkbox" id="listeningHardToggle"><span class="slider"></span></label>
+              </div>
+              <div class="setting-row">
+                <div class="setting-label"><span class="setting-name">Writing Guides</span><span class="setting-desc">Show outline in writing mode</span></div>
+                <label class="switch"><input type="checkbox" id="writingGuidelinesToggle"><span class="slider"></span></label>
               </div>
             </div>
-            <div class="setting-row">
-              <div class="setting-label"><span class="setting-name">Tone Test</span><span class="setting-desc">For listening mode</span></div>
-              <label class="switch"><input type="checkbox" id="listeningToneTestToggle"><span class="slider"></span></label>
-            </div>
-            <div class="setting-row">
-              <div class="setting-label"><span class="setting-name">Hard Mode</span><span class="setting-desc">Type pinyin for listening</span></div>
-              <label class="switch"><input type="checkbox" id="listeningHardToggle"><span class="slider"></span></label>
-            </div>
-            <div class="setting-row">
-              <div class="setting-label"><span class="setting-name">Writing Guides</span><span class="setting-desc">Show outline in writing mode</span></div>
-              <label class="switch"><input type="checkbox" id="writingGuidelinesToggle"><span class="slider"></span></label>
+          </div>
+          
+          <div class="settings-section">
+            <div class="settings-section-title">Auto-Play Customization</div>
+            <div class="setting-card">
+              <div class="setting-row">
+                <div class="setting-label"><span class="setting-name">Read Target Word</span><span class="setting-desc">Speak Chinese character/vocabulary</span></div>
+                <label class="switch"><input type="checkbox" id="ttsReadWordToggle"><span class="slider"></span></label>
+              </div>
+              <div class="setting-row">
+                <div class="setting-label"><span class="setting-name">Read Meaning</span><span class="setting-desc">Speak English definition</span></div>
+                <label class="switch"><input type="checkbox" id="ttsReadMeaningToggle"><span class="slider"></span></label>
+              </div>
+              <div class="setting-row">
+                <div class="setting-label"><span class="setting-name">Read Example</span><span class="setting-desc">Speak Chinese example sentence</span></div>
+                <label class="switch"><input type="checkbox" id="ttsReadExampleToggle"><span class="slider"></span></label>
+              </div>
+              <div class="setting-row" style="flex-direction: column; align-items: stretch; gap: 8px;">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <div class="setting-label"><span class="setting-name">Pause Between Items</span><span class="setting-desc">Delay between word, meaning, and example</span></div>
+                    <div id="ttsItemIntervalVal" class="slider-value-badge">1s</div>
+                </div>
+                <input type="range" id="ttsItemIntervalSlider" min="0" max="4" step="0.5" value="1">
+              </div>
+              <div class="setting-row" style="flex-direction: column; align-items: stretch; gap: 8px;">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <div class="setting-label"><span class="setting-name">Pause Between Cards</span><span class="setting-desc">Delay before moving to the next flashcard</span></div>
+                    <div id="ttsCardIntervalVal" class="slider-value-badge">2s</div>
+                </div>
+                <input type="range" id="ttsCardIntervalSlider" min="0" max="10" step="0.5" value="2">
+              </div>
             </div>
           </div>
         </div>
 
-        <div class="settings-section">
-          <div class="settings-section-title">Display</div>
-          <div class="setting-card">
-            <div class="setting-row">
-              <div class="setting-label"><span class="setting-name">No Pinyin</span><span class="setting-desc">Hide pinyin on cards</span></div>
-              <label class="switch"><input type="checkbox" id="noPinyinToggle"><span class="slider"></span></label>
-            </div>
-            <div class="setting-row">
-              <div class="setting-label"><span class="setting-name">Hide Example Pinyin</span><span class="setting-desc">Hide pinyin in sentences</span></div>
-              <label class="switch"><input type="checkbox" id="noExamplePinyinToggle"><span class="slider"></span></label>
-            </div>
-            <div class="setting-row">
-              <div class="setting-label"><span class="setting-name">No Hanzi Color</span><span class="setting-desc">Disable tone colors</span></div>
-              <label class="switch"><input type="checkbox" id="noHanziColorToggle"><span class="slider"></span></label>
-            </div>
-            <div class="setting-row">
-              <div class="setting-label"><span class="setting-name">Memory Hooks</span><span class="setting-desc">Show mnemonics on cards</span></div>
-              <label class="switch"><input type="checkbox" id="showHooksToggle"><span class="slider"></span></label>
-            </div>
-            <div class="setting-row">
-              <div class="setting-label"><span class="setting-name">Split Characters</span><span class="setting-desc">Separate multi-char words</span></div>
-              <label class="switch"><input type="checkbox" id="separateCharsToggle"><span class="slider"></span></label>
+        <div class="settings-section-pane" id="tab-display">
+          <div class="settings-section">
+            <div class="settings-section-title">Display</div>
+            <div class="setting-card">
+              <div class="setting-row">
+                <div class="setting-label"><span class="setting-name">No Pinyin</span><span class="setting-desc">Hide pinyin on cards</span></div>
+                <label class="switch"><input type="checkbox" id="noPinyinToggle"><span class="slider"></span></label>
+              </div>
+              <div class="setting-row">
+                <div class="setting-label"><span class="setting-name">Hide Example Pinyin</span><span class="setting-desc">Hide pinyin in sentences</span></div>
+                <label class="switch"><input type="checkbox" id="noExamplePinyinToggle"><span class="slider"></span></label>
+              </div>
+              <div class="setting-row">
+                <div class="setting-label"><span class="setting-name">No Hanzi Color</span><span class="setting-desc">Disable tone colors</span></div>
+                <label class="switch"><input type="checkbox" id="noHanziColorToggle"><span class="slider"></span></label>
+              </div>
+              <div class="setting-row">
+                <div class="setting-label"><span class="setting-name">Memory Hooks</span><span class="setting-desc">Show mnemonics on cards</span></div>
+                <label class="switch"><input type="checkbox" id="showHooksToggle"><span class="slider"></span></label>
+              </div>
+              <div class="setting-row">
+                <div class="setting-label"><span class="setting-name">Split Characters</span><span class="setting-desc">Separate multi-char words</span></div>
+                <label class="switch"><input type="checkbox" id="separateCharsToggle"><span class="slider"></span></label>
+              </div>
             </div>
           </div>
         </div>
         
-        <div class="settings-section">
-          <div class="settings-section-title">Quiz Settings</div>
-          <div class="setting-card">
-            <div class="setting-row">
-              <div class="setting-label"><span class="setting-name">Translate Mode</span><span class="setting-desc">English to Chinese</span></div>
-              <label class="switch"><input type="checkbox" id="quizTypeToggle"><span class="slider"></span></label>
-            </div>
-            <div class="setting-row">
-              <div class="setting-label"><span class="setting-name">Definition Only</span><span class="setting-desc">Hide Hanzi in quiz</span></div>
-              <label class="switch"><input type="checkbox" id="quizDefOnlyToggle"><span class="slider"></span></label>
-            </div>
-            <div class="setting-row">
-              <div class="setting-label"><span class="setting-name">Fast Next</span><span class="setting-desc">Auto-advance quickly</span></div>
-              <label class="switch"><input type="checkbox" id="fastNextToggle"><span class="slider"></span></label>
+        <div class="settings-section-pane" id="tab-quiz">
+          <div class="settings-section">
+            <div class="settings-section-title">Quiz Settings</div>
+            <div class="setting-card">
+              <div class="setting-row">
+                <div class="setting-label"><span class="setting-name">Translate Mode</span><span class="setting-desc">English to Chinese</span></div>
+                <label class="switch"><input type="checkbox" id="quizTypeToggle"><span class="slider"></span></label>
+              </div>
+              <div class="setting-row">
+                <div class="setting-label"><span class="setting-name">Definition Only</span><span class="setting-desc">Hide Hanzi in quiz</span></div>
+                <label class="switch"><input type="checkbox" id="quizDefOnlyToggle"><span class="slider"></span></label>
+              </div>
+              <div class="setting-row">
+                <div class="setting-label"><span class="setting-name">Fast Next</span><span class="setting-desc">Auto-advance quickly</span></div>
+                <label class="switch"><input type="checkbox" id="fastNextToggle"><span class="slider"></span></label>
+              </div>
             </div>
           </div>
         </div>
         
         <div style="height: 40px;"></div>
       </div>
-    </div>
-  </div>
-
-  <div class="modal-overlay" id="lessonModal">
-    <div class="modal-sheet">
-      <button class="modal-close" aria-label="Close">x</button>
-      <div class="modal-content" id="lessonModalContent">
-        <h2 style="margin-top:0; margin-bottom:20px;">Select Lesson</h2>
-        <div id="lessonGrid" class="lesson-list"></div>
-      </div>
-    </div>
-  </div>
 
   <div class="modal-overlay" id="charModal">
     <div class="modal-sheet" style="text-align:center; padding-bottom:40px; position: relative;">
