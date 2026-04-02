@@ -697,6 +697,7 @@ Object.assign(window.UI, {
     
     optionsContainer.innerHTML = options.map((opt, i) => {
         let displayOpt = opt;
+        let extraClass = '';
         if (aType === 'hz') {
             let formatted = '';
             const parts = opt.split(/([（(].*?[）)])/g);
@@ -709,8 +710,11 @@ Object.assign(window.UI, {
                 }
             });
             displayOpt = formatted;
+            if (opt.replace(/[（(].*?[）)]/g, '').trim().length >= 4) {
+                extraClass = ' chars-long-btn';
+            }
         }
-        return `<button class="mc-option-btn fade-in" style="${optionBtnStyle}" data-opt="${opt.replace(/"/g, '&quot;')}">${displayOpt}</button>`;
+        return `<button class="mc-option-btn fade-in${extraClass}" style="${optionBtnStyle}" data-opt="${opt.replace(/"/g, '&quot;')}">${displayOpt}</button>`;
     }).join('');
 
     let isProcessing = false;
