@@ -215,12 +215,14 @@ init() {
     if (typeof App.state.ttsReadWord === 'undefined') App.state.ttsReadWord = true;
     if (typeof App.state.ttsReadMeaning === 'undefined') App.state.ttsReadMeaning = false;
     if (typeof App.state.ttsReadExample === 'undefined') App.state.ttsReadExample = true;
+    if (typeof App.state.ttsReadExampleEn === 'undefined') App.state.ttsReadExampleEn = false;
     if (typeof App.state.ttsItemInterval === 'undefined') App.state.ttsItemInterval = 1.0;
     if (typeof App.state.ttsCardInterval === 'undefined') App.state.ttsCardInterval = 2.0;
 
     bindToggle('ttsReadWordToggle', 'ttsReadWord');
     bindToggle('ttsReadMeaningToggle', 'ttsReadMeaning');
     bindToggle('ttsReadExampleToggle', 'ttsReadExample');
+    bindToggle('ttsReadExampleEnToggle', 'ttsReadExampleEn');
     bindSlider('ttsItemIntervalSlider', 'ttsItemInterval', 'ttsItemIntervalVal', v => `${v}s`);
     bindSlider('ttsCardIntervalSlider', 'ttsCardInterval', 'ttsCardIntervalVal', v => `${v}s`);
 
@@ -568,7 +570,7 @@ showCourseSelector() {
               <!-- Top Section: Header & Books -->
               <div style="padding: 24px 24px 16px 24px; background: #ffffff; border-bottom: 1px solid #f1f5f9; z-index: 10; flex-shrink: 0;">
                   <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 20px;">
-                      <h3 style="font-family:'Nunito', sans-serif; font-size:1.6rem; font-weight:800; color:#1e293b; margin:0; letter-spacing:-0.5px;">Course Selection</h3>
+                      <h3 style="font-family:'Nunito', sans-serif; font-size:1.6rem; font-weight:800; color:#475569; margin:0; letter-spacing:-0.5px;">Course Selection</h3>
                       <button class="pastel-btn-icon" id="closeCourseModal">
                           <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
                       </button>
@@ -1175,7 +1177,7 @@ applyMobileUXTheme() {
           #settingsModal .settings-header { border-bottom: none !important; margin-bottom: 24px !important; padding: 0 !important;}
           #settingsModal .settings-header h2 {
               font-family: 'Nunito', sans-serif !important; font-size: 1.8rem !important;
-              font-weight: 800 !important; color: #1f2937 !important; margin: 0 !important;
+              font-weight: 800 !important; color: #475569 !important; margin: 0 !important;
           }
           #settingsModal .settings-section-title {
               font-family: 'Nunito', sans-serif !important; font-weight: 800 !important;
@@ -1193,7 +1195,7 @@ applyMobileUXTheme() {
           
           #settingsModal .setting-name {
               font-family: 'Nunito', sans-serif !important; font-weight: 800 !important;
-              color: #1f2937 !important; font-size: 1.05rem !important;
+              color: #475569 !important; font-size: 1.05rem !important;
           }
           #settingsModal .setting-desc {
               font-family: 'Nunito', sans-serif !important; font-weight: 700 !important;
@@ -1267,7 +1269,7 @@ applyMobileUXTheme() {
             cursor: pointer !important; transition: all 0.25s ease !important;
         }
         #settingsModal .settings-tab.active {
-            background: #ffffff !important; color: #1f2937 !important; box-shadow: 0 4px 12px rgba(0,0,0,0.06) !important;
+            background: #ffffff !important; color: #475569 !important; box-shadow: 0 4px 12px rgba(0,0,0,0.06) !important;
         }
         #settingsModal .settings-section-pane { display: none !important; }
         #settingsModal .settings-section-pane.active { 

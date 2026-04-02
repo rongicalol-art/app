@@ -58,6 +58,7 @@ const App = {
     ttsReadWord: true,
     ttsReadMeaning: false,
     ttsReadExample: true,
+    ttsReadExampleEn: false,
     ttsItemInterval: 1.0,
     ttsCardInterval: 2.0,
   },
@@ -309,6 +310,7 @@ const App = {
         this.state.ttsReadWord = parsed.ttsReadWord !== undefined ? parsed.ttsReadWord : true;
         this.state.ttsReadMeaning = parsed.ttsReadMeaning !== undefined ? parsed.ttsReadMeaning : false;
         this.state.ttsReadExample = parsed.ttsReadExample !== undefined ? parsed.ttsReadExample : true;
+        this.state.ttsReadExampleEn = parsed.ttsReadExampleEn !== undefined ? parsed.ttsReadExampleEn : false;
         this.state.ttsItemInterval = parsed.ttsItemInterval !== undefined ? parsed.ttsItemInterval : 1.0;
         this.state.ttsCardInterval = parsed.ttsCardInterval !== undefined ? parsed.ttsCardInterval : 2.0;
         this.state.quizPrompt = parsed.quizPrompt || 'hz';
@@ -355,6 +357,7 @@ const App = {
       ttsReadWord: this.state.ttsReadWord,
       ttsReadMeaning: this.state.ttsReadMeaning,
       ttsReadExample: this.state.ttsReadExample,
+      ttsReadExampleEn: this.state.ttsReadExampleEn,
       ttsItemInterval: this.state.ttsItemInterval,
       ttsCardInterval: this.state.ttsCardInterval,
       quizPrompt: this.state.quizPrompt,
@@ -1096,6 +1099,16 @@ updateActiveList(preserveState = false) {
           const exNode = document.querySelector('.example-item .example-zh') || document.querySelector('.smart-example-item .example-zh');
           if (exNode && exNode.textContent) {
               await this.speakText(exNode.textContent, 'zh-TW');
+              if (!checkToken()) return;
+              await new Promise(r => setTimeout(r, this.state.ttsItemInterval * 1000));
+              if (!checkToken()) return;
+          }
+      }
+      
+      if (this.state.ttsReadExampleEn && !item.zh) {
+          const exEnNode = document.querySelector('.example-item.is-primary .example-en') || document.querySelector('.example-item .example-en') || document.querySelector('.smart-example-item .example-en');
+          if (exEnNode && exEnNode.textContent) {
+              await this.speakText(exEnNode.textContent, 'en-US');
               if (!checkToken()) return;
               await new Promise(r => setTimeout(r, this.state.ttsItemInterval * 1000));
               if (!checkToken()) return;

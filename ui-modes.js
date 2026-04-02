@@ -295,7 +295,7 @@ Object.assign(window.UI, {
                 <div id="pos-explanation-box" style="display:none; background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:8px 12px; margin-bottom:12px; font-size:0.85rem; color:#475569; text-align:center; max-width:85%; box-shadow:inset 0 2px 4px rgba(0,0,0,0.02); line-height:1.4;"></div>
                 <div class="hanzi-display hanzi-display hz-hero">${item._plainHanzi}</div>
                 ${App.state.showHooks && item.hook ? `<div class="memory-hook"><span>💡</span> <span>${item.hook}</span></div>` : ''}
-                <div class="def-display study-def" style="color: #334155; font-weight: 600; ${App.state.noTranslation ? 'display:none' : ''}">${item.def}</div>
+                <div class="def-display study-def" style="color: #64748b; font-weight: 500; line-height: 1.5; letter-spacing: 0.2px; margin-top: 5px; ${App.state.noTranslation ? 'display:none' : ''}">${item.def}</div>
             </div>
             
             ${exampleGroupsHtml ? `
@@ -434,27 +434,35 @@ Object.assign(window.UI, {
     if (App.state.lastSwipe === 'right') animClass = 'swipe-in-right';
     else if (App.state.lastSwipe === 'left') animClass = 'swipe-in-left';
 
+    const settingsHtml = `
+        <button class="qz-settings-btn" onclick="document.getElementById('qzSettingsPopup').classList.toggle('active')" aria-label="Settings">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="12" x2="20" y2="12"></line><line x1="4" y1="6" x2="20" y2="6"></line><line x1="4" y1="18" x2="20" y2="18"></line></svg>
+        </button>
+        <div id="qzSettingsPopup" class="qz-settings-popup">
+            <div style="font-size: 0.7rem; font-weight: 800; color: #cbd5e1; letter-spacing: 1px; margin-bottom: 6px; padding-left: 4px;">QUESTION</div>
+            <button class="nav-popup-btn ${pType === 'hz' ? 'active' : ''}" onclick="UI.setQuizPrompt('hz', 'typing')">Hanzi</button>
+            <button class="nav-popup-btn ${pType === 'py' ? 'active' : ''}" onclick="UI.setQuizPrompt('py', 'typing')">Pinyin</button>
+            <button class="nav-popup-btn ${pType === 'def' ? 'active' : ''}" onclick="UI.setQuizPrompt('def', 'typing')">English</button>
+            <div style="font-size: 0.7rem; font-weight: 800; color: #cbd5e1; letter-spacing: 1px; margin: 12px 0 6px 0; padding-left: 4px; border-top: 1px solid #f1f5f9; padding-top: 10px;">ANSWER</div>
+            <button class="nav-popup-btn ${aType === 'hz' ? 'active' : ''}" onclick="UI.setQuizAnswer('hz', 'typing')">Hanzi</button>
+            <button class="nav-popup-btn ${aType === 'py' ? 'active' : ''}" onclick="UI.setQuizAnswer('py', 'typing')">Pinyin</button>
+        </div>
+    `;
+
     this.container.innerHTML = `
-        <div class="qz-wrap ${animClass}" id="quizWrap">
-            <div class="qz-card" id="quizCard" style="padding-bottom: 55px;">
-                <button class="qz-mode-toggle" onclick="UI.cycleQuizPrompt(event, 'typing')" title="Change Question" style="position: absolute; top: 16px; right: 16px; z-index: 10;">
-                    <span class="qz-mode-text">Q: ${typeNames[pType]}</span>
-                </button>
+        <div class="qz-wrap ${animClass}" id="quizWrap" style="position: relative;">
+            <div class="qz-card" id="quizCard">
+                ${settingsHtml}
                 <div class="qz-label">${promptLabel}</div>
                 <div class="qz-prompt ${lenClass}" style="${fontFam}">${prompt}</div>
                 <div class="qz-input-wrap">
                     <input type="text" id="userAnswer" autofocus class="qz-input" placeholder="Your answer..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="done">
                 </div>
-                <div class="qz-feedback" id="quizFeedback"></div>
-                <button class="qz-mode-toggle" onclick="UI.cycleQuizAnswer(event, 'typing')" title="Change Answer" style="position: absolute; bottom: 16px; right: 16px; z-index: 10;">
-                    <span class="qz-mode-text">A: ${typeNames[aType]}</span>
-                </button>
             </div>
         </div>
     `;
 
     const input = document.getElementById('userAnswer');
-    const feedback = document.getElementById('quizFeedback');
     const wrap = document.getElementById('quizWrap');
 
     if (input && wrap) {
@@ -496,11 +504,13 @@ Object.assign(window.UI, {
          isProcessing = true;
          input.classList.add('state-correct');
          
-         feedback.innerHTML = `
-             <div class="qz-fb-py" style="color: ${themeColor};">${pinyinText}</div>
-             <div class="qz-fb-def">${defText}</div>
-         `;
-         feedback.classList.add('show');
+         let extraInfo = [];
+         if (aType !== 'py' && pType !== 'py') extraInfo.push(pinyinText);
+         if (aType !== 'def' && pType !== 'def') extraInfo.push(defText);
+         if (aType !== 'hz' && pType !== 'hz') extraInfo.push(pureHanzi);
+         let infoStr = extraInfo.join(' • ');
+         input.value = infoStr ? `${val} (${infoStr})` : val;
+         input.style.fontSize = '1.05rem';
          
          App.speakText(item.hanzi || item.zh);
          App.state.streak++;
@@ -653,34 +663,55 @@ Object.assign(window.UI, {
         ? 'width:100%; display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-top:30px;'
         : 'width:100%; display:flex; flex-direction:column; gap:12px; margin-top:30px;';
         
-    let optionBtnStyle = aType === 'hz' ? "font-size: 2.8rem; font-family: 'twkai', serif; padding: 20px 10px; line-height: 1.1;" : "";
-
+    let optionBtnStyle = aType === 'hz' ? "font-weight: normal; font-size: 2.8rem; font-family: 'twkai', serif; padding: 20px 10px; line-height: 1.1;" : "";
+    
+    const settingsHtml = `
+        <button class="qz-settings-btn" onclick="document.getElementById('qzSettingsPopup').classList.toggle('active')" aria-label="Settings">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="12" x2="20" y2="12"></line><line x1="4" y1="6" x2="20" y2="6"></line><line x1="4" y1="18" x2="20" y2="18"></line></svg>
+        </button>
+        <div id="qzSettingsPopup" class="qz-settings-popup">
+            <div style="font-size: 0.7rem; font-weight: 800; color: #cbd5e1; letter-spacing: 1px; margin-bottom: 6px; padding-left: 4px;">QUESTION</div>
+            <button class="nav-popup-btn ${pType === 'hz' ? 'active' : ''}" onclick="UI.setQuizPrompt('hz', 'mc')">Hanzi</button>
+            <button class="nav-popup-btn ${pType === 'py' ? 'active' : ''}" onclick="UI.setQuizPrompt('py', 'mc')">Pinyin</button>
+            <button class="nav-popup-btn ${pType === 'def' ? 'active' : ''}" onclick="UI.setQuizPrompt('def', 'mc')">English</button>
+            <div style="font-size: 0.7rem; font-weight: 800; color: #cbd5e1; letter-spacing: 1px; margin: 12px 0 6px 0; padding-left: 4px; border-top: 1px solid #f1f5f9; padding-top: 10px;">ANSWER</div>
+            <button class="nav-popup-btn ${aType === 'hz' ? 'active' : ''}" onclick="UI.setQuizAnswer('hz', 'mc')">Hanzi</button>
+            <button class="nav-popup-btn ${aType === 'py' ? 'active' : ''}" onclick="UI.setQuizAnswer('py', 'mc')">Pinyin</button>
+            <button class="nav-popup-btn ${aType === 'def' ? 'active' : ''}" onclick="UI.setQuizAnswer('def', 'mc')">English</button>
+        </div>
+    `;
     this.container.innerHTML = `
-        <div class="qz-wrap ${animClass}" id="quizMcWrap">
-            <div class="qz-card" id="quizMcCard" style="padding-bottom: 55px;">
-                <button class="qz-mode-toggle" onclick="UI.cycleQuizPrompt(event, 'mc')" title="Change Question" style="position: absolute; top: 16px; right: 16px; z-index: 10;">
-                    <span class="qz-mode-text">Q: ${typeNames[pType]}</span>
-                </button>
+    <div class="qz-wrap ${animClass}" id="quizMcWrap" style="position: relative;">
+             <div class="qz-card" id="quizMcCard">
+                ${settingsHtml}
                 <div class="qz-label">${promptLabel}</div>
                 <div class="qz-prompt ${lenClass}" style="${fontFam}">${prompt}</div>
                 
                 <div id="mcOptionsContainer" style="${optionsContainerStyle}"></div>
                 
-                <div class="qz-feedback" id="quizMcFeedback"></div>
-                
-                <button class="qz-mode-toggle" onclick="UI.cycleQuizAnswer(event, 'mc')" title="Change Answer" style="position: absolute; bottom: 16px; right: 16px; z-index: 10;">
-                    <span class="qz-mode-text">A: ${typeNames[aType]}</span>
-                </button>
             </div>
         </div>
     `;
 
     const optionsContainer = document.getElementById('mcOptionsContainer');
-    const feedback = document.getElementById('quizMcFeedback');
     
-    optionsContainer.innerHTML = options.map((opt, i) => `
-        <button class="mc-option-btn fade-in" style="${optionBtnStyle}" data-opt="${opt.replace(/"/g, '&quot;')}">${opt}</button>
-    `).join('');
+    optionsContainer.innerHTML = options.map((opt, i) => {
+        let displayOpt = opt;
+        if (aType === 'hz') {
+            let formatted = '';
+            const parts = opt.split(/([（(].*?[）)])/g);
+            parts.forEach(part => {
+                if (!part) return;
+                if (part.match(/^[（(].*[）)]$/)) {
+                    formatted += `<span style="font-size: 0.55em; opacity: 0.7; margin: 0 2px; display: inline-block; vertical-align: middle;">${part}</span>`;
+                } else {
+                    formatted += part;
+                }
+            });
+            displayOpt = formatted;
+        }
+        return `<button class="mc-option-btn fade-in" style="${optionBtnStyle}" data-opt="${opt.replace(/"/g, '&quot;')}">${displayOpt}</button>`;
+    }).join('');
 
     let isProcessing = false;
 
@@ -699,11 +730,27 @@ Object.assign(window.UI, {
                 
                 App.speakText(item.hanzi || item.zh);
                 
-                feedback.innerHTML = `
-                    <div class="qz-fb-py" style="color: #34d399;">${pinyinText}</div>
-                `;
-                feedback.classList.add('show');
-                
+                let extraInfo = [];
+                if (aType !== 'py' && pType !== 'py') extraInfo.push(pinyinText);
+                if (aType !== 'def' && pType !== 'def') extraInfo.push(defText);
+                if (aType !== 'hz' && pType !== 'hz') extraInfo.push(pureHanzi);
+                let infoStr = extraInfo.join(' • ');
+                 let displayOpt = selectedOpt;
+                if (aType === 'hz') {
+                    let formatted = '';
+                    const parts = selectedOpt.split(/([（(].*?[）)])/g);
+                    parts.forEach(part => {
+                        if (!part) return;
+                        if (part.match(/^[（(].*[）)]$/)) {
+                            formatted += `<span style="font-size: 0.55em; opacity: 0.7; margin: 0 2px; display: inline-block; vertical-align: middle;">${part}</span>`;
+                        } else {
+                            formatted += part;
+                        }
+                    });
+                    displayOpt = formatted;
+                }
+                const mainFw = aType === 'hz' ? 'normal' : '700';
+                if(infoStr) btn.innerHTML = `<div style="font-weight: ${mainFw};">${displayOpt}</div><div style="font-size: 0.8em; font-weight: 700; opacity: 0.85; line-height: 1.3; margin-top: 6px; font-family: 'Nunito', sans-serif; letter-spacing: 0;">${infoStr}</div>`;
                 App.state.streak++;
                 if (typeof UI.updateStreak === 'function') UI.updateStreak();
                 App.saveSettings();
@@ -732,29 +779,36 @@ Object.assign(window.UI, {
     });
   },
 
-  cycleQuizPrompt(e, mode) {
-      if (e) e.stopPropagation();
-      const pModes = ['hz', 'py', 'def'];
+  setQuizPrompt(value, mode) {
       if (mode === 'typing') {
-          const idx = pModes.indexOf(App.state.quizPrompt || 'hz');
-          App.state.quizPrompt = pModes[(idx + 1) % pModes.length];
+          App.state.quizPrompt = value;
+          if (App.state.quizPrompt === App.state.quizAnswer) {
+              App.state.quizAnswer = App.state.quizPrompt === 'py' ? 'hz' : 'py';
+          }
       } else {
-          const idx = pModes.indexOf(App.state.mcPrompt || 'hz');
-          App.state.mcPrompt = pModes[(idx + 1) % pModes.length];
+          App.state.mcPrompt = value;
+          if (App.state.mcPrompt === App.state.mcAnswer) {
+              const alts = ['def', 'hz', 'py'].filter(x => x !== App.state.mcPrompt);
+              App.state.mcAnswer = alts[0];
+          }
       }
       App.saveSettings();
       UI.render();
   },
-  cycleQuizAnswer(e, mode) {
-      if (e) e.stopPropagation();
+  
+  setQuizAnswer(value, mode) {
       if (mode === 'typing') {
-          const aModes = ['py', 'hz'];
-          const idx = aModes.indexOf(App.state.quizAnswer || 'py');
-          App.state.quizAnswer = aModes[(idx + 1) % aModes.length];
+          App.state.quizAnswer = value;
+          if (App.state.quizPrompt === App.state.quizAnswer) {
+              const alts = ['def', 'hz', 'py'].filter(x => x !== App.state.quizAnswer);
+              App.state.quizPrompt = alts[0];
+          }
       } else {
-          const aModes = ['def', 'hz', 'py'];
-          const idx = aModes.indexOf(App.state.mcAnswer || 'def');
-          App.state.mcAnswer = aModes[(idx + 1) % aModes.length];
+          App.state.mcAnswer = value;
+          if (App.state.mcPrompt === App.state.mcAnswer) {
+              const alts = ['def', 'hz', 'py'].filter(x => x !== App.state.mcAnswer);
+              App.state.mcPrompt = alts[0];
+          }
       }
       App.saveSettings();
       UI.render();
@@ -1161,7 +1215,7 @@ Object.assign(window.UI, {
         outlineColor: '#e2e8f0', strokeAnimationSpeed: 1, delayBetweenStrokes: 100,
         strokeColor: '#ff9eb5', radicalColor: '#8b5cf6', highlightColor: '#ff85a2',
         drawingWidth: App.state.writingHideDrawing ? 0 : 25, 
-        drawingColor: App.state.writingHideDrawing ? 'transparent' : '#333333',
+        drawingColor: App.state.writingHideDrawing ? 'transparent' : '#64748b',
         drawingFadeDuration: 300, // 🌟 Adjusted to be consistent and visible on all devices
         onLoadCharDataSuccess: () => {
             document.getElementById('writingMessage').style.display = 'none';
