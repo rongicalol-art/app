@@ -438,7 +438,7 @@ Object.assign(window.UI, {
         <button class="qz-settings-btn" onclick="document.getElementById('qzSettingsPopup').classList.toggle('active')" aria-label="Settings">
             <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="12" x2="20" y2="12"></line><line x1="4" y1="6" x2="20" y2="6"></line><line x1="4" y1="18" x2="20" y2="18"></line></svg>
         </button>
-        <div id="qzSettingsPopup" class="qz-settings-popup">
+        <div id="qzSettingsPopup" class="qz-settings-popup" style="background: rgba(255, 255, 255, 0.85); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); box-shadow: 0 10px 30px rgba(0,0,0,0.12); border: 1px solid rgba(255,255,255,0.6); border-radius: 16px;">
             <div style="font-size: 0.7rem; font-weight: 800; color: #cbd5e1; letter-spacing: 1px; margin-bottom: 6px; padding-left: 4px;">QUESTION</div>
             <button class="nav-popup-btn ${pType === 'hz' ? 'active' : ''}" onclick="UI.setQuizPrompt('hz', 'typing')">Hanzi</button>
             <button class="nav-popup-btn ${pType === 'py' ? 'active' : ''}" onclick="UI.setQuizPrompt('py', 'typing')">Pinyin</button>
@@ -669,7 +669,7 @@ Object.assign(window.UI, {
         <button class="qz-settings-btn" onclick="document.getElementById('qzSettingsPopup').classList.toggle('active')" aria-label="Settings">
             <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="12" x2="20" y2="12"></line><line x1="4" y1="6" x2="20" y2="6"></line><line x1="4" y1="18" x2="20" y2="18"></line></svg>
         </button>
-        <div id="qzSettingsPopup" class="qz-settings-popup">
+        <div id="qzSettingsPopup" class="qz-settings-popup" style="background: rgba(255, 255, 255, 0.85); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); box-shadow: 0 10px 30px rgba(0,0,0,0.12); border: 1px solid rgba(255,255,255,0.6); border-radius: 16px;">
             <div style="font-size: 0.7rem; font-weight: 800; color: #cbd5e1; letter-spacing: 1px; margin-bottom: 6px; padding-left: 4px;">QUESTION</div>
             <button class="nav-popup-btn ${pType === 'hz' ? 'active' : ''}" onclick="UI.setQuizPrompt('hz', 'mc')">Hanzi</button>
             <button class="nav-popup-btn ${pType === 'py' ? 'active' : ''}" onclick="UI.setQuizPrompt('py', 'mc')">Pinyin</button>
@@ -750,7 +750,7 @@ Object.assign(window.UI, {
                     displayOpt = formatted;
                 }
                 const mainFw = aType === 'hz' ? 'normal' : '700';
-                if(infoStr) btn.innerHTML = `<div style="font-weight: ${mainFw};">${displayOpt}</div><div style="font-size: 0.8em; font-weight: 700; opacity: 0.85; line-height: 1.3; margin-top: 6px; font-family: 'Nunito', sans-serif; letter-spacing: 0;">${infoStr}</div>`;
+                if(infoStr) btn.innerHTML = `<div style="font-weight: ${mainFw};">${displayOpt}</div><div style="font-size: 1.05rem; font-weight: 700; opacity: 0.85; line-height: 1.3; margin-top: 6px; font-family: 'Nunito', sans-serif; letter-spacing: 0;">${infoStr}</div>`;
                 App.state.streak++;
                 if (typeof UI.updateStreak === 'function') UI.updateStreak();
                 App.saveSettings();
@@ -1069,7 +1069,7 @@ Object.assign(window.UI, {
             </div>
           </div>
 
-            <div id="writingBottomDock" class="dock-enter" style="position: fixed; bottom: clamp(20px, 4vh, 35px); left: 50%; transform: translateX(-50%); z-index: 100; display: flex; justify-content: space-evenly; align-items: center; background: rgba(255, 255, 255, 0.96); padding: 8px 16px; border-radius: 100px; box-shadow: 0 8px 18px rgba(255, 158, 181, 0.08); border: 1px solid rgba(255, 255, 255, 0.9); width: calc(100% - 40px); max-width: 350px; will-change: transform, opacity;">
+        <div id="writingBottomDock" class="dock-enter" style="position: fixed; bottom: clamp(20px, 4vh, 35px); left: 50%; transform: translateX(-50%); z-index: 100; display: flex; justify-content: space-evenly; align-items: center; background: rgba(255, 255, 255, 0.75); backdrop-filter: blur(15px); -webkit-backdrop-filter: blur(15px); padding: 8px 16px; border-radius: 100px; box-shadow: 0 12px 32px rgba(255, 158, 181, 0.15); border: 1px solid rgba(255, 255, 255, 0.7); width: calc(100% - 40px); max-width: 350px; will-change: transform, opacity;">
                 <button class="action-icon-btn text-danger" id="exitFocusBtn" title="Exit Practice">
                     <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
                 </button>

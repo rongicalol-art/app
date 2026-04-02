@@ -7,6 +7,7 @@
 
   <meta name="theme-color" content="#fff5f7">
   <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-touch-fullscreen" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <link rel="manifest" href="manifest.json">
@@ -55,6 +56,73 @@
       0%, 20%, 50%, 80%, 100% { transform: translateY(0); }
       40% { transform: translateY(3px); }
       60% { transform: translateY(1.5px); }
+    }
+
+    /* UI Polish Enhancements */
+    .modal-overlay {
+      background-color: rgba(15, 23, 42, 0.4) !important;
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+    }
+    .hq-brand-title {
+      background: linear-gradient(135deg, var(--primary, #ff758c), #ff9eb5);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      animation: titlePulse 2.5s infinite ease-in-out;
+    }
+    @keyframes titlePulse {
+      0%, 100% { opacity: 0.85; transform: scale(0.98); }
+      50% { opacity: 1; transform: scale(1.02); }
+    }
+    .mc-option-btn.chars-long-btn {
+      font-size: 1.65rem !important; /* Scales down long characters on mobile */
+    }
+
+    /* Desktop Enhancements for Quiz Modes */
+    @media (min-width: 768px) {
+      .qz-card {
+        max-width: 800px !important;
+        width: 90% !important;
+        padding: 60px 50px !important;
+        min-height: 45vh;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+      }
+      .qz-prompt {
+        font-size: 6rem !important;
+        margin-bottom: 40px !important;
+      }
+      .qz-prompt.chars-long {
+        font-size: 3.5rem !important;
+      }
+      .qz-input {
+        font-size: 2rem !important;
+        padding: 24px 30px !important;
+        border-radius: 24px !important;
+      }
+      .mc-option-btn {
+        font-size: 1.35rem !important;
+        padding: 20px 24px !important;
+        border-radius: 20px !important;
+      }
+      .mc-option-btn[style*="twkai"] {
+        font-size: 4rem !important;
+      }
+      #mcOptionsContainer {
+        display: grid !important;
+        grid-template-columns: 1fr 1fr !important;
+        gap: 20px !important;
+      }
+      /* Centers the 3rd option perfectly if there are only 3 choices */
+      #mcOptionsContainer > :nth-child(3):last-child {
+        grid-column: 1 / -1;
+        width: calc(50% - 10px);
+        justify-self: center;
+      }
+      .mc-option-btn.chars-long-btn[style*="twkai"] {
+        font-size: 2.5rem !important; /* Scales down long characters on desktop */
+      }
     }
   </style>
 </head>
