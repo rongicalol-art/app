@@ -287,7 +287,7 @@ Object.assign(window.UI, {
 
     backFace.innerHTML = `
         <div class="face-content vocab-content">
-            <div class="study-back-main" style="min-height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center; width: 100%;">
+            <div class="study-back-main" style="margin: auto 0; display: flex; flex-direction: column; align-items: center; width: 100%; padding-bottom: 20px;">
                 <div style="display: flex; justify-content: center; align-items: center; flex-wrap: wrap; margin-bottom: 0.5rem;">
                     <div class="pinyin-display" style="${pinyinStyle}">${item._convertedPy}</div>
                     ${typeHtml}
@@ -600,20 +600,45 @@ Object.assign(window.UI, {
     let correctAns = '';
     let options = [];
     
-    const getDistractors = (type) => {
-        const pool = App.state.activeList;
+   const getDistractors = (type) => {
+        // 🚀 Pull from the ENTIRE dictionary for more variety! (Fixed: DATA is a const, not on window)
+        const isSentence = item.zh && !item.hanzi;
+        const globalPool = isSentence ? (typeof DATA !== 'undefined' ? DATA.SENTENCES : []) : (typeof DATA !== 'undefined' ? DATA.VOCAB : []);
+        const pool = (globalPool && globalPool.length > 0) ? globalPool : App.state.activeList;
         const choices = new Set();
         choices.add(correctAns);
         const targetCount = aType === 'hz' ? 4 : 3;
         let attempts = 0;
         const isTargetSingle = type === 'hz' && correctAns.length === 1;
-        while(choices.size < targetCount && attempts < 150 && choices.size < pool.length) {
+        
+        // 🚀 "Trick" Logic: Find other words that share these exact characters
+        const sharedCharPool = [];
+        if (type === 'hz') {
+            const chars = correctAns.split('');
+            pool.forEach(item => {
+                const hz = (item.hanzi || item.zh || '').split(/[\/／]/)[0].replace(/[（(].*?[）)]/g, '').trim();
+                // If it's the same length and shares at least one character... it's a trap!
+                if (hz && hz !== correctAns && hz.length === correctAns.length && chars.some(c => hz.includes(c))) {
+                    sharedCharPool.push(hz);
+                }
+            });
+        }
+
+        while(choices.size < targetCount && attempts < 200 && choices.size < pool.length) {
             attempts++;
-            const randItem = pool[Math.floor(Math.random() * pool.length)];
-            if (!randItem) continue;
-            let wrongStr = type === 'hz' ? (randItem.hanzi || randItem.zh || '').split(/[\/／]/)[0].trim() :
-                           type === 'py' ? (randItem._convertedPy || Utils.convertTones((randItem.pinyin || randItem.py || '').split(/[\/／]/)[0].trim())) :
+            let wrongStr = '';
+            
+            // 50% chance to use a "trick" character if we found any!
+            if (type === 'hz' && sharedCharPool.length > 0 && Math.random() < 0.5) {
+                wrongStr = sharedCharPool[Math.floor(Math.random() * sharedCharPool.length)];
+            } else {
+                const randItem = pool[Math.floor(Math.random() * pool.length)];
+                if (!randItem) continue;
+                // 🚀 Fixes the duplicate "學" bug by stripping parenthesis before adding to the Set
+                wrongStr = type === 'hz' ? (randItem.hanzi || randItem.zh || '').split(/[\/／]/)[0].replace(/[（(].*?[）)]/g, '').trim() :
+                           type === 'py' ? (randItem._convertedPy || Utils.convertTones((randItem.pinyin || randItem.py || '').split(/[\/／]/)[0].replace(/[（(].*?[）)]/g, '').trim())) :
                            (randItem.def || randItem.en || '').trim();
+            }
             
             if (type === 'hz') {
                 if (isTargetSingle && wrongStr.length !== 1) continue;
@@ -659,11 +684,8 @@ Object.assign(window.UI, {
     if (App.state.lastSwipe === 'right') animClass = 'swipe-in-right';
     else if (App.state.lastSwipe === 'left') animClass = 'swipe-in-left';
     
-    let optionsContainerStyle = aType === 'hz'
-        ? 'width:100%; display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-top:30px;'
-        : 'width:100%; display:flex; flex-direction:column; gap:12px; margin-top:30px;';
-        
-    let optionBtnStyle = aType === 'hz' ? "font-weight: normal; font-size: 2.8rem; font-family: 'twkai', serif; padding: 20px 10px; line-height: 1.1;" : "";
+   let hzGridClass = aType === 'hz' ? 'is-hz-grid' : '';
+    let hzBtnClass = aType === 'hz' ? ' is-hz' : '';
     
     const settingsHtml = `
         <button class="qz-settings-btn" onclick="document.getElementById('qzSettingsPopup').classList.toggle('active')" aria-label="Settings">
@@ -681,14 +703,13 @@ Object.assign(window.UI, {
         </div>
     `;
     this.container.innerHTML = `
-    <div class="qz-wrap ${animClass}" id="quizMcWrap" style="position: relative;">
-             <div class="qz-card" id="quizMcCard">
+    <div class="qz-wrap qz-wrap--mc ${animClass}" id="quizMcWrap" style="position: relative;">
+             <div class="qz-card qz-card--mc" id="quizMcCard">
                 ${settingsHtml}
-                <div class="qz-label">${promptLabel}</div>
-                <div class="qz-prompt ${lenClass}" style="${fontFam}">${prompt}</div>
+                <div class="qz-label qz-label--mc">${promptLabel}</div>
+                <div class="qz-prompt qz-prompt--mc ${lenClass}" style="${fontFam}">${prompt}</div>
                 
-                <div id="mcOptionsContainer" style="${optionsContainerStyle}"></div>
-                
+                <div id="mcOptionsContainer" class="mc-options-container ${hzGridClass}"></div>
             </div>
         </div>
     `;
@@ -710,11 +731,15 @@ Object.assign(window.UI, {
                 }
             });
             displayOpt = formatted;
-            if (opt.replace(/[（(].*?[）)]/g, '').trim().length >= 4) {
+            
+            const cleanLen = opt.replace(/[（(].*?[）)]/g, '').trim().length;
+            if (cleanLen >= 4) {
                 extraClass = ' chars-long-btn';
+            } else if (cleanLen === 3) {
+                extraClass = ' chars-3-btn';
             }
         }
-        return `<button class="mc-option-btn fade-in${extraClass}" style="${optionBtnStyle}" data-opt="${opt.replace(/"/g, '&quot;')}">${displayOpt}</button>`;
+        return `<button class="mc-option-btn fade-in${extraClass}${hzBtnClass}" data-opt="${opt.replace(/"/g, '&quot;')}"><span class="mc-truncate">${displayOpt}</span></button>`;
     }).join('');
 
     let isProcessing = false;
@@ -739,8 +764,11 @@ Object.assign(window.UI, {
                 if (aType !== 'def' && pType !== 'def') extraInfo.push(defText);
                 if (aType !== 'hz' && pType !== 'hz') extraInfo.push(pureHanzi);
                 let infoStr = extraInfo.join(' • ');
-                 let displayOpt = selectedOpt;
+
+                let displayOpt = selectedOpt;
+
                 if (aType === 'hz') {
+                    // 1. Format Hanzi with smaller parentheses
                     let formatted = '';
                     const parts = selectedOpt.split(/([（(].*?[）)])/g);
                     parts.forEach(part => {
@@ -752,10 +780,23 @@ Object.assign(window.UI, {
                         }
                     });
                     displayOpt = formatted;
+
+                    // 2. Clean Reveal for Hanzi grids (Hanzi + Pinyin) + Truncation
+                    btn.innerHTML = `
+                        <div class="mc-truncate" style="font-weight: normal; margin-top: 6px;">${displayOpt}</div>
+                        <div class="mc-truncate" style="font-size: 1.1rem; font-weight: 800; color: #059669; margin-top: 8px; font-family: 'Nunito', sans-serif; letter-spacing: 0.5px;">${pinyinText}</div>
+                    `;
+                } else {
+                    // 3. Standard reveal for Pinyin or Definitions + Truncation
+                    if (infoStr) {
+                        btn.innerHTML = `
+                            <div class="mc-truncate" style="font-weight: 700;">${displayOpt}</div>
+                            <div class="mc-truncate" style="font-size: 1.05rem; font-weight: 700; opacity: 0.85; line-height: 1.3; margin-top: 6px; font-family: 'Nunito', sans-serif;">${infoStr}</div>
+                        `;
+                    } else {
+                        btn.innerHTML = `<div class="mc-truncate" style="font-weight: 700;">${displayOpt}</div>`;
+                    }
                 }
-                const mainFw = aType === 'hz' ? 'normal' : '700';
-                if(infoStr) btn.innerHTML = `<div style="font-weight: ${mainFw};">${displayOpt}</div><div style="font-size: 1.05rem; font-weight: 700; opacity: 0.85; line-height: 1.3; margin-top: 6px; font-family: 'Nunito', sans-serif; letter-spacing: 0;">${infoStr}</div>`;
-                App.state.streak++;
                 if (typeof UI.updateStreak === 'function') UI.updateStreak();
                 App.saveSettings();
                 if (window.Sound) window.Sound.play('correct');

@@ -23,7 +23,7 @@ const App = {
     currentIndex: 0,
     isFlipped: false,
     skipFlipAnimationOnce: false,
-    ttsRate: 0.45,
+    ttsRate: 0.85,
     quizType: 'vocab',
     quizDefOnly: false,
     noPinyin: false,
@@ -286,7 +286,7 @@ const App = {
         this.state.dialogueFilter = parsed.dialogueFilter || {};
         if (Array.isArray(this.state.dialogueFilter)) this.state.dialogueFilter = {};
         this.state.shuffle = parsed.shuffle || false;
-        this.state.ttsRate = parsed.ttsRate || 0.45;
+        this.state.ttsRate = parsed.ttsRate || 0.85;
         this.state.quizType = (parsed.quizType === 'translate' && DATA.SENTENCES.length > 0) ? 'translate' : 'vocab';
         this.state.quizDefOnly = parsed.quizDefOnly || false;
         this.state.noPinyin = parsed.noPinyin || false;
@@ -547,7 +547,7 @@ updateActiveList(preserveState = false) {
 
     let filtered = this._getFilteredItems(source);
 
-    if (this.state.hideLearned) {
+    if (this.state.hideLearned && this.state.mode !== 'list') {
         filtered = filtered.filter(i => {
             const id = i.id || i.hanzi || i.zh;
             return !this.state.learnedItems.has(id);
@@ -596,6 +596,16 @@ updateActiveList(preserveState = false) {
     this.state.builderTokens = [];
     this.state.builderAnswer = [];
     this.preloadUpcomingChars();
+  },
+
+  clearReviewList() {
+      this.state.learnedItems.clear();
+      this.saveLearned();
+      this.state.sessionMistakes = [];
+      this.state.modeCache = {}; // Clear caches so lists rebuild cleanly
+      this.saveSettings();
+      this.updateActiveList();
+      if (typeof UI !== 'undefined') { UI.render(); UI.showToast("Review list reset!"); }
   },
 
   animateAndRender(direction) {
@@ -1182,7 +1192,7 @@ updateActiveList(preserveState = false) {
           window.speechSynthesis.cancel();
 
           const u = new SpeechSynthesisUtterance(text);
-          u.rate = lang.startsWith('en') ? 1.0 : this.state.ttsRate;
+          u.rate = lang.startsWith('en') ? 1.0 : Math.max(this.state.ttsRate, 0.75); // Prevent glitching Natural voices
           u.lang = lang;
           
           if (lang.startsWith('zh')) {
@@ -1209,12 +1219,13 @@ updateActiveList(preserveState = false) {
   ensureCachedVoice() {
       if (this._cachedVoice || !window.speechSynthesis) return;
       const voices = window.speechSynthesis.getVoices();
-      const zhVoices = voices.filter(v => v.lang.toLowerCase().replace('_', '-').includes('zh'));
+      const zhVoices = voices.filter(v => v.lang.toLowerCase().includes('zh'));
       if (zhVoices.length > 0) {
-          this._cachedVoice = zhVoices.find(v =>
-              (v.lang.includes('TW') || v.lang.includes('Hant') || v.name.includes('Taiwan') || v.name.includes('臺灣')) &&
-              (v.name.includes('Google') || v.name.includes('Microsoft') || v.name.includes('Siri'))
-          ) || zhVoices.find(v => v.lang.includes('TW') || v.lang.includes('Hant') || v.name.includes('Taiwan') || v.name.includes('臺灣'));
+          this._cachedVoice = 
+              zhVoices.find(v => v.name.includes('Natural') && (v.lang.includes('TW') || v.name.includes('Taiwan'))) ||
+              zhVoices.find(v => (v.name.includes('Siri') || v.name.includes('Apple') || v.name.includes('Google')) && (v.lang.includes('TW') || v.name.includes('Taiwan'))) ||
+              zhVoices.find(v => v.lang.includes('TW') || v.lang.includes('Hant') || v.name.includes('Taiwan')) ||
+              zhVoices[0];
       }
   },
 
@@ -1223,10 +1234,13 @@ updateActiveList(preserveState = false) {
       const voices = window.speechSynthesis.getVoices();
       const enVoices = voices.filter(v => v.lang.toLowerCase().replace('_', '-').includes('en'));
       if (enVoices.length > 0) {
-          this._cachedEnVoice = enVoices.find(v =>
-              (v.lang.includes('US') || v.name.includes('US') || v.name.includes('American')) &&
-              (v.name.includes('Google') || v.name.includes('Microsoft') || v.name.includes('Siri'))
-          ) || enVoices.find(v => v.lang.includes('US')) || enVoices[0];
+          this._cachedEnVoice = 
+              // 1. Top Priority: Microsoft Edge "Natural" Voices
+              enVoices.find(v => v.name.includes('Natural') && (v.lang.includes('US') || v.name.includes('American'))) ||
+              enVoices.find(v => v.name.includes('Natural')) ||
+              // 2. Fallbacks
+              enVoices.find(v => (v.lang.includes('US') || v.name.includes('US') || v.name.includes('American')) && (v.name.includes('Google') || v.name.includes('Microsoft') || v.name.includes('Siri'))) || 
+              enVoices.find(v => v.lang.includes('US')) || enVoices[0];
       }
   },
 
@@ -1794,6 +1808,7 @@ updateActiveList(preserveState = false) {
           </span> 
           <div class="appears-list">${interactive}</div>
       `;
+      row.setAttribute('onclick', `App.handleCharClick(event, '${targetChar}')`);w
 
       if (bentoNode) {
           bentoNode.classList.add('expanded'); 
@@ -1811,11 +1826,12 @@ updateActiveList(preserveState = false) {
       const pinyin = vocabMatch ? vocabMatch.pinyin : fallbackPy || '---';
       const def = vocabMatch ? vocabMatch.def : fallbackDef || '---';
       
-      let html = `<div class="anatomy-master-container">`;
+      let html = `<div class="anatomy-master-container is-word">`;
       
       // Hero Section
       html += `
           <div class="anatomy-hero-section">
+              <div class="static-fallback-char" style="font-size: clamp(3rem, 12vw, 4.5rem); letter-spacing: 8px; text-align: center; margin-bottom: 16px;">${char}</div>
               <div class="hero-py">${pinyin}</div>
               <div class="hero-def">${def}</div>
           </div>
@@ -1857,13 +1873,13 @@ updateActiveList(preserveState = false) {
           `;
       });
       
-      html += `</div></div>`;
+      html += `</div>`;
       return html;
   },
 
   _generateCharHeroHTML(char, charData) {
       let displayPinyin = charData.pinyin || '---';
-      if (charData.chameleon_alert && charData.chameleon_alert.is_polyphone) {
+      if (charData.chameleon_alert && charData.chameleon_alert.is_polyphone && Array.isArray(charData.chameleon_alert.pinyin_variations)) {
           const variations = charData.chameleon_alert.pinyin_variations
               .map(p => Utils.formatNumberedPinyin(p))
               .filter(p => p !== displayPinyin);
@@ -2038,7 +2054,7 @@ updateActiveList(preserveState = false) {
               const appearsTag = appearsHint ? `<span class="appears-tag" style="background:${appearsHint.bg}; color:${appearsHint.color}; border-color:${appearsHint.color};">B${appearsHint.book} L${appearsHint.lesson}</span>` : '';
               
               appearsInHTML = `
-                  <div class="appears-in-row" id="${rowId}">
+                  <div class="appears-in-row" id="${rowId}" onclick="App.handleCharClick(event, '${charStr}', '${safePy}', '${safeDef}')">
                       <span class="appears-label interactive-char" onclick="App.handleCharClick(event, '${charStr}', '${safePy}', '${safeDef}')" style="cursor:pointer; display:flex; align-items:center; gap:6px; transition:0.2s;" title="Explore ${charStr}">
                           in ${charStr} 
                           <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg>
@@ -2177,10 +2193,11 @@ updateActiveList(preserveState = false) {
                   }).join('');
 
               return `
-                  <div class="component-group">
-                      <div class="component-group-header" ${headerStyle} onclick="this.parentElement.classList.toggle('collapsed')">
-                          <span class="component-group-title">${title}</span>
-                          <svg class="component-group-chevron" viewBox="0 0 24 24" width="12" height="12" fill="currentColor"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z"/></svg>
+                 <div class="component-group" ${headerStyle}>
+                      <div class="component-group-header" onclick="this.parentElement.classList.toggle('collapsed')">
+                          <div class="cg-badge">${title}</div>
+                          <div class="cg-line"></div>
+                          <svg class="component-group-chevron" viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z"/></svg>
                       </div>
                       <div class="component-grid">
                           ${itemsHTML}
@@ -2267,219 +2284,252 @@ updateActiveList(preserveState = false) {
   },
 
   handleCharClick(e, char, fallbackPy = '', fallbackDef = '', isBackNavigation = false) {
-      if (e) e.stopPropagation(); 
-      
-      const modal = document.getElementById('charModal');
-      const wasOpen = modal ? modal.classList.contains('open') : false;
-      
-      // 🌟 HISTORY TRACKING LOGIC
-      if (!wasOpen) {
-          // If opening fresh, reset history
-          this.state.charHistory = [];
-      } else if (!isBackNavigation && this.state.currentCharModal && this.state.currentCharModal !== char) {
-          // If already open and diving deeper, push current to history
-          this.state.charHistory.push(this.state.currentCharModal);
+      if (e) {
+          e.preventDefault();
+          e.stopPropagation(); 
       }
-      this.state.currentCharModal = char;
+      if (!char) return;
 
-      if (modal) modal.classList.add('open'); 
+      try {
+          const modal = document.getElementById('charModal');
+          if (!modal) return console.error("Modal #charModal missing!");
 
-      // 🌟 SCROLL TO TOP LOGIC
-      const modalContent = document.getElementById('charModalContent');
-      if (modalContent) modalContent.scrollTop = 0;
-      
-      // 🌟 DYNAMIC BACK BUTTON INJECTION
-      if (modalContent) {
-          const modalHeader = modalContent.querySelector('h3');
-          if (modalHeader) {
+          const wasOpen = modal.classList.contains('open');
+          
+          if (!wasOpen) {
+              this.state.charHistory = [];
+          } else if (!isBackNavigation && this.state.currentCharModal && this.state.currentCharModal !== char) {
+              this.state.charHistory.push(this.state.currentCharModal);
+          }
+          this.state.currentCharModal = char;
+
+          modal.classList.add('open'); 
+
+          modal.onclick = (evt) => {
+              if (evt.target === modal) {
+                  modal.classList.remove('open');
+              }
+          };
+          
+          const sheet = modal.querySelector('.modal-sheet') || modal.firstElementChild;
+
+          let modalContent = document.getElementById('charModalContent');
+          if (!modalContent && sheet) {
+              modalContent = document.createElement('div');
+              modalContent.id = 'charModalContent';
+              while (sheet.firstChild) {
+                  modalContent.appendChild(sheet.firstChild);
+              }
+              sheet.appendChild(modalContent);
+          }
+          if (modalContent) modalContent.scrollTop = 0;
+          
+          if (modalContent) {
+              let modalHeader = modalContent.querySelector('.modal-header-nav');
+              if (!modalHeader) {
+                  const oldH3 = modalContent.querySelector('h3');
+                  if (oldH3) oldH3.remove();
+                  modalHeader = document.createElement('div');
+                  modalHeader.className = 'modal-header-nav';
+                  modalContent.insertBefore(modalHeader, modalContent.firstChild);
+              }
+              
               if (this.state.charHistory.length > 0) {
                   modalHeader.innerHTML = `
-                      <div style="display:flex; justify-content:space-between; align-items:center; width:100%; margin-top: -6px;">
-                          <button style="background:rgba(255,158,181,0.15); border:none; padding:6px 12px; border-radius:12px; cursor:pointer; color:var(--primary-dark); display:flex; align-items:center; gap:4px; font-family:'Nunito', sans-serif; font-weight:800; font-size:0.9rem; transition:transform 0.2s;" onclick="App.goBackChar(event)" onmousedown="this.style.transform='scale(0.95)'" onmouseup="this.style.transform='scale(1)'">
+                      <div class="modal-top-bar">
+                          <button class="modal-back-btn" onclick="App.goBackChar(event)">
                               <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M15.41 16.59L10.83 12l4.58-4.59L14 6l-6 6 6 6 1.41-1.41z"/></svg> Back
                           </button>
-                          <span style="color:var(--text-muted); font-size:0.8rem; text-transform:uppercase; letter-spacing:1px; font-weight:800;">Lookup</span>
                       </div>
+                      <button class="modal-close-btn" onclick="document.getElementById('charModal').classList.remove('open');">
+                          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                      </button>
                   `;
               } else {
-                  modalHeader.innerHTML = 'Character Lookup';
+                  modalHeader.innerHTML = `
+                      <button class="modal-close-btn" onclick="document.getElementById('charModal').classList.remove('open');">
+                          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                      </button>
+                  `;
               }
           }
-      }
 
-      const display = document.getElementById('charDisplay');
-      const detail = document.getElementById('charDetail');
-      const relatedContainer = document.getElementById('charRelated');
-      const link = document.getElementById('charLink');
-      const strokeOrderContainer = document.getElementById('strokeOrderContainer');
-      const strokeOrderFallback = document.getElementById('strokeOrderFallback');
-      const strokeOrderSpinner = document.getElementById('strokeOrderSpinner');
-      
-      display.style.display = 'none'; 
-      relatedContainer.innerHTML = '';
+          const display = document.getElementById('charDisplay');
+          let detail = document.getElementById('charDetail');
+          
+          if (!detail && modalContent) {
+              detail = document.createElement('div');
+              detail.id = 'charDetail';
+              modalContent.appendChild(detail);
+          }
 
-      // Helper to toggle scroll indicator based on actual content height
-      const updateScrollIndicator = () => {
-          const ind = document.getElementById('scrollIndicator');
-          const cont = document.getElementById('charModalContent');
-          if (ind && cont) {
-              const isScrollable = cont.scrollHeight > cont.clientHeight + 20;
-              if (isScrollable) {
-                  ind.classList.add('visible');
-                  cont.onscroll = () => {
-                      if (cont.scrollTop > 50 && ind.classList.contains('visible')) {
-                          ind.classList.remove('visible');
-                      }
-                  };
-              } else {
-                  ind.classList.remove('visible');
+          const relatedContainer = document.getElementById('charRelated');
+          const link = document.getElementById('charLink');
+          const strokeOrderContainer = document.getElementById('strokeOrderContainer');
+          const strokeOrderFallback = document.getElementById('strokeOrderFallback');
+          const strokeOrderSpinner = document.getElementById('strokeOrderSpinner');
+          
+          if (display) display.style.display = 'none'; 
+          if (relatedContainer) relatedContainer.innerHTML = '';
+
+          const updateScrollIndicator = () => {
+              const ind = document.getElementById('scrollIndicator');
+              if (ind && modalContent) {
+                  const isScrollable = modalContent.scrollHeight > modalContent.clientHeight + 20;
+                  if (isScrollable) {
+                      ind.classList.add('visible');
+                      modalContent.onscroll = () => {
+                          if (modalContent.scrollTop > 50 && ind.classList.contains('visible')) {
+                              ind.classList.remove('visible');
+                          }
+                      };
+                  } else {
+                      ind.classList.remove('visible');
+                  }
               }
-          }
-      };
-      
-      // ✨ FIX: MULTI-CHARACTER WORD CHECK
-      // Check if the string has more than 1 Chinese character
-      const hanziChars = char.match(/[\u4e00-\u9fa5]/g) || [];
-      
-      if (hanziChars.length > 1) {
-          // This is a WORD, not a single character. Break it down!
-          const vocabMatch = (DATA.VOCAB_EXACT_MATCH[char] || [])[0];
-          detail.innerHTML = this._generateWordHTML(char, vocabMatch, fallbackPy, fallbackDef);
-          link.href = `https://hanzicraft.com/character/${char}`;
-          
-          // Disable stroke order animation for multi-character words
-          if(strokeOrderContainer) strokeOrderContainer.style.display = 'none';
-          if(strokeOrderSpinner) strokeOrderSpinner.classList.add('hidden');
-          if(strokeOrderFallback) {
-              strokeOrderFallback.classList.remove('hidden');
-              strokeOrderFallback.innerHTML = `<div class="static-fallback-char" style="font-size: clamp(3rem, 15vw, 5rem); letter-spacing: 5px;">${char}</div>`;
-          }
-          setTimeout(updateScrollIndicator, 100);
-          return; // Exit early since we rendered a word
-      }
-
-      // --- SINGLE CHARACTER LOGIC (Continues exactly as before) ---
-      let charData = DATA.CHARS[char];
-      let isFallback = false;
-
-      if (!charData) {
-          isFallback = true;
-          this.buildCharacterIndices(); // Ensures fallback index exists instantly
-          
-          let foundTree = this._fallbackTreeIndex[char] || null;
-
-          let finalPy = fallbackPy;
-          let finalDef = fallbackDef;
-          
-          if (foundTree && (!finalPy || finalPy === '---')) {
-              finalPy = Utils.formatNumberedPinyin(Array.isArray(foundTree.pinyin) ? foundTree.pinyin[0] : (foundTree.pinyin || ''));
-          }
-          if (foundTree && (!finalDef || finalDef === '---')) {
-              finalDef = (foundTree.meaning || '').split(/[,;]/)[0];
-          }
-
-          const vocabMatch = (DATA.VOCAB_EXACT_MATCH[char] || [])[0];
-          charData = {
-              hanzi: char,
-              pinyin: vocabMatch ? vocabMatch.pinyin : (finalPy || '---'),
-              def: vocabMatch ? vocabMatch.def : (finalDef || DATA.FALLBACK_DEFS[char] || "Component / Radical"),
-              isGeneratedFallback: true,
-              deconstruction_tree: foundTree
           };
-      }
-      
-      let html = `<div class="anatomy-master-container">`;
-
-      const sheet = detail.closest('.modal-sheet');
-      if (sheet) {
-          const oldBadge = sheet.querySelector('.rank-sticker');
-          if (oldBadge) oldBadge.remove();
           
-          if (charData.street_utility && charData.street_utility.frequency_rank) {
-              const rank = charData.street_utility.frequency_rank;
-              let rankText = "Rare";
-              let rankClass = "rank-rare";
+          const hanziChars = char.match(/[\u4e00-\u9fa5]/g) || [];
+          
+          if (hanziChars.length > 1) {
+              const vocabMatch = (DATA.VOCAB_EXACT_MATCH[char] || [])[0];
+              try {
+                  if (detail && modalContent) {
+                      if (strokeOrderContainer) modalContent.appendChild(strokeOrderContainer);
+                      if (strokeOrderFallback) modalContent.appendChild(strokeOrderFallback);
+                      if (strokeOrderSpinner) modalContent.appendChild(strokeOrderSpinner);
+                      detail.innerHTML = this._generateWordHTML(char, vocabMatch, fallbackPy, fallbackDef);
+                  }
+              } catch(e) { console.error('Word HTML Gen Error:', e); }
+              if (link) link.href = `https://hanzicraft.com/character/${char}`;
               
-              if (rank <= 500) { rankText = "Very Common"; rankClass = "rank-very-common"; }
-              else if (rank <= 1500) { rankText = "Common"; rankClass = "rank-common"; }
-              else if (rank <= 3000) { rankText = "Uncommon"; rankClass = "rank-uncommon"; }
-
-              const badge = document.createElement('div');
-              badge.className = `rank-sticker ${rankClass}`;
-              badge.textContent = rankText;
-              badge.style.zIndex = '100'; // Fix: Ensures the badge floats above the card content
-              sheet.appendChild(badge);
-          }
-      }
-
-      html += this._generateCharHeroHTML(char, charData);
-      html += this._generateVocabBannersHTML(char);
-      html += this._generateDeconstructionHTML(char, charData);
-      html += this._generateHookHTML(char, charData);
-      html += this._generateNetworkHTML(char);
-      
-      html += `</div>`; 
-      
-      detail.innerHTML = html;
-      link.href = `https://hanzicraft.com/character/${char}`;
-
-      setTimeout(updateScrollIndicator, 100);
-
-      if (char.length === 1 && /[\u4e00-\u9fa5]/.test(char)) {
-          strokeOrderContainer.style.display = 'none';
-          strokeOrderFallback.classList.add('hidden');
-          strokeOrderSpinner.classList.remove('hidden');
-          
-          // Cleanup previous writer to prevent memory leaks and choppy animations
-          if (this.state.currentWriter) {
-              try { this.state.currentWriter.cancelQuiz(); } catch(e){}
-              try { this.state.currentWriter.hideCharacter(); } catch(e){}
-              try { 
-                  if (typeof this.state.currentWriter.destroy === 'function') {
-                      this.state.currentWriter.destroy(); 
-                  }
-              } catch(e){}
-              this.state.currentWriter = null;
-              strokeOrderContainer.onclick = null;
+              if(strokeOrderContainer) strokeOrderContainer.style.display = 'none';
+              if(strokeOrderSpinner) strokeOrderSpinner.classList.add('hidden');
+              if(strokeOrderFallback) strokeOrderFallback.classList.add('hidden');
+              setTimeout(updateScrollIndicator, 100);
+              return; 
           }
 
-          if (this.animTimeout) clearTimeout(this.animTimeout);
-          this.animTimeout = setTimeout(async () => {
-              await this.loadHanziWriter();
-              if (typeof HanziWriter === 'undefined') {
-                  strokeOrderSpinner.classList.add('hidden');
-                  strokeOrderFallback.classList.remove('hidden');
-                  return;
+          let charData = DATA.CHARS[char];
+
+          if (!charData) {
+              this.buildCharacterIndices(); 
+              let foundTree = this._fallbackTreeIndex ? this._fallbackTreeIndex[char] : null;
+
+              let finalPy = fallbackPy;
+              let finalDef = fallbackDef;
+              
+              if (foundTree && (!finalPy || finalPy === '---')) {
+                  finalPy = Utils.formatNumberedPinyin(Array.isArray(foundTree.pinyin) ? foundTree.pinyin[0] : (foundTree.pinyin || ''));
               }
-              strokeOrderContainer.innerHTML = '';
-              this.state.currentWriter = HanziWriter.create('strokeOrderContainer', char, {
-                  renderer: 'canvas', // 🌟 Switch to canvas for better drawing performance
-                  width: 150, height: 150, padding: 5, showOutline: App.state.writingShowOutline,
-                  strokeAnimationSpeed: 1, delayBetweenStrokes: 100,
-                  strokeColor: '#ff9eb5', radicalColor: '#8b5cf6',
-                  onLoadCharDataSuccess: () => {
-                      strokeOrderSpinner.classList.add('hidden');
-                      strokeOrderContainer.style.display = 'block';
-                      this.state.currentWriter.animateCharacter({ onComplete: () => { /* Animation loop handled by user interaction or re-trigger if needed */ } });
-                  },
-                  onLoadCharDataError: () => {
-                      if(strokeOrderSpinner) strokeOrderSpinner.classList.add('hidden');
-                      if(strokeOrderContainer) strokeOrderContainer.style.display = 'none';
-                      if(strokeOrderFallback) {
-                          strokeOrderFallback.classList.remove('hidden');
-                          strokeOrderFallback.innerHTML = `<div class="static-fallback-char">${char}</div>`;
-                      }
-                  }
-              });
-              strokeOrderContainer.onclick = () => { this.state.currentWriter.animateCharacter(); };
-          }, 200);
-      } else {
-          if(strokeOrderSpinner) strokeOrderSpinner.classList.add('hidden');
-          if(strokeOrderContainer) strokeOrderContainer.style.display = 'none';
-          if(strokeOrderFallback) {
-              strokeOrderFallback.classList.remove('hidden');
-              strokeOrderFallback.innerHTML = `<div class="static-fallback-char">${char}</div>`;
+              if (foundTree && (!finalDef || finalDef === '---')) {
+                  finalDef = (foundTree.meaning || '').split(/[,;]/)[0];
+              }
+
+              const vocabMatch = (DATA.VOCAB_EXACT_MATCH[char] || [])[0];
+              charData = {
+                  hanzi: char,
+                  pinyin: vocabMatch ? vocabMatch.pinyin : (finalPy || '---'),
+                  def: vocabMatch ? vocabMatch.def : (finalDef || DATA.FALLBACK_DEFS[char] || "Component / Radical"),
+                  isGeneratedFallback: true,
+                  deconstruction_tree: foundTree
+              };
           }
+
+          if (detail && modalContent) {
+              if (strokeOrderContainer) modalContent.appendChild(strokeOrderContainer);
+              if (strokeOrderFallback) modalContent.appendChild(strokeOrderFallback);
+              if (strokeOrderSpinner) modalContent.appendChild(strokeOrderSpinner);
+          }
+          
+          let html = `<div class="anatomy-master-container">`;
+
+          html += `<div class="anatomy-left-col">`;
+          try { html += this._generateCharHeroHTML(char, charData); } catch(e) { console.error('Hero:', e); }
+          try { html += this._generateDeconstructionHTML(char, charData); } catch(e) { console.error('Deconst:', e); }
+          html += `</div><div class="anatomy-right-col">`;
+          
+          try { html += this._generateVocabBannersHTML(char); } catch(e) { console.error('Banners:', e); }
+          try { html += this._generateNetworkHTML(char); } catch(e) { console.error('Network:', e); }
+          
+          html += `</div></div>`; 
+          
+          if (detail) {
+              detail.innerHTML = html;
+              const heroSec = detail.querySelector('.anatomy-hero-section');
+              if (heroSec) {
+                  if (strokeOrderSpinner) heroSec.insertBefore(strokeOrderSpinner, heroSec.firstChild);
+                  if (strokeOrderFallback) heroSec.insertBefore(strokeOrderFallback, heroSec.firstChild);
+                  if (strokeOrderContainer) heroSec.insertBefore(strokeOrderContainer, heroSec.firstChild);
+              }
+          }
+          if (link) link.href = `https://hanzicraft.com/character/${char}`;
+
+          setTimeout(updateScrollIndicator, 100);
+
+          if (char.length === 1 && /[\u4e00-\u9fa5]/.test(char)) {
+              if (strokeOrderContainer) strokeOrderContainer.style.display = 'none';
+              if (strokeOrderFallback) strokeOrderFallback.classList.add('hidden');
+              if (strokeOrderSpinner) strokeOrderSpinner.classList.remove('hidden');
+              
+              if (this.state.currentWriter) {
+                  try { this.state.currentWriter.cancelQuiz(); } catch(e){}
+                  try { this.state.currentWriter.hideCharacter(); } catch(e){}
+                  try { 
+                      if (typeof this.state.currentWriter.destroy === 'function') {
+                          this.state.currentWriter.destroy(); 
+                      }
+                  } catch(e){}
+                  this.state.currentWriter = null;
+                  if (strokeOrderContainer) strokeOrderContainer.onclick = null;
+              }
+
+              if (this.animTimeout) clearTimeout(this.animTimeout);
+              this.animTimeout = setTimeout(async () => {
+                  await this.loadHanziWriter();
+                  if (typeof HanziWriter === 'undefined') {
+                      if (strokeOrderSpinner) strokeOrderSpinner.classList.add('hidden');
+                      if (strokeOrderFallback) strokeOrderFallback.classList.remove('hidden');
+                      return;
+                  }
+                  if (strokeOrderContainer) {
+                      strokeOrderContainer.innerHTML = '';
+                      strokeOrderContainer.style.display = 'block';
+                      strokeOrderContainer.style.opacity = '0';
+                  }
+                  this.state.currentWriter = HanziWriter.create('strokeOrderContainer', char, {
+                      renderer: 'svg',
+                      width: 150, height: 150, padding: 5, showOutline: true,
+                      strokeAnimationSpeed: 1, delayBetweenStrokes: 100,
+                      strokeColor: '#ff9eb5', radicalColor: '#8b5cf6',
+                      onLoadCharDataSuccess: () => {
+                          if (strokeOrderSpinner) strokeOrderSpinner.classList.add('hidden');
+                          if (strokeOrderContainer) {
+                              strokeOrderContainer.style.opacity = '1';
+                              strokeOrderContainer.onclick = () => { this.state.currentWriter.animateCharacter(); };
+                          }
+                          this.state.currentWriter.animateCharacter();
+                      },
+                      onLoadCharDataError: () => {
+                          if(strokeOrderSpinner) strokeOrderSpinner.classList.add('hidden');
+                          if(strokeOrderContainer) strokeOrderContainer.style.display = 'none';
+                          if(strokeOrderFallback) {
+                              strokeOrderFallback.classList.remove('hidden');
+                              strokeOrderFallback.innerHTML = `<div class="static-fallback-char" style="font-size: 5rem; text-align: center; color: var(--text-main, #333);">${char}</div>`;
+                          }
+                      }
+                  });
+              }, 200);
+          } else {
+              if(strokeOrderSpinner) strokeOrderSpinner.classList.add('hidden');
+              if(strokeOrderContainer) strokeOrderContainer.style.display = 'none';
+              if(strokeOrderFallback) {
+                  strokeOrderFallback.classList.remove('hidden');
+                  strokeOrderFallback.innerHTML = `<div class="static-fallback-char" style="font-size: 5rem; text-align: center; color: var(--text-main, #333);">${char}</div>`;
+              }
+          }
+      } catch (err) {
+          console.error("FATAL ERROR IN handleCharClick:", err);
       }
   }
 };
