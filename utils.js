@@ -312,20 +312,130 @@ const Utils = {
       .split(/[\/／]/)[0]
       .replace(/[（(].*?[）)]/g, '')
       .trim();
+
+    const normalizePy = (value) => this.normalizeQuizInput(String(value || ''));
+    const getCharCandidates = (char) => {
+      if (typeof DATA === 'undefined' || !DATA.CHARS || !DATA.CHARS[char]) return [];
+      const raw = DATA.CHARS[char].pinyin;
+      const list = Array.isArray(raw) ? raw : [raw];
+      return [...new Set(list
+        .flatMap(entry => String(entry || '').split(/[\/／,，;]/))
+        .map(entry => entry.trim())
+        .filter(Boolean)
+        .map(entry => normalizePy(entry))
+        .filter(Boolean)
+      )];
+    };
+
+    const pinyinRegex = /^(zh|ch|sh|[bpmfdtnlgkhjqxrzcsyw])?(iang|iong|uang|uang|ueng|ang|eng|ong|iao|ian|uan|van|ing|iao|uai|uei|ai|ei|ao|ou|an|en|er|ia|ie|ua|uo|ui|iu|in|un|vn|ue|ve|a|o|e|i|u|v)$/;
+    const originalPinyinRegex = /^(zh|ch|sh|[bpmfdtnlgkhjqxrzcsyw])?(iāng|iáng|iǎng|iàng|iong|uāng|uáng|uǎng|uàng|ueng|āng|áng|ǎng|àng|ēng|éng|ěng|èng|ōng|ióng|iōng|iǒng|iòng|iāo|iáo|iǎo|iào|iān|ián|iǎn|iàn|uān|uán|uǎn|uàn|üān|üán|üǎn|üàn|īng|íng|ǐng|ìng|uāi|uái|uǎi|uài|uēi|uéi|uěi|uèi|āi|ái|ǎi|ài|ēi|éi|ěi|èi|āo|áo|ǎo|ào|ōu|óu|ǒu|òu|ān|án|ǎn|àn|ēn|én|ěn|èn|ēr|ér|ěr|èr|iā|iá|iǎ|ià|iē|ié|iě|iè|uā|uá|uǎ|uà|uō|uó|uǒ|uò|uī|uí|uǐ|uì|iū|iú|iǔ|iù|īn|ín|ǐn|ìn|ūn|ún|ǔn|ùn|ǖn|ǘn|ǚn|ǜn|üē|üé|üě|üè|a|ā|á|ǎ|à|o|ō|ó|ǒ|ò|e|ē|é|ě|è|i|ī|í|ǐ|ì|u|ū|ú|ǔ|ù|ü|ǖ|ǘ|ǚ|ǜ|v)([1-5])?$/i;
+
+    const splitJoinedByChars = (joined, sourceChars = chars) => {
+      const raw = String(joined || '').trim();
+      const normalized = normalizePy(raw);
+      if (!raw || !normalized || !sourceChars.length) return null;
+
+      const path = [];
+      const search = (charIndex, pos) => {
+        if (charIndex === sourceChars.length) return pos === normalized.length;
+        const candidates = getCharCandidates(sourceChars[charIndex]);
+        if (!candidates.length) return false;
+
+        for (const candidate of candidates) {
+          if (normalized.startsWith(candidate, pos)) {
+            path.push(raw.slice(pos, pos + candidate.length));
+            if (search(charIndex + 1, pos + candidate.length)) return true;
+            path.pop();
+          }
+        }
+        return false;
+      };
+
+      return search(0, 0) ? [...path] : null;
+    };
+
+    const heuristicSplitNormalized = (joined) => {
+      const normalized = normalizePy(joined);
+      if (!normalized) return null;
+
+      const memo = new Map();
+      const search = (pos) => {
+        if (pos === normalized.length) return [];
+        if (memo.has(pos)) return memo.get(pos);
+
+        for (let end = Math.min(normalized.length, pos + 6); end > pos; end--) {
+          const piece = normalized.slice(pos, end);
+          if (pinyinRegex.test(piece)) {
+            const rest = search(end);
+            if (rest) {
+              const found = [piece, ...rest];
+              memo.set(pos, found);
+              return found;
+            }
+          }
+        }
+
+        memo.set(pos, null);
+        return null;
+      };
+
+      return search(0);
+    };
+
+    const alignToChars = (tokens) => {
+      if (!chars.length || !tokens.length) return null;
+
+      const normalizedTokens = tokens.map(token => normalizePy(token)).filter(Boolean);
+      if (!normalizedTokens.length) return null;
+
+      const fromChars = chars.map(char => getCharCandidates(char)[0] || '');
+
+      if (fromChars.length === normalizedTokens.length && fromChars.every(Boolean)) {
+        return fromChars.map((candidate, index) => normalizedTokens[index] || candidate);
+      }
+
+      const joined = normalizedTokens.join('');
+      const candidateJoined = fromChars.join('');
+      if (candidateJoined && joined === candidateJoined && fromChars.length === chars.length) {
+        return fromChars;
+      }
+
+      return null;
+    };
+
     let syllables = cleaned.split(/\s+/).filter(Boolean);
+    let displaySyllables = [...syllables];
+    let normalizedSyllables = syllables.map(token => normalizePy(token)).filter(Boolean);
 
-    if (chars.length && syllables.length !== chars.length && typeof DATA !== 'undefined' && DATA.CHARS) {
-      const lookup = chars.map(char => {
-        const raw = DATA.CHARS[char]?.pinyin;
-        const first = Array.isArray(raw) ? raw[0] : raw;
-        return first ? String(first).split(/[\/／]/)[0].trim() : '';
-      }).filter(Boolean);
-
-      if (lookup.length === chars.length) syllables = lookup;
+    if (chars.length && normalizedSyllables.length !== chars.length) {
+      const charSplit = splitJoinedByChars(cleaned);
+      const heuristics = heuristicSplitNormalized(cleaned);
+      if (charSplit && charSplit.length === chars.length) {
+        displaySyllables = charSplit;
+        normalizedSyllables = charSplit.map(token => normalizePy(token));
+      } else if (heuristics && heuristics.length === chars.length) {
+        normalizedSyllables = heuristics;
+        displaySyllables = heuristics;
+      } else {
+        const aligned = alignToChars(syllables);
+        if (aligned && aligned.length === chars.length) {
+          normalizedSyllables = aligned;
+          displaySyllables = aligned;
+        }
+      }
+    } else if (chars.length && normalizedSyllables.length === chars.length) {
+      const aligned = alignToChars(syllables);
+      if (aligned && aligned.length === chars.length) {
+        normalizedSyllables = aligned.map((candidate, index) => {
+          const vocabPiece = normalizedSyllables[index];
+          return vocabPiece && candidate && vocabPiece !== candidate ? vocabPiece : (vocabPiece || candidate);
+        });
+        displaySyllables = syllables.map((syllable, index) => syllable || normalizedSyllables[index]);
+      }
     }
 
-    if (!(window.App && App.state.noHanziColor) && chars.length && syllables.length === chars.length) {
-      return syllables.map((syllable, index) => {
+    if (!(window.App && App.state.noHanziColor) && chars.length && displaySyllables.length === chars.length) {
+      return displaySyllables.map((syllable, index) => {
         const converted = this.convertTones(syllable);
         return `<span class="pinyin-token" style="--py-color:${this.getStudyColor(index)}">${converted}</span>`;
       }).join('<span class="pinyin-sep"> </span>');

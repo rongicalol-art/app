@@ -273,16 +273,22 @@ const App = {
         if (!hanzi) return;
         const key = v.id || `${v.book_id}-${v.lesson_id}-${hanzi}`;
         if (!vocabMap.has(key)) {
+            const safePinyin = typeof v.pinyin === 'string' ? v.pinyin.trim() : '';
+            const rawDef = v.definition ?? v.def ?? '';
+            const safeDef = rawDef == null || String(rawDef).trim().toLowerCase() === 'undefined'
+                ? ''
+                : String(rawDef).trim();
+
             vocabMap.set(key, {
                 ...v,
                 id: key,
                 hanzi,
-                pinyin: v.pinyin || '',
-                def: v.definition || v.def || '',
+                pinyin: safePinyin,
+                def: safeDef,
                 lesson: String(v.lesson_id || 0),
                 book: String(v.book_id || 1),
                 dialogue: String(v.dialogue_id || '0'),
-                searchKey: Utils.normalizeSearch(`${hanzi}${v.pinyin}${v.definition}`)
+                searchKey: Utils.normalizeSearch(`${hanzi}${safePinyin}${safeDef}`)
             });
         }
     });
