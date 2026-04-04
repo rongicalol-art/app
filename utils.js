@@ -69,7 +69,15 @@ const Utils = {
       </div>`;
   },
   
-  colors: ['#ec4899', '#8b5cf6'],
+  colors: ['#d98fa9', '#91a2ea', '#8fc7b5', '#d9a77b', '#b39ae8', '#7fb8d6'],
+
+  getStudyColor(index = 0) {
+    const palette = this.colors || [];
+    if (palette.length && index < palette.length) return palette[index];
+
+    const hue = Math.round((index * 137.508) % 360);
+    return `hsl(${hue} 52% 68%)`;
+  },
   
   getBookColor(bookId) {
     switch(String(bookId)) {
@@ -108,6 +116,26 @@ const Utils = {
     return text.replace(componentRegex, (match, char, desc) => {
       const description = desc || '';
       return `<span class="interactive-char" data-action="show-char-details" data-char="${char}">${char}</span>${description}`;
+    });
+  },
+
+  createHookMarkup(text, sourceWord = '') {
+    if (!text) return '';
+
+    const sourceChars = (String(sourceWord).match(/[\p{Script=Han}]/gu) || []);
+    const sourceColorMap = new Map();
+    sourceChars.forEach((char, index) => {
+      if (!sourceColorMap.has(char)) {
+        const color = !(window.App && App.state.noHanziColor) ? this.getStudyColor(index) : 'inherit';
+        sourceColorMap.set(char, color);
+      }
+    });
+
+    return String(text).replace(/[\p{Script=Han}]+/gu, (group) => {
+      return [...group].map(char => {
+        const style = sourceColorMap.has(char) ? ` style="color:${sourceColorMap.get(char)}"` : '';
+        return `<span class="interactive-char hook-char-match" data-action="show-char-details" data-char="${char}"${style}>${char}</span>`;
+      }).join('');
     });
   },
   
@@ -156,7 +184,7 @@ const Utils = {
     }
 
     const result = parts.map((c, i) => {
-       const color = allowColor ? this.colors[i % this.colors.length] : 'inherit';
+       const color = allowColor ? this.getStudyColor(i) : 'inherit';
        const cls = `interactive-char${separate ? ' separated' : ''}`;
        
        let style = `color:${color};`;
@@ -267,8 +295,43 @@ const Utils = {
 
   colorPinyin(text) {
     if(!text) return '';
-    const converted = this.convertTones(text);
-    return `<span style="color:#a78bfa">${converted}</span>`;
+    const tokens = String(text).trim().split(/\s+/).filter(Boolean);
+    if (!tokens.length) return '';
+
+    return tokens.map((token, index) => {
+      const converted = this.convertTones(token);
+      return `<span class="pinyin-token" style="--py-color:${this.getStudyColor(index)}">${converted}</span>`;
+    }).join('<span class="pinyin-sep"> </span>');
+  },
+
+  colorStudyPinyin(text, sourceWord = '') {
+    if (!text) return '';
+
+    const chars = (String(sourceWord).match(/[\p{Script=Han}]/gu) || []);
+    const cleaned = String(text)
+      .split(/[\/／]/)[0]
+      .replace(/[（(].*?[）)]/g, '')
+      .trim();
+    let syllables = cleaned.split(/\s+/).filter(Boolean);
+
+    if (chars.length && syllables.length !== chars.length && typeof DATA !== 'undefined' && DATA.CHARS) {
+      const lookup = chars.map(char => {
+        const raw = DATA.CHARS[char]?.pinyin;
+        const first = Array.isArray(raw) ? raw[0] : raw;
+        return first ? String(first).split(/[\/／]/)[0].trim() : '';
+      }).filter(Boolean);
+
+      if (lookup.length === chars.length) syllables = lookup;
+    }
+
+    if (!(window.App && App.state.noHanziColor) && chars.length && syllables.length === chars.length) {
+      return syllables.map((syllable, index) => {
+        const converted = this.convertTones(syllable);
+        return `<span class="pinyin-token" style="--py-color:${this.getStudyColor(index)}">${converted}</span>`;
+      }).join('<span class="pinyin-sep"> </span>');
+    }
+
+    return this.colorPinyin(cleaned);
   },
 
   convertTones(text) {

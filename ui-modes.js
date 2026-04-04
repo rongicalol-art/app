@@ -1,6 +1,23 @@
 Object.assign(window.UI, {
   renderStudy(item) {
-    const pinyinStyle = App.state.noPinyin ? 'display:none' : 'font-size: 1.5rem;';
+    const rawHzStr = (item.hanzi || item.zh || '').replace(/[^\u4e00-\u9fa5]/g, '');
+    const hzLen = rawHzStr.length || 1;
+    let pinyinStyle = '';
+    const studyHzClass = hzLen === 1
+        ? 'study-hz-single'
+        : hzLen === 2
+            ? 'study-hz-duo'
+            : hzLen === 3
+                ? 'study-hz-trio'
+                : 'study-hz-long';
+
+    if (hzLen >= 8) {
+        pinyinStyle = App.state.noPinyin ? 'display:none;' : 'font-size: 0.95rem; line-height: 1.3; margin-bottom: 0.25rem; font-weight: 700;';
+    } else if (hzLen >= 5) {
+        pinyinStyle = App.state.noPinyin ? 'display:none;' : 'font-size: 1.15rem; line-height: 1.2; margin-bottom: 0.25rem; font-weight: 700;';
+    } else {
+        pinyinStyle = App.state.noPinyin ? 'display:none;' : 'font-size: 1.5rem; line-height: 1.2; margin-bottom: 0.25rem; font-weight: 700;';
+    }
 
     const searchTerms = (item.hanzi || item.zh || '')
         .split(/[\/，,]/) 
@@ -154,6 +171,7 @@ Object.assign(window.UI, {
     }
 
     item._convertedPy = item._convertedPy || Utils.convertTones(item._cleanPy);
+    const studyPinyinHtml = Utils.colorStudyPinyin(item._cleanPy, item._cleanHz || item.hanzi || item.zh || '') || item._convertedPy;
 
     const posDetails = {
         'N': { name: 'Noun', desc: 'A person, place, or thing.' },
@@ -187,12 +205,29 @@ Object.assign(window.UI, {
             if (detail) {
                 const safeDesc = detail.desc.replace(/'/g, "\\'");
                 const safeName = detail.name.replace(/'/g, "\\'");
-                return `<span class="pos-tag" onclick="const box=document.getElementById('pos-explanation-box'); if(box){ box.innerHTML='<span style=\\'color:var(--primary-dark);font-weight:800;\\'>${safeName}:</span> ${safeDesc}'; box.style.display='block'; } event.stopPropagation();" style="font-size: 0.65rem; color: #94a3b8; background: transparent; border: 1px solid #e2e8f0; padding: 2px 6px; border-radius: 6px; cursor: pointer; transition: 0.2s; letter-spacing: 0.5px; display: inline-block;">${detail.name}</span>`;
+                    return `<span class="pos-tag" onclick="const box=document.getElementById('pos-explanation-box'); if(box){ box.innerHTML='<span style=\\'color:var(--primary-dark);font-weight:800;\\'>${safeName}:</span> ${safeDesc}'; box.style.display='block'; } event.stopPropagation();" style="position: relative; top: auto; right: auto; font-size: 0.7rem; color: #94a3b8; background: rgba(248, 250, 252, 0.8); border: 1px solid #e2e8f0; padding: 3px 8px; border-radius: 8px; cursor: pointer; transition: 0.2s; letter-spacing: 0.5px; display: inline-block; font-weight: 700; box-shadow: 0 2px 4px rgba(0,0,0,0.02);">${detail.name}</span>`;
             }
-            return `<span class="pos-tag" style="font-size: 0.65rem; color: #94a3b8; background: transparent; border: 1px solid #e2e8f0; padding: 2px 6px; border-radius: 6px; letter-spacing: 0.5px; display: inline-block;">${cleanT}</span>`;
+                return `<span class="pos-tag" style="position: relative; top: auto; right: auto; font-size: 0.7rem; color: #94a3b8; background: rgba(248, 250, 252, 0.8); border: 1px solid #e2e8f0; padding: 3px 8px; border-radius: 8px; letter-spacing: 0.5px; display: inline-block; font-weight: 700; box-shadow: 0 2px 4px rgba(0,0,0,0.02);">${cleanT}</span>`;
         });
     }
-    let typeHtml = displayTypes.length > 0 ? `<div style="display:flex; gap:6px; flex-wrap: wrap; align-items: center; margin-left: 8px; margin-bottom: 2px;">${displayTypes.join('')}</div>` : '';
+    let typeHtml = displayTypes.length > 0 ? `<div style="position: absolute; top: 16px; right: 16px; display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; z-index: 10;">${displayTypes.join('')}</div>` : '';
+
+    const definitionText = String(item.def || '').trim();
+    const hookText = String(item.hook || '').trim();
+    const isDense = hzLen >= 4 || definitionText.length > 42 || hookText.length > 80 || displayTypes.length >= 2;
+    const isVeryDense = hzLen >= 7 || definitionText.length > 78 || hookText.length > 135;
+    const backMainClasses = `study-back-main${isDense ? ' is-dense' : ''}${isVeryDense ? ' is-very-dense' : ''}`;
+    const backContentClasses = `face-content vocab-content${isDense ? ' is-dense' : ''}${isVeryDense ? ' is-very-dense' : ''}`;
+    const frontHeroClasses = `hanzi-display hanzi-display hz-hero ${studyHzClass}`;
+    const backHeroClasses = `hanzi-display hanzi-display hz-hero study-hz-back ${studyHzClass}${isDense ? ' study-hz-back-dense' : ''}`;
+
+    if (!App.state.noPinyin) {
+        if (isVeryDense) {
+            pinyinStyle = 'font-size: 0.88rem; line-height: 1.18; margin-bottom: 0.15rem; font-weight: 700;';
+        } else if (isDense) {
+            pinyinStyle = 'font-size: 1rem; line-height: 1.2; margin-bottom: 0.2rem; font-weight: 700;';
+        }
+    }
 
     let exampleGroupsHtml = '';
     const allExamples = primaryExample ? [primaryExample, ...otherExamples] : otherExamples;
@@ -272,6 +307,33 @@ Object.assign(window.UI, {
         }).join('');
     }
 
+    const hasHookBreakdown = Boolean(item.hookBreakdown && item.hookBreakdown.trim());
+    const hookHtml = App.state.showHooks && item.hook ? `
+        <section class="memory-hook-card${hasHookBreakdown ? '' : ' no-breakdown'}">
+            <div class="memory-hook-label">Memory Hook</div>
+            <div class="memory-hook-text">${Utils.createHookMarkup(item.hook, item._cleanHz || item.hanzi || item.zh || '')}</div>
+            ${hasHookBreakdown ? `
+                <button
+                    class="memory-hook-toggle"
+                    type="button"
+                    data-action="toggle-memory-breakdown"
+                    aria-expanded="false"
+                    aria-label="Toggle memory hook breakdown"
+                    title="Toggle breakdown"
+                >
+                    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7.41 8.59 12 13.17l4.59-4.58L18 10l-6 6-6-6z"/></svg>
+                </button>
+                <div class="memory-hook-breakdown">
+                    <div class="memory-hook-breakdown-inner">${Utils.createBreakdown(item.hookBreakdown)}</div>
+                </div>
+            ` : ''}
+        </section>
+    ` : '';
+
+    const studyDefClasses = `def-display study-def${hzLen >= 5 ? ' study-def--compact' : ''}`;
+    const frontHanziHtml = item._plainHanzi;
+    const backHanziHtml = App.state.noHanziColor ? item._plainHanzi : item._colorHanzi;
+
     // 20% chance to show a subtle hint at the bottom of the card
     const showHoldHint = Math.random() < 0.2;
     const holdHintHtml = showHoldHint ? `<div style="position: absolute; bottom: 25px; left: 0; right: 0; text-align: center; font-size: 0.75rem; color: #cbd5e1; font-weight: 700; pointer-events: none; letter-spacing: 0.5px; opacity: 0.7;">Hold to practice writing</div>` : '';
@@ -279,23 +341,25 @@ Object.assign(window.UI, {
     frontFace.innerHTML = `
         <div class="face-content vocab-content">
             <div class="card-center-layout">
-                <div class="hanzi-display hanzi-display hz-hero">${App.state.noHanziColor ? item._plainHanzi : item._colorHanzi}</div>
+                <div class="${frontHeroClasses}">${frontHanziHtml}</div>
             </div>
             ${holdHintHtml}
         </div>
     `;
 
     backFace.innerHTML = `
-        <div class="face-content vocab-content">
-            <div class="study-back-main" style="margin: auto 0; display: flex; flex-direction: column; align-items: center; width: 100%; padding-bottom: 20px;">
-                <div style="display: flex; justify-content: center; align-items: center; flex-wrap: wrap; margin-bottom: 0.5rem;">
-                    <div class="pinyin-display" style="${pinyinStyle}">${item._convertedPy}</div>
-                    ${typeHtml}
+        <div class="${backContentClasses}" style="position: relative;">
+            ${typeHtml}
+            <div class="${backMainClasses}" style="margin: auto 0; display: flex; flex-direction: column; align-items: center; width: 100%;">
+                <div class="study-back-core">
+                    <div style="display: flex; justify-content: center; align-items: center; flex-wrap: wrap; margin-bottom: 0.25rem; width: 100%;">
+                        <div class="pinyin-display" style="${pinyinStyle}">${studyPinyinHtml}</div>
+                    </div>
+                    <div id="pos-explanation-box" style="display:none; background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:8px 12px; margin-bottom:12px; font-size:0.85rem; color:#475569; text-align:center; max-width:85%; box-shadow:inset 0 2px 4px rgba(0,0,0,0.02); line-height:1.4;"></div>
+                    <div class="${backHeroClasses}">${backHanziHtml}</div>
+                    <div class="${studyDefClasses}" style="${App.state.noTranslation ? 'display:none' : ''}">${item.def}</div>
                 </div>
-                <div id="pos-explanation-box" style="display:none; background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:8px 12px; margin-bottom:12px; font-size:0.85rem; color:#475569; text-align:center; max-width:85%; box-shadow:inset 0 2px 4px rgba(0,0,0,0.02); line-height:1.4;"></div>
-                <div class="hanzi-display hanzi-display hz-hero">${item._plainHanzi}</div>
-                ${App.state.showHooks && item.hook ? `<div class="memory-hook"><span>💡</span> <span>${item.hook}</span></div>` : ''}
-                <div class="def-display study-def" style="color: #64748b; font-weight: 500; line-height: 1.5; letter-spacing: 0.2px; margin-top: 5px; ${App.state.noTranslation ? 'display:none' : ''}">${item.def}</div>
+                ${hookHtml ? `<div class="study-back-hook-slot">${hookHtml}</div>` : ''}
             </div>
             
             ${exampleGroupsHtml ? `

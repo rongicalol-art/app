@@ -56,8 +56,8 @@ const App = {
     hideDock: false,
     autoPlay: false,
     ttsReadWord: true,
-    ttsReadMeaning: false,
-    ttsReadExample: true,
+    ttsReadMeaning: true,
+    ttsReadExample: false,
     ttsReadExampleEn: false,
     ttsItemInterval: 1.0,
     ttsCardInterval: 2.0,
@@ -163,10 +163,75 @@ const App = {
       this.writingService.preload(chars);
   },
 
+  normalizeHookLookupValue(text) {
+    if (!text) return '';
+    const cleaned = String(text)
+      .normalize('NFKC')
+      .replace(/[（(][^）)]*[）)]/g, '')
+      .replace(/[／]/g, '/')
+      .replace(/\s+/g, '')
+      .trim();
+    return Utils.normalizeSearch(cleaned.replace(/\//g, ''));
+  },
+
+  getHookWordVariants(word) {
+    if (!word) return [];
+    const raw = String(word).normalize('NFKC').replace(/[／]/g, '/');
+    const parts = raw.split('/').map(part => part.trim()).filter(Boolean);
+    const source = [raw.trim(), ...parts];
+    return [...new Set(source.map(part => this.normalizeHookLookupValue(part)).filter(Boolean))];
+  },
+
+  applyTemporaryVocabHooks() {
+    const rawHooks = Array.isArray(window.vocabularyHooks) ? window.vocabularyHooks
+      : Array.isArray(window.vocabularyHooksBatch1) ? window.vocabularyHooksBatch1
+      : [];
+
+    if (!rawHooks.length || !DATA.VOCAB.length) return;
+
+    const hookMap = new Map();
+    rawHooks.forEach((entry, index) => {
+      if (!entry || !entry.word || !entry.hook) return;
+
+      const payload = {
+        ...entry,
+        _normalizedMeaning: this.normalizeHookLookupValue(entry.meaning || entry.def || ''),
+        _order: index
+      };
+
+      this.getHookWordVariants(entry.word).forEach(variant => {
+        if (!hookMap.has(variant)) hookMap.set(variant, []);
+        hookMap.get(variant).push(payload);
+      });
+    });
+
+    DATA.VOCAB.forEach(item => {
+      if (String(item.book) !== '2') return;
+
+      const lessonNum = Number(item.lesson);
+      if (!Number.isFinite(lessonNum) || lessonNum < 11 || lessonNum > 16) return;
+      if (item.hook) return;
+
+      const candidates = this.getHookWordVariants(item.hanzi)
+        .flatMap(variant => hookMap.get(variant) || []);
+      if (!candidates.length) return;
+
+      const itemMeaning = this.normalizeHookLookupValue(item.def);
+      const bestMatch = candidates.find(candidate => (
+        candidate._normalizedMeaning
+        && itemMeaning
+        && (itemMeaning.includes(candidate._normalizedMeaning) || candidate._normalizedMeaning.includes(itemMeaning))
+      )) || candidates[0];
+
+      item.hook = bestMatch.hook.trim();
+      item.hookBreakdown = bestMatch.breakdown ? bestMatch.breakdown.trim() : '';
+    });
+  },
+
   async importData() {
     // Dynamically load massive data files so they don't block the UI from rendering
     try {
-        const scripts = ['chars.js', 'new_vocab.js', 'sentences.js'];
+        const scripts = ['chars.js', 'new_vocab.js', 'memory.js', 'sentences.js'];
         let loaded = 0;
         const fill = document.getElementById('hqProgressFill');
         
@@ -215,6 +280,7 @@ const App = {
         }
     });
     DATA.VOCAB = Array.from(vocabMap.values());
+    this.applyTemporaryVocabHooks();
 
     // 🌟 PRE-COMPUTE O(1) LOOKUP INDEXES TO AVOID MASSIVE ARRAY ITERATIONS LATER
     DATA.VOCAB_EXACT_MATCH = {};
@@ -308,8 +374,8 @@ const App = {
         this.state.hideDock = parsed.hideDock || false;
         this.state.autoPlay = parsed.autoPlay || false;
         this.state.ttsReadWord = parsed.ttsReadWord !== undefined ? parsed.ttsReadWord : true;
-        this.state.ttsReadMeaning = parsed.ttsReadMeaning !== undefined ? parsed.ttsReadMeaning : false;
-        this.state.ttsReadExample = parsed.ttsReadExample !== undefined ? parsed.ttsReadExample : true;
+        this.state.ttsReadMeaning = parsed.ttsReadMeaning !== undefined ? parsed.ttsReadMeaning : true;
+        this.state.ttsReadExample = parsed.ttsReadExample !== undefined ? parsed.ttsReadExample : false;
         this.state.ttsReadExampleEn = parsed.ttsReadExampleEn !== undefined ? parsed.ttsReadExampleEn : false;
         this.state.ttsItemInterval = parsed.ttsItemInterval !== undefined ? parsed.ttsItemInterval : 1.0;
         this.state.ttsCardInterval = parsed.ttsCardInterval !== undefined ? parsed.ttsCardInterval : 2.0;
@@ -605,7 +671,7 @@ updateActiveList(preserveState = false) {
       this.state.modeCache = {}; // Clear caches so lists rebuild cleanly
       this.saveSettings();
       this.updateActiveList();
-      if (typeof UI !== 'undefined') { UI.render(); UI.showToast("Review list reset!"); }
+      if (typeof UI !== 'undefined') { UI.render(); UI.showToast("Review list reset", { variant: 'strong', duration: 1800 }); }
   },
 
   animateAndRender(direction) {
@@ -712,9 +778,23 @@ updateActiveList(preserveState = false) {
         document.body.appendChild(popup);
     }
 
-    popup.textContent = isLearned ? 'Learned' : 'Not learned';
+    popup.innerHTML = isLearned
+        ? '<span class="learned-popup-icon" aria-hidden="true">✓</span><span class="learned-popup-label">Learned</span>'
+        : '<span class="learned-popup-icon" aria-hidden="true">↺</span><span class="learned-popup-label">Not learned</span>';
     popup.classList.toggle('is-learned', isLearned);
     popup.classList.toggle('is-unlearned', !isLearned);
+
+    const studyCard = document.querySelector('.study-card-container .card');
+    if (studyCard) {
+        const rect = studyCard.getBoundingClientRect();
+        popup.style.left = `${Math.round(rect.left + (rect.width / 2))}px`;
+        popup.style.top = `${Math.max(12, Math.round(rect.top - 12))}px`;
+        popup.style.bottom = 'auto';
+    } else {
+        popup.style.left = '50%';
+        popup.style.top = '72px';
+        popup.style.bottom = 'auto';
+    }
 
     popup.classList.remove('show');
     void popup.offsetWidth;
@@ -828,13 +908,13 @@ updateActiveList(preserveState = false) {
                     Review ${mistakes} Mistakes
                 </button>
                 <button class="btn-sec sc-btn sc-btn-secondary" onclick="App.restartSession()">
-                    Restart Mode
+                    Start Over
                 </button>
               `;
           } else {
               actionHtml = `
                 <button class="btn-main sc-btn sc-btn-primary" onclick="App.restartSession()">
-                    Restart Mode
+                    Start Over
                 </button>
               `;
           }
@@ -865,10 +945,10 @@ updateActiveList(preserveState = false) {
           if (unlearned.length > 0) {
               actionHtml = `
                 <button class="btn-main sc-btn sc-btn-primary" onclick="App.startReview(${unlearned.length})">
-                    Review ${unlearned.length} Unlearned
+                    Review ${unlearned.length} Remaining
                 </button>
                 <button class="btn-sec sc-btn sc-btn-secondary" onclick="App.restartSession()">
-                    Restart Session
+                    Start Over
                 </button>
               `;
           } else {
@@ -884,28 +964,55 @@ updateActiveList(preserveState = false) {
           const style = document.createElement('style');
           style.id = 'session-complete-styles';
           style.innerHTML = `
-            .sc-wrapper{height:100%;width:100%;display:flex;align-items:flex-start;justify-content:center;padding:40px 20px 80px 20px;box-sizing:border-box;position:relative;z-index:1;overflow-y:auto;-webkit-overflow-scrolling:touch}.sc-glow{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:clamp(250px,60vw,500px);height:clamp(250px,60vw,500px);background:radial-gradient(circle,var(--primary-soft) 0,rgba(255,255,255,0) 70%);border-radius:50%;z-index:-1}.sc-layout{display:flex;flex-direction:column;align-items:center;justify-content:flex-start;width:100%;height:auto;max-width:400px;gap:30px;margin:auto}.sc-col{display:flex;flex-direction:column;align-items:center;width:100%;box-sizing:border-box}.sc-header{text-align:center;animation:slideDownFade .6s cubic-bezier(0.16,1,0.3,1) both;margin-bottom:2vh}.sc-header h2{margin:0;color:var(--text-main);font-size:clamp(2.4rem,8vw,3.2rem);font-weight:900;letter-spacing:-1.5px;text-shadow:0 4px 15px rgba(255, 158, 181, 0.12)}.sc-header p{color:var(--primary-dark);margin:4px 0 0 0;font-size:clamp(.95rem,3vw,1.1rem);font-weight:800;letter-spacing:1.5px;text-transform:uppercase}.sc-ring-wrapper{position:relative;width:clamp(140px,30vh,200px);height:clamp(140px,30vh,200px);animation:scaleInFade .8s cubic-bezier(0.34,1.56,0.64,1) .1s both;flex-shrink:0;margin-bottom:2vh}.sc-ring-glass{position:absolute;inset:0;border-radius:50%;background:rgba(255,255,255,.9);box-shadow:inset 0 3px 8px rgba(255,255,255,.9),0 8px 18px rgba(255,158,181,.12)}.sc-ring-svg{position:relative;width:100%;height:100%;transform:rotate(-90deg);z-index:2;filter:drop-shadow(0 4px 6px rgba(255,158,181,.3))}.progress-ring-mastery{transition:stroke-dashoffset 1.2s cubic-bezier(0.16,1,0.3,1) .3s}.sc-ring-content{position:absolute;top:0;left:0;width:100%;height:100%;display:flex;align-items:center;justify-content:center;z-index:3}.sc-percent{font-size:clamp(2.6rem,8vw,3.8rem);font-weight:900;color:var(--text-main);line-height:.9}.sc-percent span{font-size:clamp(1.1rem,4vw,1.6rem);color:var(--primary-dark);vertical-align:super;font-weight:700}.sc-stats-grid{display:grid;grid-template-columns:1fr 1fr;gap:clamp(12px,3vw,24px);width:100%;margin-bottom:3vh}.sc-stat-card{background:rgba(255,255,255,.95);padding:clamp(16px,3vh,24px) 12px;border-radius:24px;text-align:center;border:2px solid rgba(255,255,255,.9);box-shadow:0 6px 14px rgba(255, 158, 181, 0.12)}.sc-anim-stat1{animation:slideUpFade .6s cubic-bezier(0.16,1,0.3,1) .2s both}.sc-anim-stat2{animation:slideUpFade .6s cubic-bezier(0.16,1,0.3,1) .3s both}.sc-stat-num{font-size:clamp(2rem,6vw,2.5rem);font-weight:800;color:var(--text-main);margin-bottom:4px;line-height:1}.sc-stat-label{font-size:clamp(.7rem,2.5vw,.8rem);color:var(--text-muted);font-weight:800;text-transform:uppercase;letter-spacing:1px}.sc-actions{width:100%;display:flex;flex-direction:column;gap:12px;animation:slideUpFade .6s cubic-bezier(0.16,1,0.3,1) .4s both}.sc-btn{width:100%;padding:14px 20px;font-size:1rem;font-weight:800;letter-spacing:.5px;border-radius:16px;cursor:pointer}.sc-btn-primary{box-shadow:0 8px 25px rgba(255,158,181,.4);transition:transform .2s cubic-bezier(0.25,0.8,0.25,1),box-shadow .2s;border:none}.sc-btn-primary:hover{transform:translateY(-2px);box-shadow:0 12px 30px rgba(255,158,181,.5)}.sc-btn-secondary{background:rgba(255,255,255,.95);border:2px solid rgba(255,255,255,.9);transition:background .2s}.sc-btn-secondary:hover{background:#fff}@media(min-width:768px){.sc-layout{flex-direction:row;justify-content:center;align-items:center;width:100%;max-width:820px;gap:0}.sc-col{flex:1 1 50%;max-width:50%}.sc-left{align-items:flex-end;padding-right:40px;border-right:2px solid rgba(255,255,255,.4)}.sc-right{align-items:flex-start;padding-left:40px}.sc-header{text-align:right;margin-bottom:30px}.sc-ring-wrapper{margin-bottom:0;width:220px;height:220px}.sc-stats-grid{margin-bottom:30px;gap:20px;width:100%;max-width:320px}.sc-actions{width:100%;max-width:320px}}@keyframes slideDownFade{from{opacity:0;transform:translateY(-20px)}to{opacity:1;transform:translateY(0)}}@keyframes slideUpFade{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}@keyframes scaleInFade{from{opacity:0;transform:scale(0.8)}to{opacity:1;transform:scale(1)}}
+            .sc-wrapper{height:100%;width:100%;display:flex;align-items:flex-start;justify-content:center;padding:24px 16px 84px;box-sizing:border-box;overflow-y:auto;-webkit-overflow-scrolling:touch}
+            .sc-panel{width:min(100%,520px);margin:auto;background:rgba(255,255,255,.96);border:1px solid rgba(255,255,255,.92);border-radius:32px;box-shadow:0 12px 28px rgba(255,158,181,.12);padding:22px 20px 18px;position:relative;overflow:hidden}
+            .sc-panel:before{content:'';position:absolute;inset:auto -10% 78% -10%;height:120px;background:radial-gradient(circle at top,rgba(255,240,245,.95),rgba(255,255,255,0) 72%);pointer-events:none}
+            .sc-header{position:relative;text-align:center;animation:slideDownFade .45s cubic-bezier(.16,1,.3,1) both;margin-bottom:16px}
+            .sc-kicker{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:999px;background:#f8fafc;color:#94a3b8;font-size:.68rem;font-weight:800;letter-spacing:1px;text-transform:uppercase;margin-bottom:10px}
+            .sc-kicker-dot{width:7px;height:7px;border-radius:999px;background:linear-gradient(135deg,#fda4af,#f9a8d4);box-shadow:0 0 0 5px rgba(253,164,175,.12)}
+            .sc-header h2{margin:0;color:var(--text-main);font-size:clamp(1.45rem,5vw,1.95rem);font-weight:800;letter-spacing:-.03em}
+            .sc-header p{margin:6px auto 0;max-width:280px;color:#64748b;font-size:.95rem;font-weight:600;line-height:1.45}
+            .sc-ring-row{display:flex;justify-content:center;animation:scaleInFade .6s cubic-bezier(.34,1.56,.64,1) .05s both;margin-bottom:16px}
+            .sc-ring-wrapper{position:relative;width:132px;height:132px;flex-shrink:0}
+            .sc-ring-glass{position:absolute;inset:0;border-radius:50%;background:linear-gradient(180deg,rgba(255,255,255,.95),rgba(248,250,252,.95));box-shadow:inset 0 2px 6px rgba(255,255,255,.9),0 8px 18px rgba(148,163,184,.12)}
+            .sc-ring-svg{position:relative;width:100%;height:100%;transform:rotate(-90deg);z-index:2}
+            .progress-ring-mastery{transition:stroke-dashoffset 1s cubic-bezier(.16,1,.3,1) .2s}
+            .sc-ring-content{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;z-index:3}
+            .sc-percent{font-size:2.15rem;font-weight:800;color:var(--text-main);line-height:.9}
+            .sc-percent span{font-size:.95rem;color:#94a3b8;vertical-align:super;font-weight:700}
+            .sc-stats-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;width:100%;margin-bottom:16px;animation:slideUpFade .45s cubic-bezier(.16,1,.3,1) .12s both}
+            .sc-stat-card{background:#fff;border:1px solid #f1f5f9;border-radius:18px;padding:12px 10px;text-align:center;box-shadow:0 4px 10px rgba(148,163,184,.08)}
+            .sc-stat-num{font-size:1.5rem;font-weight:800;color:var(--text-main);line-height:1;margin-bottom:4px}
+            .sc-stat-label{font-size:.68rem;color:#94a3b8;font-weight:800;text-transform:uppercase;letter-spacing:.9px}
+            .sc-actions{width:100%;display:flex;flex-direction:column;gap:12px;animation:slideUpFade .45s cubic-bezier(.16,1,.3,1) .18s both}
+            .sc-btn{width:100%;padding:14px 18px;font-size:.95rem;font-weight:800;letter-spacing:.01em;line-height:1.2;border-radius:18px;cursor:pointer;font-family:'Nunito',system-ui,sans-serif;box-shadow:none;transition:background-color .18s ease,border-color .18s ease,color .18s ease,transform .18s ease}
+            .sc-btn-primary{background:#ffffff;color:#526173;border:1.5px solid rgba(110,161,198,.5)}
+            .sc-btn-primary:hover{transform:translateY(-1px);background:#f8fbfe;border-color:rgba(110,161,198,.72);color:#42586d}
+            .sc-btn-secondary{background:#ffffff;color:#475569;border:1px solid #dbe4ee}
+            .sc-btn-secondary:hover{transform:translateY(-1px);background:#f8fafc;border-color:#cbd5e1;color:#334155}
+            @media(min-width:768px){.sc-panel{padding:24px 24px 20px}.sc-header p{max-width:320px}.sc-ring-wrapper{width:144px;height:144px}.sc-stats-grid{gap:12px}.sc-stat-card{padding:14px 10px}}
+            @keyframes slideDownFade{from{opacity:0;transform:translateY(-10px)}to{opacity:1;transform:translateY(0)}}
+            @keyframes slideUpFade{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+            @keyframes scaleInFade{from{opacity:0;transform:scale(.9)}to{opacity:1;transform:scale(1)}}
           `;
           document.head.appendChild(style);
       }
 
       const html = `
         <div class="sc-wrapper">
-            <div class="sc-glow"></div>
+            <div class="sc-panel">
+                <div class="sc-header">
+                    <div class="sc-kicker"><span class="sc-kicker-dot"></span><span>Session Complete</span></div>
+                    <h2>${isGame ? 'Nice work' : 'Study complete'}</h2>
+                    <p>${message}</p>
+                </div>
 
-            <div class="sc-layout">
-                
-                <div class="sc-col sc-left">
-                    <div class="sc-header">
-                        <h2>Complete</h2>
-                        <p>${message}</p>
-                    </div>
-                    
+                <div class="sc-ring-row">
                     <div class="sc-ring-wrapper">
                         <div class="sc-ring-glass"></div>
-                        <svg viewBox="0 0 100 100" class="sc-ring-svg">
-                            <circle cx="50" cy="50" r="42" fill="none" stroke="rgba(255,255,255,0.8)" stroke-width="8"></circle>
-                            <circle class="progress-ring-mastery" cx="50" cy="50" r="42" fill="none" stroke="var(--primary)" stroke-width="8" stroke-linecap="round" stroke-dasharray="263.89" stroke-dashoffset="263.89"></circle>
+                        <svg viewBox="0 0 100 100" class="sc-ring-svg" aria-hidden="true">
+                            <circle cx="50" cy="50" r="42" fill="none" stroke="#f1f5f9" stroke-width="7"></circle>
+                            <circle class="progress-ring-mastery" cx="50" cy="50" r="42" fill="none" stroke="var(--primary)" stroke-width="7" stroke-linecap="round" stroke-dasharray="263.89" stroke-dashoffset="263.89"></circle>
                         </svg>
                         <div class="sc-ring-content">
                             <div class="sc-percent">${percent}<span>%</span></div>
@@ -913,16 +1020,13 @@ updateActiveList(preserveState = false) {
                     </div>
                 </div>
 
-                <div class="sc-col sc-right">
-                    <div class="sc-stats-grid">
-                        ${statsHtml}
-                    </div>
-                    
-                    <div class="sc-actions">
-                        ${actionHtml}
-                    </div>
+                <div class="sc-stats-grid">
+                    ${statsHtml}
                 </div>
 
+                <div class="sc-actions">
+                    ${actionHtml}
+                </div>
             </div>
         </div>
       `;
@@ -1006,7 +1110,6 @@ updateActiveList(preserveState = false) {
     this.state.isFlipped = !this.state.isFlipped;
     if(this.state.isFlipped && !suppressSpeak) {
         this.speakCurrent();
-        setTimeout(() => this.updateCardScrollIndicator(), 200);
     }
     UI.updateFlipState();
   },
@@ -1131,44 +1234,6 @@ updateActiveList(preserveState = false) {
 
       this.next(false);
       this._autoPlayTimer = setTimeout(() => this.runAutoPlayStep(), 50);
-  },
-
-  updateCardScrollIndicator() {
-      const card = document.querySelector('.card');
-      if (!card) return;
-      
-      const back = card.querySelector('.back') || card.querySelector('.card-back') || card.querySelector('.card__face--back');
-      if (!back) return;
-
-      const content = back.querySelector('.face-content') || back;
-      
-      const existing = back.querySelector('.scroll-indicator');
-
-      if (content.scrollHeight > content.clientHeight + 20) {
-          if (existing) {
-              if (content.scrollTop < 30) existing.classList.add('visible');
-              return;
-          }
-
-          const indicator = document.createElement('div');
-          indicator.className = 'scroll-indicator visible';
-          indicator.innerHTML = `<span>Scroll for Examples</span><svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z"/></svg>`;
-          
-          if (getComputedStyle(back).position === 'static') back.style.position = 'relative';
-          back.appendChild(indicator);
-
-          content.onscroll = () => {
-              const isVis = indicator.classList.contains('visible');
-              if (content.scrollTop > 30) {
-                  if (isVis) indicator.classList.remove('visible');
-              } else {
-                  if (!isVis) indicator.classList.add('visible');
-              }
-          };
-      } else if (existing) {
-          existing.remove();
-          content.onscroll = null;
-      }
   },
 
   speakCurrent() {
@@ -2107,19 +2172,31 @@ updateActiveList(preserveState = false) {
   _generateHookHTML(char, charData) {
       let activeHook = charData ? charData.hook : '';
       return `
-        <div class="dna-section-title" style="margin-top:24px;">Your Mnemonics</div>
-        <div class="hook-card">
-            <div id="hook-display-${char}" class="hook-text">
-                ${activeHook ? Utils.createBreakdown(activeHook) : '<span style="color:#cbd5e1;">Tap edit to add a memory hook...</span>'}
+        <div class="network-accordion" style="margin-top: 24px;">
+            <div class="network-accordion-header" onclick="this.parentElement.classList.toggle('expanded')">
+                <span style="display:flex; align-items:center; gap:6px;">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm0-14a5.99 5.99 0 00-6 6c0 2.22 1.21 4.15 3 5.19V19a1 1 0 001 1h4a1 1 0 001-1v-1.81c1.79-1.04 3-2.97 3-5.19a5.99 5.99 0 00-6-6zm2 9.45V18h-4v-2.55C8.83 14.88 8 13.53 8 12a4 4 0 118 0c0 1.53-.83 2.88-2 3.45z"/></svg>
+                    Your Mnemonics
+                </span>
+                <svg class="network-chevron" viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z"/></svg>
             </div>
-            <button class="hook-edit-btn" data-action="edit-hook" data-char="${char}">
-                <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
-            </button>
-            <div id="hook-editor-${char}" style="display:none; width:100%;">
-                <textarea id="hook-input-${char}" class="hook-textarea" placeholder="Enter memory hook...">${activeHook || ''}</textarea>
-                <div class="hook-actions">
-                    <button class="btn-sec" data-action="cancel-edit-hook" data-char="${char}" style="padding:6px 12px; font-size:0.8rem;">Cancel</button>
-                    <button class="btn-main" data-action="save-hook" data-char="${char}" style="padding:6px 16px; font-size:0.8rem;">Save</button>
+            <div cl ass="network-accordion-body">
+                <div class="network-accordion-inner">
+                    <div class="hook-card" style="margin-top: 0;">
+                        <div id="hook-display-${char}" class="hook-text">
+                            ${activeHook ? Utils.createBreakdown(activeHook) : '<span style="color:#cbd5e1;">Tap edit to add a memory hook...</span>'}
+                        </div>
+                        <button class="hook-edit-btn" data-action="edit-hook" data-char="${char}">
+                            <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
+                        </button>
+                        <div id="hook-editor-${char}" style="display:none; width:100%;">
+                            <textarea id="hook-input-${char}" class="hook-textarea" placeholder="Enter memory hook...">${activeHook || ''}</textarea>
+                            <div class="hook-actions">
+                                <button class="btn-sec" data-action="cancel-edit-hook" data-char="${char}" style="padding:6px 12px; font-size:0.8rem;">Cancel</button>
+                                <button class="btn-main" data-action="save-hook" data-char="${char}" style="padding:6px 16px; font-size:0.8rem;">Save</button>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -2372,23 +2449,6 @@ updateActiveList(preserveState = false) {
           if (display) display.style.display = 'none'; 
           if (relatedContainer) relatedContainer.innerHTML = '';
 
-          const updateScrollIndicator = () => {
-              const ind = document.getElementById('scrollIndicator');
-              if (ind && modalContent) {
-                  const isScrollable = modalContent.scrollHeight > modalContent.clientHeight + 20;
-                  if (isScrollable) {
-                      ind.classList.add('visible');
-                      modalContent.onscroll = () => {
-                          if (modalContent.scrollTop > 50 && ind.classList.contains('visible')) {
-                              ind.classList.remove('visible');
-                          }
-                      };
-                  } else {
-                      ind.classList.remove('visible');
-                  }
-              }
-          };
-          
           const hanziChars = char.match(/[\u4e00-\u9fa5]/g) || [];
           
           if (hanziChars.length > 1) {
@@ -2406,7 +2466,6 @@ updateActiveList(preserveState = false) {
               if(strokeOrderContainer) strokeOrderContainer.style.display = 'none';
               if(strokeOrderSpinner) strokeOrderSpinner.classList.add('hidden');
               if(strokeOrderFallback) strokeOrderFallback.classList.add('hidden');
-              setTimeout(updateScrollIndicator, 100);
               return; 
           }
 
@@ -2464,8 +2523,6 @@ updateActiveList(preserveState = false) {
               }
           }
           if (link) link.href = `https://hanzicraft.com/character/${char}`;
-
-          setTimeout(updateScrollIndicator, 100);
 
           if (char.length === 1 && /[\u4e00-\u9fa5]/.test(char)) {
               if (strokeOrderContainer) strokeOrderContainer.style.display = 'none';

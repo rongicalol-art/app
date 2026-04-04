@@ -230,8 +230,8 @@ init() {
 
     // --- AUDIO & AUTO-PLAY CUSTOMIZATION ---
     if (typeof App.state.ttsReadWord === 'undefined') App.state.ttsReadWord = true;
-    if (typeof App.state.ttsReadMeaning === 'undefined') App.state.ttsReadMeaning = false;
-    if (typeof App.state.ttsReadExample === 'undefined') App.state.ttsReadExample = true;
+    if (typeof App.state.ttsReadMeaning === 'undefined') App.state.ttsReadMeaning = true;
+    if (typeof App.state.ttsReadExample === 'undefined') App.state.ttsReadExample = false;
     if (typeof App.state.ttsReadExampleEn === 'undefined') App.state.ttsReadExampleEn = false;
     if (typeof App.state.ttsItemInterval === 'undefined') App.state.ttsItemInterval = 1.0;
     if (typeof App.state.ttsCardInterval === 'undefined') App.state.ttsCardInterval = 2.0;
@@ -382,6 +382,14 @@ init() {
       
       switch (action) {
         case 'toggle-flip': App.toggleFlip(); break;
+        case 'toggle-memory-breakdown': {
+          e.stopPropagation();
+          const hookCard = actionTarget.closest('.memory-hook-card');
+          if (!hookCard) break;
+          hookCard.classList.toggle('is-open');
+          actionTarget.setAttribute('aria-expanded', hookCard.classList.contains('is-open') ? 'true' : 'false');
+          break;
+        }
         case 'toggle-example-group': {
           const group = actionTarget.closest('.example-group');
           if (group) group.classList.toggle('expanded');
@@ -945,18 +953,22 @@ showCourseSelector() {
     btn.title = 'Copied!';
     setTimeout(() => { btn.classList.remove('copied'); btn.title = originalTitle; }, 1200);
   },
-  showToast(msg) {
+  showToast(msg, options = {}) {
+    const { variant = 'default', duration = 1500 } = options;
     let toast = document.getElementById('appToast');
     if (!toast) {
         toast = document.createElement('div');
         toast.id = 'appToast';
-        toast.style.cssText = `position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%); background: rgba(255, 158, 181, 0.12); color: white; padding: 10px 20px; border-radius: 20px; font-size: 0.9rem; pointer-events: none; opacity: 0; transition: opacity 0.3s; z-index: 3000;`;
+        toast.className = 'app-toast';
         document.body.appendChild(toast);
     }
     toast.textContent = msg;
-    toast.style.opacity = '1';
+    toast.className = `app-toast${variant === 'strong' ? ' is-strong' : ''}`;
+    toast.classList.remove('show');
+    void toast.offsetWidth;
+    toast.classList.add('show');
     clearTimeout(this.toastTimer);
-    this.toastTimer = setTimeout(() => toast.style.opacity = '0', 1500);
+    this.toastTimer = setTimeout(() => toast.classList.remove('show'), duration);
   },
 
   render() {
