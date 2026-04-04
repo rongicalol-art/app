@@ -183,8 +183,15 @@ const App = {
   },
 
   applyTemporaryVocabHooks() {
+    const fallbackHooks = typeof vocabularyHooks !== 'undefined'
+      ? vocabularyHooks
+      : typeof vocabularyHooksBatch1 !== 'undefined'
+        ? vocabularyHooksBatch1
+        : [];
+
     const rawHooks = Array.isArray(window.vocabularyHooks) ? window.vocabularyHooks
       : Array.isArray(window.vocabularyHooksBatch1) ? window.vocabularyHooksBatch1
+      : Array.isArray(fallbackHooks) ? fallbackHooks
       : [];
 
     if (!rawHooks.length || !DATA.VOCAB.length) return;
@@ -787,12 +794,12 @@ updateActiveList(preserveState = false) {
     const studyCard = document.querySelector('.study-card-container .card');
     if (studyCard) {
         const rect = studyCard.getBoundingClientRect();
-        popup.style.left = `${Math.round(rect.left + (rect.width / 2))}px`;
-        popup.style.top = `${Math.max(12, Math.round(rect.top - 12))}px`;
+        popup.style.left = `${Math.round(rect.right - 8)}px`;
+        popup.style.top = `${Math.max(10, Math.round(rect.top - 8))}px`;
         popup.style.bottom = 'auto';
     } else {
-        popup.style.left = '50%';
-        popup.style.top = '72px';
+        popup.style.left = 'calc(100% - 28px)';
+        popup.style.top = '68px';
         popup.style.bottom = 'auto';
     }
 
