@@ -2087,6 +2087,3 @@ const vocabularyHooksBatch1 = [
     "breakdown": "拍=clap, 手=hand, 叫=call, 好=good"
   }
 ];
-
-window.vocabularyHooksBatch1 = vocabularyHooksBatch1;
-window.vocabularyHooks = vocabularyHooksBatch1;

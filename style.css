@@ -202,71 +202,38 @@ html.is-animating #app {
 
 .learned-popup-floating {
   position: fixed;
-  top: 72px;
+  top: calc(50% - min(190px, 42.5vw) - 20px);
   left: 50%;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  transform: translate(-50%, calc(-100% - 10px)) scale(0.96);
-  transform-origin: center bottom;
+  transform: translate(-50%, -8px) scale(0.98);
   opacity: 0;
-  padding: 8px 12px;
-  min-width: 120px;
-  border-radius: 999px;
-  font-family: 'Nunito', sans-serif;
-  font-size: 0.78rem;
-  font-weight: 800;
-  letter-spacing: 0.01em;
+  padding: 6px 12px;
+  border-radius: 14px;
+  font-size: 0.76rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
   pointer-events: none;
   z-index: 4000;
-  color: #475569;
-  background: rgba(255, 255, 255, 0.97);
-  border: 1px solid rgba(226, 232, 240, 0.95);
-  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.12);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  color: var(--text-main);
+  background: rgba(255, 255, 255, 0.95);
+  border: 1px solid rgba(255, 158, 181, 0.2);
+  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.08);
   transition: opacity 0.18s ease, transform 0.22s ease;
-}
-.learned-popup-icon {
-  width: 20px;
-  height: 20px;
-  border-radius: 999px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex: 0 0 auto;
-  font-size: 0.75rem;
-  font-weight: 900;
-  line-height: 1;
-}
-.learned-popup-label {
-  white-space: nowrap;
 }
 .learned-popup-floating.is-learned { 
   color: #0f766e;
-  border-color: rgba(16, 185, 129, 0.22);
-  box-shadow: 0 10px 24px rgba(16, 185, 129, 0.16);
-}
-.learned-popup-floating.is-learned .learned-popup-icon {
-  color: #ffffff;
-  background: linear-gradient(135deg, #34d399 0%, #10b981 100%);
+  border-color: rgba(16, 185, 129, 0.35);
 }
 .learned-popup-floating.is-unlearned { 
   color: #b91c1c;
-  border-color: rgba(239, 68, 68, 0.2);
-  box-shadow: 0 10px 24px rgba(239, 68, 68, 0.14);
+  border-color: rgba(239, 68, 68, 0.3);
 }
-.learned-popup-floating.is-unlearned .learned-popup-icon {
-  color: #ffffff;
-  background: linear-gradient(135deg, #fb7185 0%, #ef4444 100%);
-}
-.learned-popup-floating.show { opacity: 1; transform: translate(-50%, -100%) scale(1); }
+.learned-popup-floating.show { opacity: 1; transform: translate(-50%, 0) scale(1); }
 
 body.dark-mode .learned-popup-floating {
   color: #e2e8f0;
-  background: rgba(15, 23, 42, 0.94);
+  background: rgba(15, 23, 42, 0.95);
   border: 1px solid rgba(148, 163, 184, 0.25);
-  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.34);
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.3);
 }
 
 .app-toast {
@@ -2396,7 +2363,7 @@ body.hide-example-pinyin .sentence-pinyin { display: none !important; }
     border: 2px solid color-mix(in srgb, var(--group-color, #cbd5e1) 40%, #f1f5f9) !important; 
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02) !important;
     transition: all 0.15s ease !important;
-}
+}   
 
 /* 5. Format Pinyin and Hanzi */
 .component-py {
