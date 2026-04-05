@@ -549,6 +549,9 @@ const Utils = {
   expandVocabToChars(items, { includeSingles = true } = {}) {
     const expanded = [];
     const seen = new Set();
+    const sanitizeDef = (value) => (window.App && typeof App.sanitizeDefinition === 'function')
+      ? App.sanitizeDefinition(value)
+      : (value == null || String(value).trim().toLowerCase() === 'undefined' ? '' : String(value).trim());
 
     items.forEach(item => {
       const hanzi = (item.hanzi || '').replace(/\s+/g, '');
@@ -574,14 +577,18 @@ const Utils = {
 
       chars.forEach((char, idx) => {
         if (seen.has(char)) return;
+        const charPinyin = DATA.CHARS && DATA.CHARS[char]?.pinyin;
+        const primaryCharPinyin = Array.isArray(charPinyin)
+          ? Utils.formatNumberedPinyin(charPinyin[0] || '')
+          : Utils.formatNumberedPinyin(charPinyin || '');
 
         const py = (!useCharLookup ? pinyinParts[idx] : null)
-          || (DATA.CHARS && DATA.CHARS[char]?.pinyin)
+          || primaryCharPinyin
           || item.pinyin 
           || '';
-        const def = (DATA.CHARS && DATA.CHARS[char]?.def)
+        const def = sanitizeDef((DATA.CHARS && DATA.CHARS[char]?.def)
           || (DATA.FALLBACK_DEFS && DATA.FALLBACK_DEFS[char]?.d)
-          || item.def;
+          || item.def);
         const hook = (DATA.CHARS && DATA.CHARS[char]?.hook) || '';
 
         const charItem = {

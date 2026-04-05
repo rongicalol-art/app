@@ -38,43 +38,87 @@ Object.assign(window.UI, {
         isFromOtherLesson = cached.isFromOtherLesson;
       } else {
         if (searchTerms.length > 0 && DATA.SENTENCES.length > 0) {
-          const allMatchesSet = new Set();
+          const allMatchesMap = new Map();
+          const addMatch = (sentence) => {
+            if (!sentence) return;
+            const matchKey = `${sentence.book}-${sentence.lesson}-${sentence.dialogue}-${sentence.zh}`;
+            if (!allMatchesMap.has(matchKey)) allMatchesMap.set(matchKey, sentence);
+          };
           searchTerms.forEach(term => {
             if (!term) return;
             const zhChars = term.match(/[\u4e00-\u9fa5]/g);
             if (!zhChars || zhChars.length === 0) {
-              DATA.SENTENCES.forEach(s => { if (s.zh.includes(term)) allMatchesSet.add(s); });
+              DATA.SENTENCES.forEach(s => { if (s.zh.includes(term)) addMatch(s); });
               return;
             }
             const firstChar = zhChars[0];
             const candidates = DATA.SENTENCES_BY_CHAR[firstChar] || [];
             if (term.length === 1 && term === firstChar) {
-              candidates.forEach(m => allMatchesSet.add(m));
+              candidates.forEach(addMatch);
             } else {
-              candidates.forEach(m => { if (m.zh.includes(term)) allMatchesSet.add(m); });
+              candidates.forEach(m => { if (m.zh.includes(term)) addMatch(m); });
             }
           });
-          const allMatches = Array.from(allMatchesSet);
+          const allMatches = Array.from(allMatchesMap.values());
   
           const itemBook = String(item.book_id || item.book || '');
           const itemLesson = String(item.lesson_id !== undefined ? item.lesson_id : (item.lesson || '0'));
           const itemDialogue = String(item.dialogue_id || item.dialogue || '');
+          const itemBookNum = parseInt(itemBook, 10);
+          const itemLessonNum = parseInt(itemLesson, 10);
   
-          const sameLesson = allMatches.filter(s => String(s.book_id || s.book) === itemBook && String(s.lesson_id !== undefined ? s.lesson_id : s.lesson) === itemLesson);
-          const sameBook = allMatches.filter(s => String(s.book_id || s.book) === itemBook && String(s.lesson_id !== undefined ? s.lesson_id : s.lesson) !== itemLesson);
-          const others = allMatches.filter(s => String(s.book_id || s.book) !== itemBook);
-  
-          if (itemDialogue) {
-            sameLesson.sort((a, b) => {
-              const aD = String(a.dialogue_id || a.dialogue || '');
-              const bD = String(b.dialogue_id || b.dialogue || '');
-              if (aD === itemDialogue && bD !== itemDialogue) return -1;
-              if (aD !== itemDialogue && bD === itemDialogue) return 1;
-              return 0;
+          const sortedPool = allMatches
+            .map(s => {
+              const sentenceText = String(s.zh || '');
+              let score = 0;
+              let bestMatchLength = 0;
+
+              searchTerms.forEach(term => {
+                if (!term || !sentenceText.includes(term)) return;
+                bestMatchLength = Math.max(bestMatchLength, term.length);
+                score += 180 + term.length * 24;
+                const pos = sentenceText.indexOf(term);
+                if (pos === 0) score += 18;
+                else if (pos > 0) score += Math.max(0, 12 - pos);
+              });
+
+              const uniqueChars = new Set((item.hanzi || item.zh || '').match(/[\u4e00-\u9fa5]/g) || []);
+              uniqueChars.forEach(char => {
+                if (sentenceText.includes(char)) score += 9;
+              });
+
+              const sentenceBook = String(s.book_id || s.book || '');
+              const sentenceLesson = String(s.lesson_id !== undefined ? s.lesson_id : (s.lesson || ''));
+              const sentenceDialogue = String(s.dialogue_id || s.dialogue || '');
+              const sentenceBookNum = parseInt(sentenceBook, 10);
+              const sentenceLessonNum = parseInt(sentenceLesson, 10);
+              const sameBook = sentenceBook === itemBook;
+              const sameLesson = sameBook && sentenceLesson === itemLesson;
+
+              if (sameLesson) {
+                score += 56;
+              } else if (sameBook) {
+                score += 24;
+                if (Number.isFinite(itemLessonNum) && Number.isFinite(sentenceLessonNum)) {
+                  const lessonDistance = Math.abs(sentenceLessonNum - itemLessonNum);
+                  score += Math.max(0, 24 - lessonDistance * 6);
+                }
+              } else if (Number.isFinite(itemBookNum) && Number.isFinite(sentenceBookNum)) {
+                const bookDistance = Math.abs(sentenceBookNum - itemBookNum);
+                score += Math.max(-18, 8 - bookDistance * 8);
+              }
+
+              if (sentenceDialogue && itemDialogue && sentenceDialogue === itemDialogue) score += sameLesson ? 18 : 12;
+              score -= sentenceText.length * 0.55;
+
+              return { ...s, _studyScore: score, _bestMatchLength: bestMatchLength };
+            })
+            .sort((a, b) => {
+              if (b._studyScore !== a._studyScore) return b._studyScore - a._studyScore;
+              if (b._bestMatchLength !== a._bestMatchLength) return b._bestMatchLength - a._bestMatchLength;
+              return a.zh.length - b.zh.length;
             });
-          }
-  
-          const sortedPool = [...sameLesson, ...sameBook, ...others];
+
           if (sortedPool.length > 0) {
             primaryExample = sortedPool[0];
             otherExamples = sortedPool.slice(1);
@@ -97,14 +141,17 @@ Object.assign(window.UI, {
         this.container.innerHTML = `
           <div class="study-static-wrapper relative-center-wrapper ${animClass}">
             <div class="study-center-box">
-              <div class="card-group study-card-group">
-                <div class="card-container study-card-container">
-                  <div class="card" data-action="toggle-flip">
-                    <div class="card__face card__face--front"></div>
-                    <div class="card__face card__face--back"></div>
+              <div class="study-desktop-shell">
+                <div class="card-group study-card-group">
+                  <div class="card-container study-card-container">
+                    <div class="card" data-action="toggle-flip">
+                      <div class="card__face card__face--front"></div>
+                      <div class="card__face card__face--back"></div>
+                    </div>
                   </div>
+                  <div id="exampleBtnContainer"></div>
                 </div>
-                <div id="exampleBtnContainer"></div>
+                <aside class="study-mini-breakdown" aria-label="Character breakdown"></aside>
               </div>
             </div>
           </div>
@@ -210,9 +257,7 @@ Object.assign(window.UI, {
         });
       }
   
-      const safeDefinition = item.def == null || String(item.def).trim().toLowerCase() === 'undefined'
-        ? ''
-        : String(item.def).trim();
+      const safeDefinition = App.sanitizeDefinition(item.def || item.en);
       const definitionText = safeDefinition;
       const hookText = String(item.hook || '').trim();
       const isDense = hzLen >= 4 || definitionText.length > 42 || hookText.length > 80 || displayTypes.length >= 2;
@@ -248,15 +293,30 @@ Object.assign(window.UI, {
         });
   
         const groupList = Array.from(groups.values()).sort((a, b) => {
+          const primaryBook = primaryExample ? String(primaryExample.book != null ? primaryExample.book : (primaryExample.book_id || '?')) : null;
+          if (primaryBook) {
+            const aPrimary = String(a.book) === primaryBook;
+            const bPrimary = String(b.book) === primaryBook;
+            if (aPrimary && !bPrimary) return -1;
+            if (!aPrimary && bPrimary) return 1;
+          }
           const bn = Number(a.book) - Number(b.book);
           if (!Number.isNaN(bn) && bn !== 0) return bn;
           return String(a.book).localeCompare(String(b.book));
         });
   
-        exampleGroupsHtml = groupList.map((group, groupIdx) => {
+        exampleGroupsHtml = groupList.map(group => {
           const groupItemsHtml = group.items
             .slice()
             .sort((a, b) => {
+              const aPrimary = primaryExample && a === primaryExample;
+              const bPrimary = primaryExample && b === primaryExample;
+              if (aPrimary && !bPrimary) return -1;
+              if (!aPrimary && bPrimary) return 1;
+              const scoreDelta = Number(b._studyScore || 0) - Number(a._studyScore || 0);
+              if (scoreDelta !== 0) return scoreDelta;
+              const matchDelta = Number(b._bestMatchLength || 0) - Number(a._bestMatchLength || 0);
+              if (matchDelta !== 0) return matchDelta;
               const l = Number(a.lesson) - Number(b.lesson);
               if (l !== 0) return l;
               const d = Number(a.dialogue) - Number(b.dialogue);
@@ -274,7 +334,7 @@ Object.assign(window.UI, {
               const lessonTag = ex.lesson != null ? `L${ex.lesson}` : 'L?';
               const lessonBg = ex.book != null ? Utils.getBookBg(ex.book) : 'rgba(255, 255, 255, 0.9)';
               const lessonColor = ex.book != null ? Utils.getBookColor(ex.book) : 'var(--text-muted)';
-              const primaryBadge = isPrimary ? `<span class="example-lesson-tag" style="background:var(--primary); color:white; margin-left:6px; box-shadow: 0 2px 4px rgba(255,158,181,0.3); border:none;">⭐ Closest Exam</span>` : '';
+              const primaryBadge = isPrimary ? `<span class="example-lesson-tag" style="background:var(--primary); color:white; margin-left:6px; box-shadow: 0 2px 4px rgba(255,158,181,0.3); border:none;">Top Match</span>` : '';
   
               return `
                 <div class="example-item ${isPrimary ? 'is-primary' : ''}">
@@ -298,7 +358,7 @@ Object.assign(window.UI, {
           const bookColor = Utils.getBookColor(group.book);
   
           return `
-            <div class="example-group ${groupIdx === 0 ? 'expanded' : ''}">
+            <div class="example-group ${primaryExample && String(group.book) === String(primaryExample.book) ? 'expanded' : ''}">
               <button class="example-group-header" type="button" data-action="toggle-example-group" style="background:${bookBg}; color:${bookColor};">
                 <div class="example-group-title">Book ${group.book}</div>
                 <span class="example-group-cue" aria-hidden="true">
@@ -316,26 +376,12 @@ Object.assign(window.UI, {
         }).join('');
       }
   
-      const hasHookBreakdown = Boolean(item.hookBreakdown && item.hookBreakdown.trim());
+      const breakdownHtml = this.buildStudyMiniBreakdown(item);
+
       const hookHtml = App.state.showHooks && item.hook ? `
-        <section class="memory-hook-card${hasHookBreakdown ? '' : ' no-breakdown'}">
+        <section class="memory-hook-card">
           <div class="memory-hook-label">Memory Hook</div>
           <div class="memory-hook-text">${Utils.createHookMarkup(item.hook, item._cleanHz || item.hanzi || item.zh || '')}</div>
-          ${hasHookBreakdown ? `
-            <button
-              class="memory-hook-toggle"
-              type="button"
-              data-action="toggle-memory-breakdown"
-              aria-expanded="false"
-              aria-label="Toggle memory hook breakdown"
-              title="Toggle breakdown"
-            >
-              <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7.41 8.59 12 13.17l4.59-4.58L18 10l-6 6-6-6z"/></svg>
-            </button>
-            <div class="memory-hook-breakdown">
-              <div class="memory-hook-breakdown-inner">${Utils.createBreakdown(item.hookBreakdown)}</div>
-            </div>
-          ` : ''}
         </section>
       ` : '';
   
@@ -381,7 +427,191 @@ Object.assign(window.UI, {
           ` : ''}
         </div>
       `;
+      const breakdownHost = studyWrapper.querySelector('.study-mini-breakdown');
+      if (breakdownHost) breakdownHost.innerHTML = breakdownHtml;
+      studyWrapper.classList.toggle('has-breakdown', Boolean(breakdownHtml));
+      this.attachStudyDesktopExpansion(studyWrapper);
       studyWrapper.querySelector('#exampleBtnContainer').innerHTML = '';
+    },
+
+    buildStudyMiniBreakdown(item) {
+      const rawWord = String(item.hanzi || item.zh || '').replace(/[（(].*?[）)]/g, '');
+      const uniqueChars = [...new Set(rawWord.match(/[\u4e00-\u9fa5]/g) || [])];
+      if (!uniqueChars.length) return '';
+
+      const escapeAttr = (value) => String(value || '').replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+      const charCardsHtml = uniqueChars.slice(0, 4).map(char => {
+        const charData = DATA.CHARS && DATA.CHARS[char] ? DATA.CHARS[char] : {};
+        const pinyin = Utils.formatNumberedPinyin(Array.isArray(charData.pinyin) ? charData.pinyin[0] : (charData.pinyin || ''));
+        const definition = App.sanitizeDefinition(charData.def || charData.meaning).split(/[,;，\/]/)[0].trim() || 'Character';
+        const topComponents = (charData.deconstruction_tree?.children || [])
+          .slice(0, 4)
+          .map(child => ({
+            char: child.component || '?',
+            pinyin: Utils.formatNumberedPinyin(Array.isArray(child.pinyin) ? child.pinyin[0] : (child.pinyin || '')),
+            def: App.sanitizeDefinition(child.meaning).split(/[,;，\/]/)[0].trim() || 'Component'
+          }))
+          .filter(component => component.char && component.char !== '?');
+
+        const relatedVocab = ((DATA.VOCAB_BY_CHAR && DATA.VOCAB_BY_CHAR[char]) || [])
+          .filter(v => v && v.hanzi && v.hanzi !== rawWord && v.hanzi !== char)
+          .slice(0, 4);
+        const relatedComponents = (typeof App.findRelatedCharacters === 'function' ? App.findRelatedCharacters(char) : [])
+          .filter(c => c && c.hanzi && c.hanzi !== rawWord && c.hanzi !== char)
+          .slice(0, 6);
+        const hint = typeof App.getVocabHint === 'function' ? App.getVocabHint(char) : null;
+        const badgeHtml = hint
+          ? `<span class="study-mini-char-badge" style="background:${hint.bg}; color:${hint.color}; border-color:${hint.color}40;">B${hint.book} L${hint.lesson}</span>`
+          : '';
+        const previewParts = topComponents.slice(0, 3).map(component => `
+          <span class="study-mini-preview-glyph">${component.char}</span>
+        `).join('');
+        const previewHtml = previewParts ? `
+          <div class="study-mini-char-preview">
+            <div class="study-mini-preview-strip">${previewParts}</div>
+            ${topComponents.length > 3 ? `<span class="study-mini-preview-more">+${topComponents.length - 3}</span>` : ''}
+          </div>
+        ` : '';
+
+        const componentsHtml = topComponents.length
+          ? topComponents.map(component => {
+              const safeChar = escapeAttr(component.char);
+              const safePy = escapeAttr(component.pinyin);
+              const safeDef = escapeAttr(component.def);
+              return `
+                <button class="study-mini-component-chip" type="button" onclick="App.handleCharClick(event, '${safeChar}', '${safePy}', '${safeDef}')">
+                  <span class="study-mini-component-hz">${component.char}</span>
+                  <span class="study-mini-component-copy">
+                    <span class="study-mini-component-py">${component.pinyin || ' '}</span>
+                    <span class="study-mini-component-def">${component.def}</span>
+                  </span>
+                </button>
+              `;
+            }).join('')
+          : `<div class="study-mini-empty">No parts yet</div>`;
+
+        const relatedVocabHtml = relatedVocab.length
+          ? relatedVocab.map(v => {
+              const safeHz = escapeAttr(v.hanzi);
+              const safePy = escapeAttr(v.pinyin || v.py || '');
+              const safeDef = escapeAttr(App.sanitizeDefinition(v.def || v.en));
+              const rowHint = typeof App.getVocabHint === 'function' ? App.getVocabHint(v.hanzi) : null;
+              const rowBadge = rowHint
+                ? `<span class="study-mini-inline-badge" style="background:${rowHint.bg}; color:${rowHint.color}; border-color:${rowHint.color}40;">B${rowHint.book} L${rowHint.lesson}</span>`
+                : '';
+              return `
+                <button class="study-mini-inline-row" type="button" onclick="App.handleCharClick(event, '${safeHz}', '${safePy}', '${safeDef}')">
+                  <span class="study-mini-inline-main">
+                    <span class="study-mini-inline-hz">${v.hanzi}</span>
+                    <span class="study-mini-inline-py">${v.pinyin || v.py || ''}</span>
+                  </span>
+                  ${rowBadge}
+                </button>
+              `;
+            }).join('')
+          : `<div class="study-mini-empty">No words yet</div>`;
+
+        const relatedComponentsHtml = relatedComponents.length
+          ? relatedComponents.map(componentWord => {
+              const safeHz = escapeAttr(componentWord.hanzi);
+              const safePy = escapeAttr(Utils.formatNumberedPinyin(Array.isArray(componentWord.pinyin) ? componentWord.pinyin[0] : (componentWord.pinyin || '')));
+              const safeDef = escapeAttr(App.sanitizeDefinition(componentWord.def || componentWord.meaning));
+              const rowHint = typeof App.getVocabHint === 'function' ? App.getVocabHint(componentWord.hanzi) : null;
+              const rowBadge = rowHint
+                ? `<span class="study-mini-inline-badge" style="background:${rowHint.bg}; color:${rowHint.color}; border-color:${rowHint.color}40;">B${rowHint.book} L${rowHint.lesson}</span>`
+                : '';
+              return `
+                <button class="study-mini-inline-row" type="button" onclick="App.handleCharClick(event, '${safeHz}', '${safePy}', '${safeDef}')">
+                  <span class="study-mini-inline-main">
+                    <span class="study-mini-inline-hz">${componentWord.hanzi}</span>
+                    <span class="study-mini-inline-def">${App.sanitizeDefinition(componentWord.def || componentWord.meaning).split(/[,;，\/]/)[0].trim()}</span>
+                  </span>
+                  ${rowBadge}
+                </button>
+              `;
+            }).join('')
+          : `<div class="study-mini-empty">No links yet</div>`;
+
+        return `
+          <section class="study-mini-char-card">
+            <button
+              class="study-mini-char-header"
+              type="button"
+              data-action="toggle-study-mini-char"
+              aria-expanded="false"
+            >
+              <span class="study-mini-char-hero">${char}</span>
+              <span class="study-mini-char-copy">
+                <span class="study-mini-char-topline">
+                  <span class="study-mini-char-py">${pinyin || ' '}</span>
+                  ${badgeHtml}
+                </span>
+                <span class="study-mini-char-defline">${definition}</span>
+              </span>
+              <span class="study-mini-char-caret" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="currentColor"><path d="M7.41 8.59 12 13.17l4.59-4.58L18 10l-6 6-6-6z"/></svg>
+              </span>
+            </button>
+            ${previewHtml}
+            <div class="study-mini-char-body">
+              <div class="study-mini-section">
+                <div class="study-mini-section-title">Parts</div>
+                <div class="study-mini-components">${componentsHtml}</div>
+              </div>
+              <details class="study-mini-dropdown">
+                <summary>Words</summary>
+                <div class="study-mini-dropdown-body">${relatedVocabHtml}</div>
+              </details>
+              <details class="study-mini-dropdown">
+                <summary>Links</summary>
+                <div class="study-mini-dropdown-body">${relatedComponentsHtml}</div>
+              </details>
+            </div>
+          </section>
+        `;
+      }).join('');
+
+      return charCardsHtml ? `
+        <div class="study-mini-panel">
+          <div class="study-mini-panel-header">
+            <div class="study-mini-panel-title">Breakdown</div>
+          </div>
+          ${charCardsHtml}
+        </div>
+      ` : '';
+    },
+
+    attachStudyDesktopExpansion(studyWrapper) {
+      this._studyDesktopWrapper = studyWrapper;
+      if (!this._studyDesktopExpansionHandler) {
+        this._studyDesktopExpansionHandler = () => {
+          if (this._studyDesktopSyncFrame) return;
+          this._studyDesktopSyncFrame = requestAnimationFrame(() => {
+            this._studyDesktopSyncFrame = null;
+            this.syncStudyDesktopExpansion();
+          });
+        };
+        window.addEventListener('resize', this._studyDesktopExpansionHandler, { passive: true });
+      }
+
+      this.syncStudyDesktopExpansion();
+    },
+
+    syncStudyDesktopExpansion() {
+      const wrapper = this._studyDesktopWrapper;
+      if (!wrapper) return;
+      const isWideStudyLayout = window.matchMedia('(min-width: 768px) and (min-height: 700px)').matches;
+      const shell = wrapper.querySelector('.study-desktop-shell');
+      const shouldStack = isWideStudyLayout
+        && shell
+        && shell.clientWidth < 930
+        && wrapper.classList.contains('has-breakdown');
+      const shouldExpand = isWideStudyLayout
+        && App.state.mode === 'study'
+        && App.state.isFlipped
+        && wrapper.classList.contains('has-breakdown');
+      wrapper.classList.toggle('desktop-stacked', Boolean(shouldStack));
+      wrapper.classList.toggle('desktop-expanded', shouldExpand);
     },
   
     renderSentences(item) {
@@ -484,25 +714,32 @@ Object.assign(window.UI, {
   
       // Disable smart pinyin, just use standard clean py
       const pinyinText = item._cleanPy;
+      const tonedPinyinText = Utils.formatNumberedPinyin(pinyinText || '');
       const hanziText = item._plainHanzi;
       const pureHanzi = item._cleanHz;
-      const defText = (item.def || item.en || '').trim();
+      const defText = App.sanitizeDefinition(item.def || item.en);
+      const revealDefText = typeof App.compactDefinition === 'function'
+        ? App.compactDefinition(defText, { fallback: '' })
+        : defText;
   
       let prompt = '';
       let promptLabel = aType === 'hz' ? 'Type Character(s)' : 'Type Pinyin';
-      let target = aType === 'hz' ? pureHanzi : item._cleanPy;
+      const acceptedPinyinTargets = aType === 'py' ? App.getAcceptedPinyinTargets(item) : [];
+      let target = aType === 'hz' ? pureHanzi : (acceptedPinyinTargets.join('|') || item._cleanPy);
       let fontFam = '';
+      const answerModeLabel = aType === 'py' ? 'Pinyin' : aType === 'hz' ? 'Hanzi' : 'English';
+      const inputPlaceholder = aType === 'py' ? 'Type pinyin' : aType === 'hz' ? 'Type answer' : 'Type meaning';
   
       if (pType === 'hz') {
         prompt = hanziText;
         fontFam = "font-family: 'twkai', serif;";
       } else if (pType === 'py') {
         prompt = pinyinText;
-        fontFam = "font-family: 'Nunito', sans-serif; font-size: 1.8rem; color: var(--primary-dark);";
+        fontFam = "font-family: 'Nunito', sans-serif; color: var(--primary-dark);";
         lenClass = 'chars-long';
       } else if (pType === 'def') {
         prompt = defText;
-        fontFam = "font-family: 'Nunito', sans-serif; font-size: 1.6rem; line-height: 1.4;";
+        fontFam = "font-family: 'Nunito', sans-serif; line-height: 1.4;";
         lenClass = 'chars-long';
       }
   
@@ -523,23 +760,35 @@ Object.assign(window.UI, {
   
       this.container.innerHTML = `
         <div class="qz-wrap ${App.state.skipFadeInOnce ? '' : App.state.lastSwipe === 'right' ? 'swipe-in-right' : App.state.lastSwipe === 'left' ? 'swipe-in-left' : 'fade-in'}" id="quizWrap" style="position: relative;">
-          <div class="qz-card" id="quizCard">
+          <div class="qz-card qz-card--typing" id="quizCard" data-answer-type="${aType}" data-prompt-type="${pType}">
             ${settingsHtml}
             <div class="qz-label">${promptLabel}</div>
             <div class="qz-prompt ${lenClass}" style="${fontFam}">${prompt}</div>
             <div class="qz-input-wrap">
-              <input type="text" id="userAnswer" autofocus class="qz-input" placeholder="Your answer..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="done">
+              <label class="qz-input-shell" for="userAnswer">
+                <input type="text" id="userAnswer" autofocus class="qz-input" placeholder="${inputPlaceholder}" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="done" inputmode="${aType === 'py' ? 'latin' : 'text'}">
+              </label>
+              <div class="qz-reveal-box" id="quizRevealBox" aria-live="polite">
+                <div class="qz-reveal-head">Answer</div>
+                <div class="qz-reveal-hz">${pureHanzi}</div>
+                ${tonedPinyinText ? `<div class="qz-reveal-py">${tonedPinyinText}</div>` : ''}
+                ${revealDefText ? `<div class="qz-reveal-def">${revealDefText}</div>` : ''}
+              </div>
             </div>
+            <div class="qz-card-tag">${answerModeLabel}</div>
           </div>
         </div>
       `;
   
       const input = document.getElementById('userAnswer');
       const wrap = document.getElementById('quizWrap');
+      const revealBox = document.getElementById('quizRevealBox');
   
       if (input && wrap) {
         input.addEventListener('focus', () => {
-          wrap.classList.add('keyboard-open');
+          requestAnimationFrame(() => {
+            if (document.activeElement === input) wrap.classList.add('keyboard-open');
+          });
           let frame = 0;
           const keepPinned = () => {
             window.scrollTo(0, 0);
@@ -556,6 +805,24 @@ Object.assign(window.UI, {
       }
   
       let isProcessing = false;
+      const clearReveal = () => {
+        if (!revealBox) return;
+        revealBox.classList.remove('is-visible', 'is-correct', 'is-wrong');
+      };
+
+      const showReveal = (state) => {
+        if (!revealBox) return;
+        revealBox.classList.remove('is-correct', 'is-wrong');
+        revealBox.classList.add('is-visible');
+        if (state) revealBox.classList.add(state);
+      };
+
+      if (input) {
+        input.addEventListener('input', () => {
+          input.classList.remove('state-wrong', 'state-correct', 'shake');
+          clearReveal();
+        });
+      }
   
       const check = () => {
         if (isProcessing) return;
@@ -573,15 +840,9 @@ Object.assign(window.UI, {
   
         if (isCorrect) {
           isProcessing = true;
+          clearReveal();
           input.classList.add('state-correct');
-  
-          let extraInfo = [];
-          if (aType !== 'py' && pType !== 'py') extraInfo.push(pinyinText);
-          if (aType !== 'def' && pType !== 'def') extraInfo.push(defText);
-          if (aType !== 'hz' && pType !== 'hz') extraInfo.push(pureHanzi);
-          let infoStr = extraInfo.join(' • ');
-          input.value = infoStr ? `${val} (${infoStr})` : val;
-          input.style.fontSize = '1.05rem';
+          showReveal('is-correct');
   
           App.speakText(item.hanzi || item.zh);
           App.state.streak++;
@@ -598,6 +859,7 @@ Object.assign(window.UI, {
           input.classList.remove('shake', 'state-wrong');
           void input.offsetWidth;
           input.classList.add('shake', 'state-wrong');
+          showReveal('is-wrong');
   
           App.state.streak = 0;
           if (typeof UI.updateStreak === 'function') UI.updateStreak();
@@ -664,7 +926,7 @@ Object.assign(window.UI, {
   
       // Disable smart pinyin, just use standard clean py
       const pinyinText = item._cleanPy;
-      const defText = (item.def || item.en || '').trim();
+      const defText = App.sanitizeDefinition(item.def || item.en);
       const hanziText = item._plainHanzi;
       const pureHanzi = item._cleanHz;
   
@@ -1002,9 +1264,9 @@ Object.assign(window.UI, {
   
         for (; index < end; index++) {
           const item = items[index];
-          const hz = item.hanzi || item.zh;
-          const py = item.pinyin || item.py;
-          const en = item.def || item.en;
+          const hz = item.hanzi || item.zh || '';
+          const py = item.pinyin || item.py || '';
+          const en = App.sanitizeDefinition(item.def || item.en);
           const isSentence = !!item.zh;
   
           if (!item._listStaticHTML) {
@@ -1130,7 +1392,7 @@ Object.assign(window.UI, {
           const style = document.createElement('style');
           style.id = 'writing-styles';
           style.innerHTML = `
-            .premium-practice-card{background:rgba(255,255,255,.98);backdrop-filter:none;-webkit-backdrop-filter:none;border:1px solid rgba(255,158,181,.22);border-radius:36px;box-shadow:0 16px 40px rgba(255,158,181,.2);width:100%;max-width:320px;display:flex;flex-direction:column;overflow:hidden;transition:transform .4s cubic-bezier(0.34,1.56,0.64,1),opacity .4s ease;transform:scale(.96) translateY(10px);opacity:0;margin:auto;will-change:transform,opacity}.premium-practice-card.is-fullscreen{max-width:480px;width:90vw;aspect-ratio:1 / 1.15;max-height:calc(100vh - 160px);border-radius:40px;box-shadow:0 24px 50px rgba(255,158,181,.24)}.practice-card-header{padding:12px 20px;background:rgba(248,250,252,.7);border-bottom:2px dashed rgba(226,232,240,.8);cursor:pointer;transition:opacity .4s ease,background .2s}.practice-card-header:hover{background:rgba(241,245,249,.9)}.header-top-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px}.writing-progress-dots{display:flex;gap:5px;align-items:center}.progress-dot{height:4px;width:12px;border-radius:4px;background:#e2e8f0;transition:all .3s ease}.progress-dot.filled{background:#94a3b8}.progress-dot.current{background:var(--primary);width:20px}.hint-text-wrapper{position:relative;height:24px;overflow:hidden}.hint-text-inner{transition:opacity .2s ease}.hint-def,.hint-py{position:absolute;left:0;top:0;width:100%;transition:transform .35s cubic-bezier(0.34,1.56,0.64,1),opacity .35s;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.hint-def{font-family:'Nunito',sans-serif;font-size:1.05rem;font-weight:700;color:var(--text-main);transform:translateY(0);opacity:1}.hint-py{font-family:'Nunito',sans-serif;font-size:1.05rem;font-weight:800;color:var(--primary);letter-spacing:.5px;transform:translateY(20px);opacity:0}.practice-card-header.show-py .hint-def{transform:translateY(-20px);opacity:0}.practice-card-header.show-py .hint-py{transform:translateY(0);opacity:1}.header-controls{display:flex;gap:14px;align-items:center}.swap-icon{color:#cbd5e1;transition:transform .3s;display:flex;align-items:center}.practice-card-header.show-py .swap-icon{transform:rotate(180deg);color:var(--primary)}.fs-toggle-btn-header{background:transparent;border:none;color:#cbd5e1;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:4px;transition:color .15s ease,background-color .15s ease;outline:none;border-radius:6px;margin-right:-4px}.fs-toggle-btn-header:hover{color:var(--primary);background:rgba(255,158,181,.08)}.fs-toggle-btn-header:active{transform:scale(.98)}.action-icon-btn{background:transparent;border:none;color:#94a3b8;width:50px;height:50px;cursor:pointer;border-radius:50%;transition:color .15s ease,background-color .15s ease;display:flex;align-items:center;justify-content:center;outline:none}.action-icon-btn:hover{background:#f8fafc;color:var(--text-main)}.action-icon-btn:active{transform:scale(.98)}.action-icon-btn.active{color:#fff;background:var(--primary)}.action-icon-btn.text-danger{color:#f43f5e}.action-icon-btn.text-danger:hover{background:#fff1f2}@keyframes successPop{0%{opacity:0;transform:scale(.8) translateY(10px)}60%{transform:scale(1.05) translateY(-2px)}100%{opacity:1;transform:scale(1) translateY(0)}}
+            .premium-practice-card{background:rgba(255,255,255,.98);backdrop-filter:none;-webkit-backdrop-filter:none;border:1px solid rgba(255,158,181,.22);border-radius:36px;box-shadow:0 16px 40px rgba(255,158,181,.2);width:100%;max-width:320px;display:flex;flex-direction:column;overflow:hidden;transition:transform .4s cubic-bezier(0.34,1.56,0.64,1),opacity .4s ease;transform:scale(.96) translateY(10px);opacity:0;margin:auto;will-change:transform,opacity}.premium-practice-card.is-fullscreen{max-width:480px;width:90vw;aspect-ratio:1 / 1.15;max-height:calc(100vh - 160px);border-radius:40px;box-shadow:0 24px 50px rgba(255,158,181,.24)}.practice-card-header{padding:12px 20px;background:rgba(248,250,252,.7);border-bottom:2px dashed rgba(226,232,240,.8);cursor:pointer;transition:opacity .4s ease,background .2s}.practice-card-header:hover{background:rgba(241,245,249,.9)}.header-top-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px}.writing-progress-dots{display:flex;gap:5px;align-items:center}.progress-dot{height:4px;width:12px;border-radius:4px;background:#e2e8f0;transition:all .3s ease}.progress-dot.filled{background:#94a3b8}.progress-dot.current{background:var(--primary);width:20px}.hint-text-wrapper{position:relative;height:24px;overflow:hidden}.hint-text-inner{transition:opacity .2s ease}.hint-def,.hint-py{position:absolute;left:0;top:0;width:100%;transition:transform .35s cubic-bezier(0.34,1.56,0.64,1),opacity .35s;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.hint-def{font-family:'Nunito',sans-serif;font-size:1.05rem;font-weight:700;color:var(--text-main);transform:translateY(0);opacity:1}.hint-py{font-family:'Nunito',sans-serif;font-size:1.05rem;font-weight:800;color:var(--primary);letter-spacing:.5px;transform:translateY(20px);opacity:0}.practice-card-header.show-py .hint-def{transform:translateY(-20px);opacity:0}.practice-card-header.show-py .hint-py{transform:translateY(0);opacity:1}.header-controls{display:flex;gap:14px;align-items:center}.swap-icon{color:#cbd5e1;transition:transform .3s;display:flex;align-items:center}.practice-card-header.show-py .swap-icon{transform:rotate(180deg);color:var(--primary)}.fs-toggle-btn-header{background:transparent;border:none;color:#cbd5e1;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:4px;transition:color .15s ease,background-color .15s ease;outline:none;border-radius:6px;margin-right:-4px}.fs-toggle-btn-header:hover{color:var(--primary);background:rgba(255,158,181,.08)}.fs-toggle-btn-header:active{transform:scale(.98)}.writing-bottom-dock{position:fixed;left:50%;bottom:clamp(16px,3.4vh,28px);transform:translate3d(-50%,0,0);z-index:100;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;padding:6px;min-width:232px;width:min(calc(100% - 28px),272px);background:rgba(255,255,255,.72);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);border:1px solid rgba(255,255,255,.72);border-radius:22px;box-shadow:0 14px 28px rgba(216,180,193,.12),0 4px 10px rgba(148,163,184,.08);will-change:transform,opacity}.action-icon-btn{background:rgba(255,255,255,.56);border:1px solid rgba(255,255,255,.52);color:#9f95a1;width:100%;height:42px;cursor:pointer;border-radius:14px;transition:transform .2s cubic-bezier(.22,1,.36,1),color .16s ease,background-color .16s ease,border-color .16s ease,box-shadow .16s ease;display:flex;align-items:center;justify-content:center;outline:none;will-change:transform}.action-icon-btn:hover{background:rgba(255,255,255,.85);color:#7d7280;border-color:rgba(232,197,210,.88)}.action-icon-btn:active{transform:translate3d(0,1px,0) scale(.97)}.action-icon-btn.active{color:var(--primary-dark);background:rgba(255,247,250,.94);border-color:rgba(232,197,210,.92);box-shadow:inset 0 1px 0 rgba(255,255,255,.88),0 6px 12px rgba(246,183,201,.12)}.action-icon-btn.text-danger{color:#ab94a0}.action-icon-btn.text-danger:hover{color:#8f7380;background:rgba(255,248,250,.9);border-color:rgba(234,205,216,.9)}@keyframes successPop{0%{opacity:0;transform:scale(.8) translateY(10px)}60%{transform:scale(1.05) translateY(-2px)}100%{opacity:1;transform:scale(1) translateY(0)}}
             @keyframes dockEnter { 0% { opacity: 0; transform: translate(-50%, 150%) scale(0.9); pointer-events: none; } 100% { opacity: 1; transform: translate(-50%, 0) scale(1); pointer-events: auto; } }
             @keyframes dockExit { 0% { opacity: 1; transform: translate(-50%, 0) scale(1); } 100% { opacity: 0; transform: translate(-50%, 150%) scale(0.9); pointer-events: none; } }
             .dock-enter { animation: dockEnter 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards !important; }
@@ -1169,19 +1431,18 @@ Object.assign(window.UI, {
             </div>
           </div>
   
-          <div id="writingBottomDock" class="dock-enter" style="position: fixed; bottom: clamp(20px, 4vh, 35px); left: 50%; transform: translateX(-50%); z-index: 100; display: flex; justify-content: space-evenly; align-items: center; background: rgba(255, 255, 255, 0.75); backdrop-filter: blur(15px); -webkit-backdrop-filter: blur(15px); padding: 8px 16px; border-radius: 100px; box-shadow: 0 12px 32px rgba(255, 158, 181, 0.15); border: 1px solid rgba(255, 255, 255, 0.7); width: calc(100% - 40px); max-width: 350px; will-change: transform, opacity;">
+          <div id="writingBottomDock" class="writing-bottom-dock dock-enter">
             <button class="action-icon-btn text-danger" id="exitFocusBtn" title="Exit Practice">
-              <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
             </button>
-            <div style="width: 1px; height: 24px; background: rgba(0,0,0,0.1); margin: 0 4px;"></div>
             <button class="action-icon-btn" id="writingAnimateBtn" title="Watch Stroke Order">
-              <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg>
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg>
             </button>
             <button class="action-icon-btn ${App.state.writingShowOutline ? 'active' : ''}" id="writingOutlineToggle" title="Toggle Guidelines">
-              <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M3 3v18h18V3H3zm16 16H5V5h14v14zM11 7h2v2h-2zM7 7h2v2H7zm8 0h2v2h-2zm-8 4h2v2H7zm4 0h2v2h-2zm4 0h2v2h-2zm-8 4h2v2H7zm4 0h2v2h-2zm4 0h2v2h-2z"/></svg>
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M3 3v18h18V3H3zm16 16H5V5h14v14zM11 7h2v2h-2zM7 7h2v2H7zm8 0h2v2h-2zm-8 4h2v2H7zm4 0h2v2h-2zm4 0h2v2h-2zm-8 4h2v2H7zm4 0h2v2h-2zm4 0h2v2h-2z"/></svg>
             </button>
             <button class="action-icon-btn" id="writingResetBtn" title="Retry Character">
-              <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>
             </button>
           </div>
         `;
@@ -1242,7 +1503,8 @@ Object.assign(window.UI, {
       setTimeout(() => {
         const dotsEl = document.getElementById('writingProgressDots');
         if (dotsEl) dotsEl.innerHTML = inlineProgressHtml;
-        document.getElementById('hintDef').textContent = item.def || 'Definition unavailable';
+        const safeDefinition = App.sanitizeDefinition(item.def || item.en);
+        document.getElementById('hintDef').textContent = safeDefinition || 'Definition unavailable';
         document.getElementById('hintPy').textContent = pinyinText || 'Pinyin unavailable';
   
         if (App.state.writingCharIndex === 0 && headerToggle) {
@@ -1380,7 +1642,7 @@ Object.assign(window.UI, {
                     ${pinyinText}
                   </div>
                   <div style="font-family: 'Nunito', sans-serif; font-size: 1.05rem; color: var(--text-muted); font-weight: 600; padding: 0 10px; animation: slideUpFade 0.4s 0.3s both;">
-                    ${item.def || ''}
+                    ${App.sanitizeDefinition(item.def || item.en)}
                   </div>
                   <div class="writing-controls">
                     <button class="writing-btn primary" onclick="App.state.writingCharIndex=0; App.state.lastSwipe='right'; App.next();" style="animation: slideUpFade 0.4s 0.4s both;">Next</button>

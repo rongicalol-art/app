@@ -382,12 +382,24 @@ init() {
       
       switch (action) {
         case 'toggle-flip': App.toggleFlip(); break;
-        case 'toggle-memory-breakdown': {
+        case 'toggle-study-mini-char': {
           e.stopPropagation();
-          const hookCard = actionTarget.closest('.memory-hook-card');
-          if (!hookCard) break;
-          hookCard.classList.toggle('is-open');
-          actionTarget.setAttribute('aria-expanded', hookCard.classList.contains('is-open') ? 'true' : 'false');
+          const card = actionTarget.closest('.study-mini-char-card');
+          const panel = actionTarget.closest('.study-mini-panel');
+          if (!card || !panel) break;
+
+          const isOpen = card.classList.contains('is-open');
+          panel.querySelectorAll('.study-mini-char-card.is-open').forEach(node => {
+            node.classList.remove('is-open');
+            node.querySelector('.study-mini-char-header')?.setAttribute('aria-expanded', 'false');
+          });
+
+          if (!isOpen) {
+            card.classList.add('is-open');
+            actionTarget.setAttribute('aria-expanded', 'true');
+          } else {
+            actionTarget.setAttribute('aria-expanded', 'false');
+          }
           break;
         }
         case 'toggle-example-group': {
@@ -447,7 +459,9 @@ init() {
                 // 🌟 Pre-fill the cache so setMode smoothly transitions without losing your place
                 App.state.modeCache['writing'] = {
                     list: App.state.activeList, index: App.state.currentIndex,
-                    isFinished: App.state.isFinished, sessionMistakes: App.state.sessionMistakes
+                    isFinished: App.state.isFinished,
+                    sessionMistakes: App.state.sessionMistakes,
+                    filterKey: App.getFilterKey()
                 };
                 App.setMode('writing');
             }
@@ -820,6 +834,9 @@ showCourseSelector() {
       if (App.state.isFlipped) card.classList.add('flipped');
       else card.classList.remove('flipped');
     }
+    if (typeof this.syncStudyDesktopExpansion === 'function') {
+      this.syncStudyDesktopExpansion();
+    }
   },
 
   updateSpeedButtons() {
@@ -909,6 +926,16 @@ showCourseSelector() {
   },
 
   renderScrollHint() {
+      if (App.state.mode === 'study' && window.matchMedia('(min-width: 768px) and (min-height: 700px)').matches) {
+          if (this._scrollHintListener) {
+              this.container.removeEventListener('scroll', this._scrollHintListener);
+              this._scrollHintListener = null;
+          }
+          const existingHint = document.getElementById('scrollHint');
+          if (existingHint) existingHint.remove();
+          return;
+      }
+
       // Ensure we clear out the previous listener before adding a new one
       if (this._scrollHintListener) {
           this.container.removeEventListener('scroll', this._scrollHintListener);

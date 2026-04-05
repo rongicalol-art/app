@@ -22,6 +22,7 @@ const App = {
     shuffle: false,
     currentIndex: 0,
     isFlipped: false,
+    isStudyBreakdownOpen: false,
     skipFlipAnimationOnce: false,
     ttsRate: 0.85,
     quizType: 'vocab',
@@ -174,6 +175,95 @@ const App = {
     return Utils.normalizeSearch(cleaned.replace(/\//g, ''));
   },
 
+  sanitizeDefinition(text) {
+    if (text == null) return '';
+    const cleaned = String(text).trim();
+    return cleaned && cleaned.toLowerCase() !== 'undefined' ? cleaned : '';
+  },
+
+  compactDefinition(text, options = {}) {
+    const fallback = options.fallback ?? '';
+    const maxLength = options.maxLength ?? 56;
+    let cleaned = this.sanitizeDefinition(text)
+      .replace(/\[[^\]]*\]/g, '')
+      .replace(/[（(][^）)]*[）)]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    if (!cleaned) return fallback;
+    if (/^abbr\.\s+for\b/i.test(cleaned)) return fallback;
+
+    cleaned = cleaned
+      .replace(/^(variant of|see also|classifier for)\s+/i, '')
+      .trim();
+
+    let compact = cleaned
+      .split(/[;；/]/)
+      .map(part => part.trim())
+      .find(Boolean) || cleaned;
+
+    const commaParts = compact.split(/,\s*/).map(part => part.trim()).filter(Boolean);
+    if (compact.length > maxLength && commaParts.length > 1) {
+      compact = commaParts.slice(0, 2).join(', ');
+    }
+
+    if (compact.length > maxLength) {
+      compact = `${compact.slice(0, maxLength - 1).trim()}…`;
+    }
+
+    return compact || fallback;
+  },
+
+  getItemId(item) {
+    if (!item) return '';
+    return item.id || item.hanzi || item.zh || '';
+  },
+
+  getFilterKey() {
+    return JSON.stringify({
+      b: this.state.bookFilter,
+      l: this.state.lessonFilter,
+      d: this.state.dialogueFilter,
+      h: this.state.hideLearned,
+      s: this.state.separateMode,
+      sh: this.state.shuffle,
+      qt: this.state.quizType,
+      lh: this.state.listeningHard
+    });
+  },
+
+  getAcceptedPinyinTargets(item) {
+    const answers = [];
+    const addValue = (value) => {
+      if (!value) return;
+      String(value)
+        .split(/[\/／,，;|]/)
+        .map(part => part.replace(/[（(].*?[）)]/g, '').trim())
+        .filter(Boolean)
+        .forEach(part => {
+          const formatted = Utils.formatNumberedPinyin(part);
+          if (formatted && !answers.includes(formatted)) answers.push(formatted);
+        });
+    };
+
+    addValue(item?._cleanPy || item?.pinyin || item?.py);
+
+    const cleanHanzi = String(item?.hanzi || '').replace(/[（(].*?[）)]/g, '').replace(/[^\u4e00-\u9fa5]/g, '');
+    if (cleanHanzi.length === 1) {
+      const charData = DATA.CHARS && DATA.CHARS[cleanHanzi];
+      if (charData) {
+        const variations = charData.chameleon_alert?.pinyin_variations;
+        if (Array.isArray(variations) && variations.length) {
+          variations.forEach(addValue);
+        } else {
+          addValue(charData.pinyin);
+        }
+      }
+    }
+
+    return answers;
+  },
+
   getHookWordVariants(word) {
     if (!word) return [];
     const raw = String(word).normalize('NFKC').replace(/[／]/g, '/');
@@ -257,12 +347,16 @@ const App = {
                     ...charData, 
                     hanzi: hanzi,
                     pinyin: Array.isArray(charData.pinyin) ? Utils.formatNumberedPinyin(charData.pinyin[0]) : charData.pinyin,
-                    def: charData.meaning
+                    def: this.sanitizeDefinition(charData.meaning || charData.definition)
                 };
             }
         } else {
             window.CHARS_DATA.forEach(c => {
-                DATA.CHARS[c.hanzi] = { ...c, def: c.meaning || c.definition, decomposition: c.components };
+                DATA.CHARS[c.hanzi] = {
+                    ...c,
+                    def: this.sanitizeDefinition(c.meaning || c.definition),
+                    decomposition: c.components
+                };
             });
         }
     }
@@ -275,9 +369,7 @@ const App = {
         if (!vocabMap.has(key)) {
             const safePinyin = typeof v.pinyin === 'string' ? v.pinyin.trim() : '';
             const rawDef = v.definition ?? v.def ?? '';
-            const safeDef = rawDef == null || String(rawDef).trim().toLowerCase() === 'undefined'
-                ? ''
-                : String(rawDef).trim();
+            const safeDef = this.sanitizeDefinition(rawDef);
 
             vocabMap.set(key, {
                 ...v,
@@ -403,6 +495,9 @@ const App = {
         this.state.isFinished = parsed.isFinished || false;
         this.state.sessionMistakes = parsed.sessionMistakes || [];
         this.state.modeCache = {}; // Start fresh to avoid memory issues and stale caches across reloads
+        this._restoredActiveListOrder = Array.isArray(parsed.activeListOrder) ? parsed.activeListOrder : null;
+        this._restoredCurrentItemId = parsed.currentItemId || '';
+        this._restoredFilterKey = parsed.activeListFilterKey || '';
       } catch (e) {
         localStorage.removeItem('fc_settings');
       }
@@ -410,7 +505,9 @@ const App = {
   },
 
   saveSettings() {
-    localStorage.setItem('fc_settings', JSON.stringify({
+    const currentItem = this.state.activeList[this.state.currentIndex];
+    const shouldPersistOrder = Array.isArray(this.state.activeList) && this.state.activeList.length > 0 && this.state.activeList.length <= 1500;
+    const payload = {
       bookFilter: this.state.bookFilter,
       lessonFilter: this.state.lessonFilter,
       dialogueFilter: this.state.dialogueFilter,
@@ -448,9 +545,21 @@ const App = {
       mode: this.state.mode,
       currentIndex: this.state.currentIndex,
       isFinished: this.state.isFinished,
-      sessionMistakes: this.state.sessionMistakes
+      sessionMistakes: this.state.sessionMistakes,
+      currentItemId: this.getItemId(currentItem),
+      activeListFilterKey: this.getFilterKey(),
+      activeListOrder: shouldPersistOrder ? this.state.activeList.map(item => this.getItemId(item)) : null
       // DO NOT save modeCache to localStorage, as it contains large arrays that freeze the UI
-    }));
+    };
+
+    try {
+      localStorage.setItem('fc_settings', JSON.stringify(payload));
+    } catch (err) {
+      try {
+        delete payload.activeListOrder;
+        localStorage.setItem('fc_settings', JSON.stringify(payload));
+      } catch (finalErr) {}
+    }
   },
 
   saveUserHook(char, text) {
@@ -656,6 +765,39 @@ updateActiveList(preserveState = false) {
         });
     }
 
+    if (
+        preserveState &&
+        Array.isArray(this._restoredActiveListOrder) &&
+        this._restoredActiveListOrder.length > 0 &&
+        (!this._restoredFilterKey || this._restoredFilterKey === this.getFilterKey())
+    ) {
+        const byId = new Map(filtered.map(item => [this.getItemId(item), item]));
+        const restored = [];
+        const used = new Set();
+
+        this._restoredActiveListOrder.forEach(id => {
+            if (!id || used.has(id) || !byId.has(id)) return;
+            restored.push(byId.get(id));
+            used.add(id);
+        });
+
+        filtered.forEach(item => {
+            const id = this.getItemId(item);
+            if (!used.has(id)) restored.push(item);
+        });
+
+        filtered = restored;
+
+        if (this._restoredCurrentItemId) {
+            const restoredIndex = filtered.findIndex(item => this.getItemId(item) === this._restoredCurrentItemId);
+            if (restoredIndex !== -1) this.state.currentIndex = restoredIndex;
+        }
+
+        this._restoredActiveListOrder = null;
+        this._restoredCurrentItemId = '';
+        this._restoredFilterKey = '';
+    }
+
     this.state.activeList = filtered;
     
     // 🌟 FIX: Only reset progress if preserveState is false
@@ -664,6 +806,7 @@ updateActiveList(preserveState = false) {
         this.state.currentIndex = 0;
         this.state.sessionMistakes = []; 
         this.state.isFlipped = false;
+        this.state.isStudyBreakdownOpen = false;
     } else {
         // Ensure index doesn't accidentally point past the end of the list
         if (this.state.currentIndex >= this.state.activeList.length) {
@@ -842,6 +985,7 @@ updateActiveList(preserveState = false) {
           this.state.activeList = mistakeItems;
           this.state.currentIndex = 0;
           this.state.isFlipped = false;
+          this.state.isStudyBreakdownOpen = false;
           this.state.isFinished = false;
           this.state.streak = 0;
           this.state.sessionMistakes = [];
@@ -889,6 +1033,7 @@ updateActiveList(preserveState = false) {
     }
     this.saveSettings();
     this.state.isFlipped = false;
+    this.state.isStudyBreakdownOpen = false;
     this.state.skipFlipAnimationOnce = true;
     this.state.builderTokens = [];
     this.state.builderAnswer = [];
@@ -988,33 +1133,34 @@ updateActiveList(preserveState = false) {
           const style = document.createElement('style');
           style.id = 'session-complete-styles';
           style.innerHTML = `
-            .sc-wrapper{height:100%;width:100%;display:flex;align-items:flex-start;justify-content:center;padding:24px 16px 84px;box-sizing:border-box;overflow-y:auto;-webkit-overflow-scrolling:touch}
-            .sc-panel{width:min(100%,520px);margin:auto;background:rgba(255,255,255,.96);border:1px solid rgba(255,255,255,.92);border-radius:32px;box-shadow:0 12px 28px rgba(255,158,181,.12);padding:22px 20px 18px;position:relative;overflow:hidden}
-            .sc-panel:before{content:'';position:absolute;inset:auto -10% 78% -10%;height:120px;background:radial-gradient(circle at top,rgba(255,240,245,.95),rgba(255,255,255,0) 72%);pointer-events:none}
-            .sc-header{position:relative;text-align:center;animation:slideDownFade .45s cubic-bezier(.16,1,.3,1) both;margin-bottom:16px}
-            .sc-kicker{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:999px;background:#f8fafc;color:#94a3b8;font-size:.68rem;font-weight:800;letter-spacing:1px;text-transform:uppercase;margin-bottom:10px}
-            .sc-kicker-dot{width:7px;height:7px;border-radius:999px;background:linear-gradient(135deg,#fda4af,#f9a8d4);box-shadow:0 0 0 5px rgba(253,164,175,.12)}
-            .sc-header h2{margin:0;color:var(--text-main);font-size:clamp(1.45rem,5vw,1.95rem);font-weight:800;letter-spacing:-.03em}
-            .sc-header p{margin:6px auto 0;max-width:280px;color:#64748b;font-size:.95rem;font-weight:600;line-height:1.45}
-            .sc-ring-row{display:flex;justify-content:center;animation:scaleInFade .6s cubic-bezier(.34,1.56,.64,1) .05s both;margin-bottom:16px}
-            .sc-ring-wrapper{position:relative;width:132px;height:132px;flex-shrink:0}
-            .sc-ring-glass{position:absolute;inset:0;border-radius:50%;background:linear-gradient(180deg,rgba(255,255,255,.95),rgba(248,250,252,.95));box-shadow:inset 0 2px 6px rgba(255,255,255,.9),0 8px 18px rgba(148,163,184,.12)}
+            .sc-wrapper{height:100%;width:100%;display:flex;align-items:center;justify-content:center;padding:20px 16px 28px;box-sizing:border-box;overflow:hidden}
+            .sc-panel{width:min(100%,500px);max-height:min(100%,calc(100svh - 48px));margin:auto;background:linear-gradient(180deg,rgba(255,252,253,.92),rgba(255,255,255,.86));border:1px solid rgba(255,255,255,.7);border-radius:30px;box-shadow:0 10px 24px rgba(216,180,193,.12),0 4px 10px rgba(148,163,184,.07);padding:20px 18px 16px;position:relative;overflow:hidden;display:flex;flex-direction:column;justify-content:center;backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)}
+            .sc-panel:before{content:'';position:absolute;inset:auto -10% 80% -10%;height:110px;background:radial-gradient(circle at top,rgba(255,238,244,.62),rgba(255,255,255,0) 72%);pointer-events:none}
+            .sc-header{position:relative;text-align:center;animation:slideDownFade .45s cubic-bezier(.16,1,.3,1) both;margin-bottom:14px}
+            .sc-kicker{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:999px;background:rgba(248,250,252,.86);color:#a295a5;font-size:.68rem;font-weight:800;letter-spacing:1px;text-transform:uppercase;margin-bottom:10px;border:1px solid rgba(226,232,240,.8)}
+            .sc-kicker-dot{width:7px;height:7px;border-radius:999px;background:linear-gradient(135deg,#f6b7c9,#e9c4d6);box-shadow:0 0 0 4px rgba(246,183,201,.12)}
+            .sc-header h2{margin:0;color:#7c6f7f;font-size:clamp(1.4rem,4.8vw,1.85rem);font-weight:800;letter-spacing:-.03em}
+            .sc-header p{margin:6px auto 0;max-width:280px;color:#978a98;font-size:.93rem;font-weight:700;line-height:1.42}
+            .sc-ring-row{display:flex;justify-content:center;animation:scaleInFade .6s cubic-bezier(.34,1.56,.64,1) .05s both;margin-bottom:14px}
+            .sc-ring-wrapper{position:relative;width:120px;height:120px;flex-shrink:0}
+            .sc-ring-glass{position:absolute;inset:0;border-radius:50%;background:linear-gradient(180deg,rgba(255,255,255,.8),rgba(249,247,250,.88));box-shadow:inset 0 1px 4px rgba(255,255,255,.7),0 8px 16px rgba(216,180,193,.09)}
             .sc-ring-svg{position:relative;width:100%;height:100%;transform:rotate(-90deg);z-index:2}
             .progress-ring-mastery{transition:stroke-dashoffset 1s cubic-bezier(.16,1,.3,1) .2s}
             .sc-ring-content{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;z-index:3}
-            .sc-percent{font-size:2.15rem;font-weight:800;color:var(--text-main);line-height:.9}
-            .sc-percent span{font-size:.95rem;color:#94a3b8;vertical-align:super;font-weight:700}
-            .sc-stats-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;width:100%;margin-bottom:16px;animation:slideUpFade .45s cubic-bezier(.16,1,.3,1) .12s both}
-            .sc-stat-card{background:#fff;border:1px solid #f1f5f9;border-radius:18px;padding:12px 10px;text-align:center;box-shadow:0 4px 10px rgba(148,163,184,.08)}
-            .sc-stat-num{font-size:1.5rem;font-weight:800;color:var(--text-main);line-height:1;margin-bottom:4px}
-            .sc-stat-label{font-size:.68rem;color:#94a3b8;font-weight:800;text-transform:uppercase;letter-spacing:.9px}
-            .sc-actions{width:100%;display:flex;flex-direction:column;gap:12px;animation:slideUpFade .45s cubic-bezier(.16,1,.3,1) .18s both}
-            .sc-btn{width:100%;padding:14px 18px;font-size:.95rem;font-weight:800;letter-spacing:.01em;line-height:1.2;border-radius:18px;cursor:pointer;font-family:'Nunito',system-ui,sans-serif;box-shadow:none;transition:background-color .18s ease,border-color .18s ease,color .18s ease,transform .18s ease}
-            .sc-btn-primary{background:#ffffff;color:#526173;border:1.5px solid rgba(110,161,198,.5)}
-            .sc-btn-primary:hover{transform:translateY(-1px);background:#f8fbfe;border-color:rgba(110,161,198,.72);color:#42586d}
-            .sc-btn-secondary{background:#ffffff;color:#475569;border:1px solid #dbe4ee}
-            .sc-btn-secondary:hover{transform:translateY(-1px);background:#f8fafc;border-color:#cbd5e1;color:#334155}
-            @media(min-width:768px){.sc-panel{padding:24px 24px 20px}.sc-header p{max-width:320px}.sc-ring-wrapper{width:144px;height:144px}.sc-stats-grid{gap:12px}.sc-stat-card{padding:14px 10px}}
+            .sc-percent{font-size:1.95rem;font-weight:800;color:#7c6f7f;line-height:.9}
+            .sc-percent span{font-size:.9rem;color:#b1a5b2;vertical-align:super;font-weight:700}
+            .sc-stats-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;width:100%;margin-bottom:14px;animation:slideUpFade .45s cubic-bezier(.16,1,.3,1) .12s both}
+            .sc-stat-card{background:rgba(255,255,255,.72);border:1px solid rgba(232,236,241,.95);border-radius:18px;padding:11px 10px;text-align:center;box-shadow:0 2px 8px rgba(148,163,184,.05)}
+            .sc-stat-num{font-size:1.4rem;font-weight:800;color:#7c6f7f;line-height:1;margin-bottom:4px}
+            .sc-stat-label{font-size:.67rem;color:#b1a5b2;font-weight:800;text-transform:uppercase;letter-spacing:.9px}
+            .sc-actions{width:100%;display:flex;flex-direction:column;gap:10px;animation:slideUpFade .45s cubic-bezier(.16,1,.3,1) .18s both}
+            .sc-btn{width:100%;padding:13px 18px;font-size:.92rem;font-weight:800;letter-spacing:.01em;line-height:1.2;border-radius:18px;cursor:pointer;font-family:'Nunito',system-ui,sans-serif;box-shadow:none;transition:background-color .18s ease,border-color .18s ease,color .18s ease,transform .18s ease}
+            .sc-btn-primary{background:rgba(255,255,255,.76);color:#7f7481;border:1px solid rgba(232,197,210,.9)}
+            .sc-btn-primary:hover{transform:translateY(-1px);background:rgba(255,255,255,.9);border-color:rgba(223,179,195,.95);color:#756877}
+            .sc-btn-secondary{background:rgba(248,250,252,.7);color:#938795;border:1px solid rgba(226,232,240,.96)}
+            .sc-btn-secondary:hover{transform:translateY(-1px);background:rgba(255,255,255,.84);border-color:rgba(203,213,225,.98);color:#7d7280}
+            @media(min-width:768px){.sc-panel{padding:22px 22px 18px}.sc-header p{max-width:320px}.sc-ring-wrapper{width:132px;height:132px}.sc-stats-grid{gap:12px}.sc-stat-card{padding:12px 10px}}
+            @media(max-height:760px){.sc-wrapper{padding:14px 14px 20px}.sc-panel{border-radius:26px;padding:16px 16px 14px}.sc-header{margin-bottom:12px}.sc-kicker{margin-bottom:8px}.sc-header h2{font-size:clamp(1.25rem,4.5vw,1.6rem)}.sc-header p{font-size:.88rem}.sc-ring-row{margin-bottom:12px}.sc-ring-wrapper{width:102px;height:102px}.sc-percent{font-size:1.7rem}.sc-percent span{font-size:.8rem}.sc-stats-grid{margin-bottom:12px;gap:8px}.sc-stat-card{padding:9px 8px}.sc-stat-num{font-size:1.2rem}.sc-stat-label{font-size:.62rem}.sc-actions{gap:8px}.sc-btn{padding:11px 16px;font-size:.88rem}}
             @keyframes slideDownFade{from{opacity:0;transform:translateY(-10px)}to{opacity:1;transform:translateY(0)}}
             @keyframes slideUpFade{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
             @keyframes scaleInFade{from{opacity:0;transform:scale(.9)}to{opacity:1;transform:scale(1)}}
@@ -1078,6 +1224,7 @@ updateActiveList(preserveState = false) {
       this.state.activeList = unlearned;
       this.state.currentIndex = 0;
       this.state.isFlipped = false;
+      this.state.isStudyBreakdownOpen = false;
       this.state.isFinished = false; // FIX: Ensure finished state is reset
       this.state.streak = 0; // FIX: Reset streak for the review
       UI.render();
@@ -1111,6 +1258,7 @@ updateActiveList(preserveState = false) {
       this.updateActiveList();
       this.state.currentIndex = 0;
       this.state.isFlipped = false;
+      this.state.isStudyBreakdownOpen = false;
       
       UI.render();
       UI.showToast("Session restarted");
@@ -1120,6 +1268,7 @@ updateActiveList(preserveState = false) {
     if(this.state.activeList.length === 0) return;
     this.state.currentIndex = (this.state.currentIndex - 1 + this.state.activeList.length) % this.state.activeList.length;
     this.state.isFlipped = false;
+    this.state.isStudyBreakdownOpen = false;
     this.state.skipFlipAnimationOnce = true;
     this.state.builderTokens = [];
     this.state.builderAnswer = [];
@@ -1132,6 +1281,7 @@ updateActiveList(preserveState = false) {
     if (this._lastSwipeTime && Date.now() - this._lastSwipeTime < 600) return;
     
     this.state.isFlipped = !this.state.isFlipped;
+    if (!this.state.isFlipped) this.state.isStudyBreakdownOpen = false;
     if(this.state.isFlipped && !suppressSpeak) {
         this.speakCurrent();
     }
@@ -1139,12 +1289,33 @@ updateActiveList(preserveState = false) {
   },
 
   cleanDefinitionForTTS(defText) {
-      if (!defText) return '';
-      let cleaned = String(defText);
+      let cleaned = this.sanitizeDefinition(defText);
+      if (!cleaned) return '';
       cleaned = cleaned.replace(/\b(?:m|mw|measure word)\s*[:：]\s*[^;|/,\uFF0C\uFF1B]+/gi, '');
       cleaned = cleaned.replace(/\b(measure word|mw)\b\s*[:：]?\s*/gi, '');
       cleaned = cleaned.replace(/\s{2,}/g, ' ').replace(/^[,;/\s]+|[,;/\s]+$/g, '');
       return cleaned.trim();
+  },
+
+  releaseVolatileResources({ aggressive = false } = {}) {
+      if (window.speechSynthesis) window.speechSynthesis.cancel();
+
+      if (typeof UI !== 'undefined' && UI._currentWriter) {
+          try { UI._currentWriter.cancelQuiz(); } catch (e) {}
+          try { if (typeof UI._currentWriter.destroy === 'function') UI._currentWriter.destroy(); } catch (e) {}
+          UI._currentWriter = null;
+      }
+
+      if (this.state.currentWriter) {
+          try { this.state.currentWriter.cancelQuiz(); } catch (e) {}
+          try { if (typeof this.state.currentWriter.destroy === 'function') this.state.currentWriter.destroy(); } catch (e) {}
+          this.state.currentWriter = null;
+      }
+
+      if (aggressive) {
+          if (Utils._hzCache?.clear) Utils._hzCache.clear();
+          if (typeof UI !== 'undefined' && UI._exampleCache?.clear) UI._exampleCache.clear();
+      }
   },
 
   async requestWakeLock() {
@@ -1347,15 +1518,24 @@ updateActiveList(preserveState = false) {
   setupInteraction() {
       if (this._interactionsSetup) return;
       this._interactionsSetup = true;
+      const persistSessionState = () => {
+          if (this !== window.App) return;
+          this.saveSettings();
+      };
+
       // 🌟 FIX: Auto-save the exact millisecond the user switches apps or minimizes the browser
       document.addEventListener('visibilitychange', () => {
           if (document.visibilityState === 'hidden') {
-              this.saveSettings();
+              persistSessionState();
+              this.releaseVolatileResources({ aggressive: true });
           } else if (document.visibilityState === 'visible') {
               // Re-acquire the wake lock if returning to the app and autoplay is still running
               if (this.state.autoPlay) this.requestWakeLock();
+              if (this.state.mode === 'writing' && typeof UI !== 'undefined') UI.render();
           }
       });
+      window.addEventListener('pagehide', persistSessionState);
+      window.addEventListener('beforeunload', persistSessionState);
 
       if (!document.getElementById('tap-ripple-styles')) {
           const style = document.createElement('style');
@@ -1615,7 +1795,7 @@ updateActiveList(preserveState = false) {
 
       container.addEventListener('click', (e) => {
           if (!isCurrentApp()) return;
-          if (e.target.closest('button, a, input, textarea, .interactive-char, .hook-edit-btn, [data-action], canvas, svg, .writing-target-inner')) return;
+          if (e.target.closest('button, a, input, textarea, details, summary, .interactive-char, .hook-edit-btn, [data-action], canvas, svg, .writing-target-inner, .study-mini-breakdown')) return;
           if (!['study', 'sentences', 'writing'].includes(this.state.mode)) return;
 
           // Prevent ghost clicks after a swipe
@@ -1686,16 +1866,7 @@ updateActiveList(preserveState = false) {
     this.state.previousMode = this.state.mode;
     
     // Create a filter key so we can check if filters changed while we were away
-    const filterKey = JSON.stringify({
-        b: this.state.bookFilter,
-        l: this.state.lessonFilter,
-        d: this.state.dialogueFilter,
-        h: this.state.hideLearned,
-        s: this.state.separateMode,
-        sh: this.state.shuffle,
-        qt: this.state.quizType,
-        lh: this.state.listeningHard
-    });
+    const filterKey = this.getFilterKey();
 
     this.state.modeCache[this.state.mode] = {
         list: this.state.activeList, 
@@ -1745,16 +1916,7 @@ updateActiveList(preserveState = false) {
             document.body.classList.remove('focus-mode');
         }
 
-        const currentFilterKey = JSON.stringify({
-            b: this.state.bookFilter,
-            l: this.state.lessonFilter,
-            d: this.state.dialogueFilter,
-            h: this.state.hideLearned,
-            s: this.state.separateMode,
-            sh: this.state.shuffle,
-            qt: this.state.quizType,
-            lh: this.state.listeningHard
-        });
+        const currentFilterKey = this.getFilterKey();
 
         if (this.state.modeCache[newMode] && this.state.modeCache[newMode].filterKey === currentFilterKey && this.state.modeCache[newMode].list) {
             this.state.activeList = this.state.modeCache[newMode].list;
@@ -1762,6 +1924,7 @@ updateActiveList(preserveState = false) {
             this.state.isFinished = this.state.modeCache[newMode].isFinished || false;
             this.state.sessionMistakes = this.state.modeCache[newMode].sessionMistakes || [];
             this.state.isFlipped = false;
+            this.state.isStudyBreakdownOpen = false;
         } else {
             this.updateActiveList(false);
         }
@@ -1917,7 +2080,7 @@ updateActiveList(preserveState = false) {
 
   _generateWordHTML(char, vocabMatch, fallbackPy, fallbackDef) {
       const pinyin = vocabMatch ? vocabMatch.pinyin : fallbackPy || '---';
-      const def = vocabMatch ? vocabMatch.def : fallbackDef || '---';
+      const def = this.compactDefinition(vocabMatch ? vocabMatch.def : fallbackDef, { fallback: '' });
       
       let html = `<div class="anatomy-master-container is-word">`;
       
@@ -1926,22 +2089,23 @@ updateActiveList(preserveState = false) {
           <div class="anatomy-hero-section">
               <div class="static-fallback-char" style="font-size: clamp(3rem, 12vw, 4.5rem); letter-spacing: 8px; text-align: center; margin-bottom: 16px;">${char}</div>
               <div class="hero-py">${pinyin}</div>
-              <div class="hero-def">${def}</div>
+              ${def ? `<div class="hero-def">${def}</div>` : ''}
           </div>
       `;
 
       // Book/Lesson Banner
-      if (vocabMatch) {
-          const bColor = window.Utils && window.Utils.getBookColor ? Utils.getBookColor(vocabMatch.book) : '#ec4899';
-          const bBg = window.Utils && window.Utils.getBookBg ? Utils.getBookBg(vocabMatch.book) : '#fce7f3';
-          html += `
-              <div class="standalone-banner" style="border-left: 4px solid ${bColor}; background: ${bBg}60; border-radius: 0 12px 12px 0; padding: 10px 16px; margin: 0 0 20px 0; display: flex; align-items: center; justify-content: space-between; gap: 12px;">
-                  <div style="display: flex; flex-direction: column; text-align: left; flex: 1; min-width: 0;">
-                      <span style="font-family: 'Nunito', sans-serif; font-size: 0.65rem; font-weight: 800; color: ${bColor}; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 2px;">Word Details</span>
-                      <span style="font-family: 'Nunito', sans-serif; font-size: 0.95rem; font-weight: 700; color: var(--text-main); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${vocabMatch.def}</span>
-                  </div>
-                  <div style="background: white; border: 1px solid ${bColor}40; color: ${bColor}; padding: 4px 8px; border-radius: 8px; font-family: 'Nunito', sans-serif; font-weight: 800; font-size: 0.75rem; white-space: nowrap; box-shadow: 0 2px 4px rgba(255, 158, 181, 0.12);">
-                      B${vocabMatch.book} L${vocabMatch.lesson}
+	      if (vocabMatch) {
+	          const bColor = window.Utils && window.Utils.getBookColor ? Utils.getBookColor(vocabMatch.book) : '#ec4899';
+	          const bBg = window.Utils && window.Utils.getBookBg ? Utils.getBookBg(vocabMatch.book) : '#fce7f3';
+            const detailDef = this.compactDefinition(vocabMatch.def, { fallback: '' });
+	          html += `
+	              <div class="standalone-banner" style="border-left: 4px solid ${bColor}; background: ${bBg}60; border-radius: 0 12px 12px 0; padding: 10px 16px; margin: 0 0 20px 0; display: flex; align-items: center; justify-content: space-between; gap: 12px;">
+	                  <div style="display: flex; flex-direction: column; text-align: left; flex: 1; min-width: 0;">
+	                      <span style="font-family: 'Nunito', sans-serif; font-size: 0.65rem; font-weight: 800; color: ${bColor}; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 2px;">Word Details</span>
+	                      ${detailDef ? `<span style="font-family: 'Nunito', sans-serif; font-size: 0.95rem; font-weight: 700; color: var(--text-main); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${detailDef}</span>` : ''}
+	                  </div>
+	                  <div style="background: white; border: 1px solid ${bColor}40; color: ${bColor}; padding: 4px 8px; border-radius: 8px; font-family: 'Nunito', sans-serif; font-weight: 800; font-size: 0.75rem; white-space: nowrap; box-shadow: 0 2px 4px rgba(255, 158, 181, 0.12);">
+	                      B${vocabMatch.book} L${vocabMatch.lesson}
                   </div>
               </div>
           `;
@@ -1951,20 +2115,20 @@ updateActiveList(preserveState = false) {
       html += `<div class="dna-section-title" style="margin-top:20px;">Characters in this word</div>`;
       html += `<div class="ios17-component-grid">`;
       
-      const hanziChars = char.match(/[\u4e00-\u9fa5]/g) || [];
-      hanziChars.forEach(c => {
-          const charData = DATA.CHARS[c];
-          const cPy = charData ? Utils.formatNumberedPinyin(Array.isArray(charData.pinyin) ? charData.pinyin[0] : (charData.pinyin || '')) : '---';
-          const cDef = charData ? (charData.def || '').split(/[,;]/)[0] : '---';
-          
-          html += `
-              <div class="ios17-grid-card interactive-char" onclick="App.handleCharClick(event, '${c}')" title="Explore ${c}">
-                  <div class="grid-py">${cPy}</div>
-                  <div class="grid-hz">${c}</div>
-                  <div class="grid-def">${cDef}</div>
-              </div>
-          `;
-      });
+	      const hanziChars = char.match(/[\u4e00-\u9fa5]/g) || [];
+	      hanziChars.forEach(c => {
+	          const charData = DATA.CHARS[c];
+	          const cPy = charData ? Utils.formatNumberedPinyin(Array.isArray(charData.pinyin) ? charData.pinyin[0] : (charData.pinyin || '')) : '---';
+	          const cDef = charData ? this.compactDefinition(charData.def, { fallback: '' }) : '';
+	          
+	          html += `
+	              <div class="ios17-grid-card interactive-char" onclick="App.handleCharClick(event, '${c}')" title="Explore ${c}">
+	                  <div class="grid-py">${cPy}</div>
+	                  <div class="grid-hz">${c}</div>
+	                  ${cDef ? `<div class="grid-def">${cDef}</div>` : ''}
+	              </div>
+	          `;
+	      });
       
       html += `</div>`;
       return html;
@@ -1994,11 +2158,13 @@ updateActiveList(preserveState = false) {
           `;
       }
 
+      const compactDef = this.compactDefinition(charData.def, { fallback: '' });
+
       return `
           <div class="anatomy-hero-section">
               <div class="hero-py">${displayPinyin}</div>
               ${soundHintHTML}
-              <div class="hero-def">${charData.def || ''}</div>
+              ${compactDef ? `<div class="hero-def">${compactDef}</div>` : ''}
           </div>
       `;
   },
@@ -2014,20 +2180,21 @@ updateActiveList(preserveState = false) {
 
       if (standaloneVocabs.length === 0) return '';
 
-      const primaryVocab = standaloneVocabs[0];
-      const bColor = window.Utils && window.Utils.getBookColor ? Utils.getBookColor(primaryVocab.book) : '#ec4899';
-      const bBg = window.Utils && window.Utils.getBookBg ? Utils.getBookBg(primaryVocab.book) : '#fce7f3';
+	      const primaryVocab = standaloneVocabs[0];
+	      const bColor = window.Utils && window.Utils.getBookColor ? Utils.getBookColor(primaryVocab.book) : '#ec4899';
+	      const bBg = window.Utils && window.Utils.getBookBg ? Utils.getBookBg(primaryVocab.book) : '#fce7f3';
+        const primaryDef = this.compactDefinition(primaryVocab.def, { fallback: '' });
 
-      if (standaloneVocabs.length === 1) {
-          return `
-              <div class="standalone-banner" style="border-left: 4px solid ${bColor}; background: ${bBg}60; border-radius: 0 12px 12px 0; padding: 10px 16px; margin: 0 0 20px 0; display: flex; align-items: center; justify-content: space-between; gap: 12px;">
-                  <div style="display: flex; flex-direction: column; text-align: left; flex: 1; min-width: 0;">
-                      <span style="font-family: 'Nunito', sans-serif; font-size: 0.65rem; font-weight: 800; color: ${bColor}; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 2px;">Book Vocab</span>
-                      <div style="display: flex; align-items: baseline; gap: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
-                          <span style="font-family: 'Nunito', sans-serif; font-size: 0.95rem; font-weight: 700; color: var(--text-main);">${primaryVocab.def}</span>
-                          <span style="font-family: 'Nunito', sans-serif; font-size: 0.85rem; font-weight: 600; color: var(--text-muted);">${primaryVocab.pinyin}</span>
-                      </div>
-                  </div>
+	      if (standaloneVocabs.length === 1) {
+	          return `
+	              <div class="standalone-banner" style="border-left: 4px solid ${bColor}; background: ${bBg}60; border-radius: 0 12px 12px 0; padding: 10px 16px; margin: 0 0 20px 0; display: flex; align-items: center; justify-content: space-between; gap: 12px;">
+	                  <div style="display: flex; flex-direction: column; text-align: left; flex: 1; min-width: 0;">
+	                      <span style="font-family: 'Nunito', sans-serif; font-size: 0.65rem; font-weight: 800; color: ${bColor}; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 2px;">Book Vocab</span>
+	                      <div style="display: flex; align-items: baseline; gap: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+	                          ${primaryDef ? `<span style="font-family: 'Nunito', sans-serif; font-size: 0.95rem; font-weight: 700; color: var(--text-main);">${primaryDef}</span>` : ''}
+	                          <span style="font-family: 'Nunito', sans-serif; font-size: 0.85rem; font-weight: 600; color: var(--text-muted);">${primaryVocab.pinyin}</span>
+	                      </div>
+	                  </div>
                   <div style="background: white; border: 1px solid ${bColor}40; color: ${bColor}; padding: 4px 8px; border-radius: 8px; font-family: 'Nunito', sans-serif; font-weight: 800; font-size: 0.75rem; white-space: nowrap; box-shadow: 0 2px 4px rgba(255, 158, 181, 0.12);">
                       B${primaryVocab.book} L${primaryVocab.lesson}
                   </div>
@@ -2037,16 +2204,16 @@ updateActiveList(preserveState = false) {
           return `
               <div class="standalone-banner-wrapper" onclick="this.classList.toggle('expanded')" style="border-left: 4px solid ${bColor}; background: ${bBg}60; border-radius: 0 12px 12px 0; margin: 0 0 20px 0; overflow: hidden;">
                   <div style="padding: 10px 16px; display: flex; align-items: center; justify-content: space-between; gap: 12px;">
-                      <div style="display: flex; flex-direction: column; text-align: left; flex: 1; min-width: 0;">
-                          <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 2px;">
-                              <span style="font-family: 'Nunito', sans-serif; font-size: 0.65rem; font-weight: 800; color: ${bColor}; text-transform: uppercase; letter-spacing: 1px;">Book Vocab</span>
-                              <span style="font-family: 'Nunito', sans-serif; font-size: 0.65rem; font-weight: 800; color: ${bColor}; background: white; padding: 2px 6px; border-radius: 6px; box-shadow: 0 1px 3px rgba(255, 158, 181, 0.12); margin-left: 4px;">${standaloneVocabs.length} Meanings</span>
-                          </div>
-                          <div style="display: flex; align-items: baseline; gap: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
-                              <span style="font-family: 'Nunito', sans-serif; font-size: 0.95rem; font-weight: 700; color: var(--text-main);">${primaryVocab.def}</span>
-                              <span style="font-family: 'Nunito', sans-serif; font-size: 0.85rem; font-weight: 600; color: var(--text-muted);">${primaryVocab.pinyin}</span>
-                          </div>
-                      </div>
+	                      <div style="display: flex; flex-direction: column; text-align: left; flex: 1; min-width: 0;">
+	                          <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 2px;">
+	                              <span style="font-family: 'Nunito', sans-serif; font-size: 0.65rem; font-weight: 800; color: ${bColor}; text-transform: uppercase; letter-spacing: 1px;">Book Vocab</span>
+	                              <span style="font-family: 'Nunito', sans-serif; font-size: 0.65rem; font-weight: 800; color: ${bColor}; background: white; padding: 2px 6px; border-radius: 6px; box-shadow: 0 1px 3px rgba(255, 158, 181, 0.12); margin-left: 4px;">${standaloneVocabs.length} Meanings</span>
+	                          </div>
+	                          <div style="display: flex; align-items: baseline; gap: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+	                              ${primaryDef ? `<span style="font-family: 'Nunito', sans-serif; font-size: 0.95rem; font-weight: 700; color: var(--text-main);">${primaryDef}</span>` : ''}
+	                              <span style="font-family: 'Nunito', sans-serif; font-size: 0.85rem; font-weight: 600; color: var(--text-muted);">${primaryVocab.pinyin}</span>
+	                          </div>
+	                      </div>
                       <div style="display: flex; align-items: center; gap: 6px;">
                           <div style="background: white; border: 1px solid ${bColor}40; color: ${bColor}; padding: 4px 8px; border-radius: 8px; font-family: 'Nunito', sans-serif; font-weight: 800; font-size: 0.75rem; white-space: nowrap; box-shadow: 0 2px 4px rgba(255, 158, 181, 0.12);">
                               B${primaryVocab.book} L${primaryVocab.lesson}
@@ -2058,15 +2225,16 @@ updateActiveList(preserveState = false) {
                   <div class="sb-body-wrapper">
                       <div style="overflow: hidden;">
                           <div style="padding: 0 16px 12px 16px; border-top: 1px dashed ${bColor}50; margin-top: 2px; display: flex; flex-direction: column; gap: 8px; padding-top: 12px;">
-                              ${standaloneVocabs.slice(1).map(v => {
-                                  const subBColor = window.Utils && window.Utils.getBookColor ? Utils.getBookColor(v.book) : '#94a3b8';
-                                  return `
-                                  <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px;">
-                                      <div style="display: flex; flex-direction: column; flex: 1; min-width: 0;">
-                                          <span style="font-family: 'Nunito', sans-serif; font-size: 0.9rem; font-weight: 700; color: var(--text-main); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${v.def}</span>
-                                          <span style="font-family: 'Nunito', sans-serif; font-size: 0.8rem; font-weight: 600; color: var(--text-muted);">${v.pinyin}</span>
-                                      </div>
-                                      <div style="font-family: 'Nunito', sans-serif; font-size: 0.7rem; font-weight: 800; color: ${subBColor}; background: white; border: 1px solid ${subBColor}40; padding: 3px 6px; border-radius: 6px; box-shadow: 0 1px 3px rgba(255, 158, 181, 0.12);">
+	                              ${standaloneVocabs.slice(1).map(v => {
+	                                  const subBColor = window.Utils && window.Utils.getBookColor ? Utils.getBookColor(v.book) : '#94a3b8';
+                                    const compactDef = this.compactDefinition(v.def, { fallback: '' });
+	                                  return `
+	                                  <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px;">
+	                                      <div style="display: flex; flex-direction: column; flex: 1; min-width: 0;">
+	                                          ${compactDef ? `<span style="font-family: 'Nunito', sans-serif; font-size: 0.9rem; font-weight: 700; color: var(--text-main); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${compactDef}</span>` : ''}
+	                                          <span style="font-family: 'Nunito', sans-serif; font-size: 0.8rem; font-weight: 600; color: var(--text-muted);">${v.pinyin}</span>
+	                                      </div>
+	                                      <div style="font-family: 'Nunito', sans-serif; font-size: 0.7rem; font-weight: 800; color: ${subBColor}; background: white; border: 1px solid ${subBColor}40; padding: 3px 6px; border-radius: 6px; box-shadow: 0 1px 3px rgba(255, 158, 181, 0.12);">
                                           B${v.book} L${v.lesson}
                                       </div>
                                   </div>
