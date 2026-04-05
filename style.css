@@ -3340,7 +3340,7 @@ body.hide-example-pinyin .sentence-pinyin { display: none !important; }
     .study-mini-breakdown {
         position: absolute;
         top: 50%;
-        right: 0;
+        left: 0;
         display: block;
         width: 300px;
         max-width: 300px;
@@ -3349,7 +3349,7 @@ body.hide-example-pinyin .sentence-pinyin { display: none !important; }
         opacity: 0;
         overflow: hidden;
         pointer-events: none;
-        transform: translate3d(14px, -50%, 0) scale(0.985);
+        transform: translate3d(-14px, -50%, 0) scale(0.985);
         transition: transform 0.32s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.22s ease;
         will-change: transform, opacity;
         backface-visibility: hidden;
@@ -3363,7 +3363,7 @@ body.hide-example-pinyin .sentence-pinyin { display: none !important; }
     }
 
     .study-static-wrapper.has-breakdown.desktop-expanded .study-card-group {
-        transform: translate3d(clamp(-136px, -14vw, -116px), 0, 0);
+        transform: translate3d(clamp(136px, 14vw, 116px), 0, 0);
     }
 
     .study-static-wrapper.desktop-stacked .study-desktop-shell {
@@ -3607,7 +3607,7 @@ body.hide-example-pinyin .sentence-pinyin { display: none !important; }
     .study-mini-breakdown {
         position: absolute;
         top: 50%;
-        right: 0;
+        left: 0;
         display: block;
         width: 320px;
         max-width: 320px;
@@ -3615,7 +3615,7 @@ body.hide-example-pinyin .sentence-pinyin { display: none !important; }
         opacity: 0;
         overflow: hidden;
         pointer-events: none;
-        transform: translate3d(18px, -50%, 0) scale(0.985);
+        transform: translate3d(-18px, -50%, 0) scale(0.985);
         transition: transform 0.36s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.24s ease;
         max-height: clamp(360px, 52dvh, 500px);
         will-change: transform, opacity;
@@ -3630,7 +3630,7 @@ body.hide-example-pinyin .sentence-pinyin { display: none !important; }
     }
 
     .study-static-wrapper.has-breakdown.desktop-expanded .study-card-group {
-        transform: translate3d(-172px, 0, 0);
+        transform: translate3d(172px, 0, 0);
     }
 
     .study-static-wrapper.has-breakdown .study-card-container {
@@ -3790,7 +3790,7 @@ body.hide-example-pinyin .sentence-pinyin { display: none !important; }
 
     .dynamic-island-wrapper {
         top: max(8px, env(safe-area-inset-top) + 2px);
-        justify-content: flex-end;
+        justify-content: center;
         padding-left: max(12px, env(safe-area-inset-left) + 10px);
         padding-right: max(12px, env(safe-area-inset-right) + 10px);
     }
@@ -3901,7 +3901,7 @@ body.hide-example-pinyin .sentence-pinyin { display: none !important; }
     body[data-mode="study"] .study-mini-breakdown {
         position: absolute;
         top: 50%;
-        right: 0;
+        left: 0;
         display: block;
         width: 228px;
         max-width: 228px;
@@ -3910,7 +3910,7 @@ body.hide-example-pinyin .sentence-pinyin { display: none !important; }
         opacity: 0;
         pointer-events: none;
         overflow: hidden;
-        transform: translate3d(10px, -50%, 0) scale(0.985);
+        transform: translate3d(-10px, -50%, 0) scale(0.985);
         transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.22s ease;
         z-index: 15;
     }
@@ -3922,7 +3922,7 @@ body.hide-example-pinyin .sentence-pinyin { display: none !important; }
     }
 
     body[data-mode="study"] .study-static-wrapper.has-breakdown.desktop-expanded .study-card-group {
-        transform: translate3d(-98px, 0, 0);
+        transform: translate3d(98px, 0, 0);
     }
 
     body[data-mode="study"] .study-static-wrapper.desktop-stacked .study-card-group,

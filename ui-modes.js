@@ -876,10 +876,32 @@ Object.assign(window.UI, {
           try { input.setSelectionRange(end, end); } catch {}
         }
       };
+
+      const captureViewportScroll = () => {
+        this._quizViewportScrollY = window.scrollY || window.pageYOffset || 0;
+      };
+
+      const stabilizeViewport = () => {
+        if (!isMobileTyping) return;
+        const targetY = typeof this._quizViewportScrollY === 'number'
+          ? this._quizViewportScrollY
+          : (window.scrollY || window.pageYOffset || 0);
+        const restore = () => {
+          if (Math.abs((window.scrollY || window.pageYOffset || 0) - targetY) > 1) {
+            window.scrollTo(0, targetY);
+          }
+        };
+        requestAnimationFrame(restore);
+        setTimeout(restore, 48);
+        setTimeout(restore, 120);
+      };
   
       if (input && wrap) {
+        input.onpointerdown = captureViewportScroll;
+        input.ontouchstart = captureViewportScroll;
         input.onfocus = () => {
           requestAnimationFrame(() => {
+            stabilizeViewport();
             if (document.activeElement === input) wrap.classList.add('keyboard-open');
           });
         };
