@@ -1053,8 +1053,14 @@ showCourseSelector() {
 	    this.updateAutoPlayButton();
 
     const lockMainScroll = window.matchMedia('(max-width: 768px)').matches && App.state.mode === 'quiz';
+    const appShell = document.getElementById('app');
     this.container.style.overflowY = lockMainScroll ? 'hidden' : 'auto';
     this.container.style.webkitOverflowScrolling = lockMainScroll ? 'auto' : 'touch';
+    if (appShell) {
+        appShell.style.overflowY = lockMainScroll ? 'hidden' : '';
+        appShell.style.webkitOverflowScrolling = lockMainScroll ? 'auto' : '';
+        if (lockMainScroll) appShell.scrollTop = 0;
+    }
     if (lockMainScroll) this.container.scrollTop = 0;
 
 	    if (App.state.mode === 'study') {
@@ -1075,14 +1081,6 @@ showCourseSelector() {
    
     if (['quiz', 'quiz-mc', 'listening'].includes(App.state.mode)) {
         this.updateStreak();
-    }
-
-    // Auto-focus the input field in quiz mode
-    if (App.state.mode === 'quiz') {
-        setTimeout(() => {
-            const input = this.container.querySelector('input[type="text"], input:not([type="radio"]):not([type="checkbox"])');
-            if (input) input.focus();
-        }, 50);
     }
   },
 

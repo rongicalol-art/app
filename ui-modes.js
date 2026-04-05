@@ -27,6 +27,7 @@ Object.assign(window.UI, {
       let primaryExample = null;
       let otherExamples = [];
       let isFromOtherLesson = false;
+      const isCompactLandscapeStudy = window.matchMedia('(orientation: landscape) and (max-height: 500px) and (pointer: coarse)').matches;
   
       this._exampleCache = this._exampleCache || new Map();
       const cacheKey = `${item.book}-${item.lesson}-${item.hanzi || item.zh}`;
@@ -161,6 +162,7 @@ Object.assign(window.UI, {
   
       if (primaryExample) studyWrapper.classList.add('has-example');
       else studyWrapper.classList.remove('has-example');
+      studyWrapper.classList.toggle('compact-landscape', isCompactLandscapeStudy);
   
       const frontFace = studyWrapper.querySelector('.card__face--front');
       const backFace = studyWrapper.querySelector('.card__face--back');
@@ -283,6 +285,7 @@ Object.assign(window.UI, {
       }
   
       let exampleGroupsHtml = '';
+      let compactExampleHtml = '';
       const allExamples = primaryExample ? [primaryExample, ...otherExamples] : otherExamples;
       if (allExamples && allExamples.length > 0) {
         const groups = new Map();
@@ -374,6 +377,36 @@ Object.assign(window.UI, {
             </div>
           `;
         }).join('');
+
+        const compactExample = primaryExample || allExamples[0];
+        if (compactExample) {
+          compactExample._cachedInteractive = compactExample._cachedInteractive || {};
+          if (!compactExample._cachedInteractive[item.hanzi || item.zh]) {
+            compactExample._cachedInteractive[item.hanzi || item.zh] = Utils.createInteractiveSentence(compactExample.zh, item.hanzi || item.zh);
+          }
+          compactExample._convertedPy = compactExample.py || '';
+          const lessonTag = compactExample.lesson != null ? `L${compactExample.lesson}` : 'L?';
+          const lessonBg = compactExample.book != null ? Utils.getBookBg(compactExample.book) : 'rgba(255, 255, 255, 0.9)';
+          const lessonColor = compactExample.book != null ? Utils.getBookColor(compactExample.book) : 'var(--text-muted)';
+          const moreCount = Math.max(0, allExamples.length - 1);
+          compactExampleHtml = `
+            <div class="study-compact-example-card">
+              <div class="study-compact-example-head">
+                <div class="study-compact-example-tags">
+                  <span class="example-lesson-tag" style="background:${lessonBg}; color:${lessonColor}; border: 1px solid ${lessonColor}40;">${lessonTag}</span>
+                  <span class="example-lesson-tag" style="background:var(--primary); color:white; border:none;">Top Match</span>
+                </div>
+                <button class="ex-speaker-btn" data-action="speak" data-text="${compactExample.zh}" title="Play Audio">
+                  <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>
+                </button>
+              </div>
+              <div class="example-zh">${compactExample._cachedInteractive[item.hanzi || item.zh]}</div>
+              <div class="example-py" style="${App.state.noPinyin || App.state.noExamplePinyin ? 'display:none' : ''}">${compactExample._convertedPy}</div>
+              <div class="example-en" style="${App.state.noTranslation ? 'display:none' : ''}">${compactExample.en || ''}</div>
+              ${moreCount ? `<div class="study-compact-example-more">+${moreCount} more example${moreCount === 1 ? '' : 's'} in Sentences</div>` : ''}
+            </div>
+          `;
+        }
       }
   
       const breakdownHtml = this.buildStudyMiniBreakdown(item);
@@ -419,10 +452,10 @@ Object.assign(window.UI, {
             ${hookHtml ? `<div class="study-back-hook-slot">${hookHtml}</div>` : ''}
           </div>
   
-          ${exampleGroupsHtml ? `
+          ${(isCompactLandscapeStudy ? compactExampleHtml : exampleGroupsHtml) ? `
             <div class="example-section">
-              <div class="example-section-title">Examples</div>
-              <div class="example-groups">${exampleGroupsHtml}</div>
+              <div class="example-section-title">${isCompactLandscapeStudy ? 'Example' : 'Examples'}</div>
+              ${isCompactLandscapeStudy ? compactExampleHtml : `<div class="example-groups">${exampleGroupsHtml}</div>`}
             </div>
           ` : ''}
         </div>
@@ -600,9 +633,11 @@ Object.assign(window.UI, {
     syncStudyDesktopExpansion() {
       const wrapper = this._studyDesktopWrapper;
       if (!wrapper) return;
-      const isWideStudyLayout = window.matchMedia('(min-width: 768px) and (min-height: 700px)').matches;
+      const isDesktopWideStudyLayout = window.matchMedia('(min-width: 768px) and (min-height: 700px)').matches;
+      const isCompactLandscapeStudyLayout = window.matchMedia('(orientation: landscape) and (max-height: 500px) and (pointer: coarse)').matches;
+      const isWideStudyLayout = isDesktopWideStudyLayout || isCompactLandscapeStudyLayout;
       const shell = wrapper.querySelector('.study-desktop-shell');
-      const shouldStack = isWideStudyLayout
+      const shouldStack = isDesktopWideStudyLayout
         && shell
         && shell.clientWidth < 930
         && wrapper.classList.contains('has-breakdown');
@@ -610,6 +645,7 @@ Object.assign(window.UI, {
         && App.state.mode === 'study'
         && App.state.isFlipped
         && wrapper.classList.contains('has-breakdown');
+      wrapper.classList.toggle('compact-landscape', isCompactLandscapeStudyLayout);
       wrapper.classList.toggle('desktop-stacked', Boolean(shouldStack));
       wrapper.classList.toggle('desktop-expanded', shouldExpand);
     },
@@ -771,7 +807,7 @@ Object.assign(window.UI, {
               <div class="qz-prompt"></div>
               <div class="qz-input-wrap">
                 <label class="qz-input-shell" for="userAnswer">
-                  <input type="text" id="userAnswer" class="qz-input" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="done">
+                  <input type="text" id="userAnswer" class="qz-input" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="next">
                 </label>
                 <div class="qz-reveal-box" id="quizRevealBox" aria-live="polite"></div>
               </div>
@@ -817,6 +853,8 @@ Object.assign(window.UI, {
       `;
       tagEl.textContent = answerModeLabel;
       const isMobileTyping = window.matchMedia('(max-width: 768px)').matches;
+      const appShell = document.getElementById('app');
+      let shouldHoldFocus = false;
 
       const focusInput = () => {
         if (!input) return;
@@ -834,10 +872,23 @@ Object.assign(window.UI, {
       if (input && wrap) {
         input.onfocus = () => {
           requestAnimationFrame(() => {
+            if (isMobileTyping) {
+              if (appShell) appShell.scrollTop = 0;
+              if (this.container) this.container.scrollTop = 0;
+              window.scrollTo(0, 0);
+            }
             if (document.activeElement === input) wrap.classList.add('keyboard-open');
           });
         };
-        input.onblur = () => wrap.classList.remove('keyboard-open');
+        input.onblur = () => {
+          wrap.classList.remove('keyboard-open');
+          if (!shouldHoldFocus) return;
+          requestAnimationFrame(() => {
+            if (document.getElementById('userAnswer') === input && document.activeElement !== input) {
+              focusInput();
+            }
+          });
+        };
         if (document.activeElement === input) wrap.classList.add('keyboard-open');
       }
   
@@ -865,6 +916,10 @@ Object.assign(window.UI, {
         if (isProcessing) return;
         const val = input.value.trim();
         if (!val) return;
+        if (isMobileTyping) {
+          shouldHoldFocus = true;
+          setTimeout(() => { shouldHoldFocus = false; }, 180);
+        }
   
         let isCorrect = false;
         if (aType === 'py') {
@@ -891,7 +946,7 @@ Object.assign(window.UI, {
             setTimeout(() => {
               App.state.lastSwipe = 'right';
               App.next();
-            }, 260);
+            }, 420);
           } else {
             setTimeout(() => {
               App.state.lastSwipe = 'right';
@@ -921,10 +976,16 @@ Object.assign(window.UI, {
         }
       };
   
-      input.onkeyup = e => { if (e.key === 'Enter') check(); };
+      input.onkeydown = e => {
+        if (e.key === 'Enter' && !e.isComposing) {
+          e.preventDefault();
+          check();
+        }
+      };
+      input.onkeyup = null;
       if (isMobileTyping) {
         if (!wasTypingFocused) {
-        requestAnimationFrame(() => requestAnimationFrame(focusInput));
+          requestAnimationFrame(() => requestAnimationFrame(focusInput));
         }
       } else {
         focusInput();
