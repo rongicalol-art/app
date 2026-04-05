@@ -1050,11 +1050,16 @@ showCourseSelector() {
         });
     }
 
-    this.updateAutoPlayButton();
+	    this.updateAutoPlayButton();
 
-    if (App.state.mode === 'study') {
-        this.renderStudy(item);
-        this.renderScrollHint();
+    const lockMainScroll = window.matchMedia('(max-width: 768px)').matches && App.state.mode === 'quiz';
+    this.container.style.overflowY = lockMainScroll ? 'hidden' : 'auto';
+    this.container.style.webkitOverflowScrolling = lockMainScroll ? 'auto' : 'touch';
+    if (lockMainScroll) this.container.scrollTop = 0;
+
+	    if (App.state.mode === 'study') {
+	        this.renderStudy(item);
+	        this.renderScrollHint();
     }
     else if (App.state.mode === 'sentences') this.renderSentences(item);
     else if (App.state.mode === 'quiz') this.renderQuiz(item);

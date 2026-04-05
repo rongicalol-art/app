@@ -757,32 +757,65 @@ Object.assign(window.UI, {
           <button class="nav-popup-btn ${aType === 'py' ? 'active' : ''}" onclick="UI.setQuizAnswer('py', 'typing')">Pinyin</button>
         </div>
       `;
-  
-      this.container.innerHTML = `
-        <div class="qz-wrap ${App.state.skipFadeInOnce ? '' : App.state.lastSwipe === 'right' ? 'swipe-in-right' : App.state.lastSwipe === 'left' ? 'swipe-in-left' : 'fade-in'}" id="quizWrap" style="position: relative;">
-          <div class="qz-card qz-card--typing" id="quizCard" data-answer-type="${aType}" data-prompt-type="${pType}">
-            ${settingsHtml}
-            <div class="qz-label">${promptLabel}</div>
-            <div class="qz-prompt ${lenClass}" style="${fontFam}">${prompt}</div>
-            <div class="qz-input-wrap">
-              <label class="qz-input-shell" for="userAnswer">
-                <input type="text" id="userAnswer" autofocus class="qz-input" placeholder="${inputPlaceholder}" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="done" inputmode="${aType === 'py' ? 'latin' : 'text'}">
-              </label>
-              <div class="qz-reveal-box" id="quizRevealBox" aria-live="polite">
-                <div class="qz-reveal-head">Answer</div>
-                <div class="qz-reveal-hz">${pureHanzi}</div>
-                ${tonedPinyinText ? `<div class="qz-reveal-py">${tonedPinyinText}</div>` : ''}
-                ${revealDefText ? `<div class="qz-reveal-def">${revealDefText}</div>` : ''}
+      const animClass = App.state.skipFadeInOnce ? '' : App.state.lastSwipe === 'right' ? 'swipe-in-right' : App.state.lastSwipe === 'left' ? 'swipe-in-left' : 'fade-in';
+      const existingInput = document.getElementById('userAnswer');
+      const wasTypingFocused = existingInput && document.activeElement === existingInput;
+
+      let wrap = document.getElementById('quizWrap');
+      if (!wrap) {
+        this.container.innerHTML = `
+          <div class="qz-wrap" id="quizWrap" style="position: relative;">
+            <div class="qz-card qz-card--typing" id="quizCard">
+              <div class="qz-settings-slot"></div>
+              <div class="qz-label"></div>
+              <div class="qz-prompt"></div>
+              <div class="qz-input-wrap">
+                <label class="qz-input-shell" for="userAnswer">
+                  <input type="text" id="userAnswer" class="qz-input" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="done">
+                </label>
+                <div class="qz-reveal-box" id="quizRevealBox" aria-live="polite"></div>
               </div>
+              <div class="qz-card-tag"></div>
             </div>
-            <div class="qz-card-tag">${answerModeLabel}</div>
           </div>
-        </div>
-      `;
-  
+        `;
+        wrap = document.getElementById('quizWrap');
+      }
+
+      wrap.className = 'qz-wrap';
+      if (animClass) {
+        void wrap.offsetWidth;
+        wrap.className = `qz-wrap ${animClass}`;
+      }
+
+      const card = document.getElementById('quizCard');
+      const settingsSlot = card.querySelector('.qz-settings-slot');
+      const labelEl = card.querySelector('.qz-label');
+      const promptEl = card.querySelector('.qz-prompt');
       const input = document.getElementById('userAnswer');
-      const wrap = document.getElementById('quizWrap');
       const revealBox = document.getElementById('quizRevealBox');
+      const tagEl = card.querySelector('.qz-card-tag');
+
+      card.dataset.answerType = aType;
+      card.dataset.promptType = pType;
+      settingsSlot.innerHTML = settingsHtml;
+      labelEl.textContent = promptLabel;
+      promptEl.className = `qz-prompt${lenClass ? ` ${lenClass}` : ''}`;
+      promptEl.setAttribute('style', fontFam || '');
+      promptEl.innerHTML = prompt;
+      input.placeholder = inputPlaceholder;
+      input.autofocus = true;
+      input.setAttribute('inputmode', aType === 'py' ? 'latin' : 'text');
+      input.value = '';
+      input.className = 'qz-input';
+      revealBox.className = 'qz-reveal-box';
+      revealBox.innerHTML = `
+        <div class="qz-reveal-head">Answer</div>
+        <div class="qz-reveal-hz">${pureHanzi}</div>
+        ${tonedPinyinText ? `<div class="qz-reveal-py">${tonedPinyinText}</div>` : ''}
+        ${revealDefText ? `<div class="qz-reveal-def">${revealDefText}</div>` : ''}
+      `;
+      tagEl.textContent = answerModeLabel;
       const isMobileTyping = window.matchMedia('(max-width: 768px)').matches;
 
       const focusInput = () => {
@@ -799,12 +832,13 @@ Object.assign(window.UI, {
       };
   
       if (input && wrap) {
-        input.addEventListener('focus', () => {
+        input.onfocus = () => {
           requestAnimationFrame(() => {
             if (document.activeElement === input) wrap.classList.add('keyboard-open');
           });
-        });
-        input.addEventListener('blur', () => wrap.classList.remove('keyboard-open'));
+        };
+        input.onblur = () => wrap.classList.remove('keyboard-open');
+        if (document.activeElement === input) wrap.classList.add('keyboard-open');
       }
   
       let isProcessing = false;
@@ -821,10 +855,10 @@ Object.assign(window.UI, {
       };
 
       if (input) {
-        input.addEventListener('input', () => {
+        input.oninput = () => {
           input.classList.remove('state-wrong', 'state-correct', 'shake');
           clearReveal();
-        });
+        };
       }
   
       const check = () => {
@@ -854,10 +888,10 @@ Object.assign(window.UI, {
           if (typeof UI.celebrate === 'function') UI.celebrate();
   
           if (isMobileTyping && App.state.fastNext) {
-            requestAnimationFrame(() => {
+            setTimeout(() => {
               App.state.lastSwipe = 'right';
               App.next();
-            });
+            }, 260);
           } else {
             setTimeout(() => {
               App.state.lastSwipe = 'right';
@@ -889,7 +923,9 @@ Object.assign(window.UI, {
   
       input.onkeyup = e => { if (e.key === 'Enter') check(); };
       if (isMobileTyping) {
+        if (!wasTypingFocused) {
         requestAnimationFrame(() => requestAnimationFrame(focusInput));
+        }
       } else {
         focusInput();
         requestAnimationFrame(focusInput);

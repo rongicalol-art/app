@@ -3,6 +3,7 @@
   --primary: #ffb3c6;
   --primary-dark: #ff9eb5;
   --primary-soft: #fff5f7;
+  --app-bg-fallback: #f5dddf;
   --text-main: #8a7c8a;
   --text-muted: #b8adb8;
   --glass: rgba(255, 255, 255, 0.88);
@@ -47,12 +48,28 @@ body {
   background-color: transparent !important;
 }
 
-html { background-color: var(--primary-soft); height: 100%; } /* Prevents black bar on iOS overscroll */
+html {
+  height: 100%;
+  background-color: var(--app-bg-fallback);
+  background-image: linear-gradient(180deg, rgba(245, 221, 223, 0.96) 0%, rgba(255, 245, 247, 0.9) 100%);
+  background-repeat: no-repeat;
+  background-size: 100% 100%;
+} /* Prevents iOS safe-area fallback bars */
 body::before {
-  content: ""; position: fixed; top: 0; left: 0; width: 100vw; height: 100dvh;
-  background: url('5178019.jpg') no-repeat center center;
+  content: "";
+  position: fixed;
+  top: calc(env(safe-area-inset-top) * -1);
+  right: 0;
+  bottom: calc(env(safe-area-inset-bottom) * -1);
+  left: 0;
+  background:
+    linear-gradient(180deg, rgba(245, 221, 223, 0.82) 0%, rgba(255, 245, 247, 0.14) 28%, rgba(255, 245, 247, 0.06) 100%),
+    url('5178019.jpg') no-repeat center top;
   background-size: cover;
   z-index: -1;
+  pointer-events: none;
+  transform: translateZ(0);
+  will-change: transform;
 }
 
 /* --- 2. LAYOUT STRUCTURE (🌟 PADDING SWAP FIX) --- */
