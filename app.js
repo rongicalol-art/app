@@ -2721,6 +2721,8 @@ updateActiveList(preserveState = false) {
           if (link) link.href = `https://hanzicraft.com/character/${char}`;
 
           if (char.length === 1 && /[\u4e00-\u9fa5]/.test(char)) {
+              const isCompactLandscapeLookup = window.matchMedia('(orientation: landscape) and (max-height: 500px) and (pointer: coarse)').matches;
+              const writerSize = isCompactLandscapeLookup ? 112 : 150;
               if (strokeOrderContainer) strokeOrderContainer.style.display = 'none';
               if (strokeOrderFallback) strokeOrderFallback.classList.add('hidden');
               if (strokeOrderSpinner) strokeOrderSpinner.classList.remove('hidden');
@@ -2749,10 +2751,12 @@ updateActiveList(preserveState = false) {
                       strokeOrderContainer.innerHTML = '';
                       strokeOrderContainer.style.display = 'block';
                       strokeOrderContainer.style.opacity = '0';
+                      strokeOrderContainer.style.width = `${writerSize}px`;
+                      strokeOrderContainer.style.height = `${writerSize}px`;
                   }
                   this.state.currentWriter = HanziWriter.create('strokeOrderContainer', char, {
                       renderer: 'svg',
-                      width: 150, height: 150, padding: 5, showOutline: true,
+                      width: writerSize, height: writerSize, padding: 5, showOutline: true,
                       strokeAnimationSpeed: 1, delayBetweenStrokes: 100,
                       strokeColor: '#ff9eb5', radicalColor: '#8b5cf6',
                       onLoadCharDataSuccess: () => {
@@ -2768,7 +2772,7 @@ updateActiveList(preserveState = false) {
                           if(strokeOrderContainer) strokeOrderContainer.style.display = 'none';
                           if(strokeOrderFallback) {
                               strokeOrderFallback.classList.remove('hidden');
-                              strokeOrderFallback.innerHTML = `<div class="static-fallback-char" style="font-size: 5rem; text-align: center; color: var(--text-main, #333);">${char}</div>`;
+                              strokeOrderFallback.innerHTML = `<div class="static-fallback-char" style="font-size: ${isCompactLandscapeLookup ? '3.6rem' : '5rem'}; text-align: center; color: var(--text-main, #333);">${char}</div>`;
                           }
                       }
                   });
@@ -2778,7 +2782,8 @@ updateActiveList(preserveState = false) {
               if(strokeOrderContainer) strokeOrderContainer.style.display = 'none';
               if(strokeOrderFallback) {
                   strokeOrderFallback.classList.remove('hidden');
-                  strokeOrderFallback.innerHTML = `<div class="static-fallback-char" style="font-size: 5rem; text-align: center; color: var(--text-main, #333);">${char}</div>`;
+                  const isCompactLandscapeLookup = window.matchMedia('(orientation: landscape) and (max-height: 500px) and (pointer: coarse)').matches;
+                  strokeOrderFallback.innerHTML = `<div class="static-fallback-char" style="font-size: ${isCompactLandscapeLookup ? '3.6rem' : '5rem'}; text-align: center; color: var(--text-main, #333);">${char}</div>`;
               }
           }
       } catch (err) {

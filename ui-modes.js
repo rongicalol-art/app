@@ -654,9 +654,27 @@ Object.assign(window.UI, {
         && App.state.mode === 'study'
         && App.state.isFlipped
         && wrapper.classList.contains('has-breakdown');
+      const wasExpanded = wrapper.classList.contains('desktop-expanded');
+      if (this._studyDesktopExpandFrame) {
+        cancelAnimationFrame(this._studyDesktopExpandFrame);
+        this._studyDesktopExpandFrame = null;
+      }
       wrapper.classList.toggle('compact-landscape', isCompactLandscapeStudyLayout);
       wrapper.classList.toggle('desktop-stacked', Boolean(shouldStack));
-      wrapper.classList.toggle('desktop-expanded', shouldExpand);
+      if (!shouldExpand) {
+        wrapper.classList.remove('desktop-expanded');
+        return;
+      }
+      if (wasExpanded) return;
+      wrapper.classList.remove('desktop-expanded');
+      void wrapper.offsetWidth;
+      this._studyDesktopExpandFrame = requestAnimationFrame(() => {
+        this._studyDesktopExpandFrame = null;
+        if (this._studyDesktopWrapper !== wrapper) return;
+        if (App.state.mode === 'study' && App.state.isFlipped && wrapper.classList.contains('has-breakdown')) {
+          wrapper.classList.add('desktop-expanded');
+        }
+      });
     },
   
     renderSentences(item) {
