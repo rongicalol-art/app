@@ -294,6 +294,22 @@ Object.assign(window.UI, {
           if (!groups.has(book)) groups.set(book, { book, items: [] });
           groups.get(book).items.push(ex);
         });
+
+        const sortExamples = (a, b) => {
+          const aPrimary = primaryExample && a === primaryExample;
+          const bPrimary = primaryExample && b === primaryExample;
+          if (aPrimary && !bPrimary) return -1;
+          if (!aPrimary && bPrimary) return 1;
+          const scoreDelta = Number(b._studyScore || 0) - Number(a._studyScore || 0);
+          if (scoreDelta !== 0) return scoreDelta;
+          const matchDelta = Number(b._bestMatchLength || 0) - Number(a._bestMatchLength || 0);
+          if (matchDelta !== 0) return matchDelta;
+          const lessonDelta = Number(a.lesson) - Number(b.lesson);
+          if (lessonDelta !== 0) return lessonDelta;
+          const dialogueDelta = Number(a.dialogue) - Number(b.dialogue);
+          if (dialogueDelta !== 0) return dialogueDelta;
+          return Number(a.seq) - Number(b.seq);
+        };
   
         const groupList = Array.from(groups.values()).sort((a, b) => {
           const primaryBook = primaryExample ? String(primaryExample.book != null ? primaryExample.book : (primaryExample.book_id || '?')) : null;
@@ -311,21 +327,7 @@ Object.assign(window.UI, {
         exampleGroupsHtml = groupList.map(group => {
           const groupItemsHtml = group.items
             .slice()
-            .sort((a, b) => {
-              const aPrimary = primaryExample && a === primaryExample;
-              const bPrimary = primaryExample && b === primaryExample;
-              if (aPrimary && !bPrimary) return -1;
-              if (!aPrimary && bPrimary) return 1;
-              const scoreDelta = Number(b._studyScore || 0) - Number(a._studyScore || 0);
-              if (scoreDelta !== 0) return scoreDelta;
-              const matchDelta = Number(b._bestMatchLength || 0) - Number(a._bestMatchLength || 0);
-              if (matchDelta !== 0) return matchDelta;
-              const l = Number(a.lesson) - Number(b.lesson);
-              if (l !== 0) return l;
-              const d = Number(a.dialogue) - Number(b.dialogue);
-              if (d !== 0) return d;
-              return Number(a.seq) - Number(b.seq);
-            })
+            .sort(sortExamples)
             .map(ex => {
               ex._cachedInteractive = ex._cachedInteractive || {};
               if (!ex._cachedInteractive[item.hanzi || item.zh]) {
@@ -378,34 +380,41 @@ Object.assign(window.UI, {
           `;
         }).join('');
 
-        const compactExample = primaryExample || allExamples[0];
-        if (compactExample) {
-          compactExample._cachedInteractive = compactExample._cachedInteractive || {};
-          if (!compactExample._cachedInteractive[item.hanzi || item.zh]) {
-            compactExample._cachedInteractive[item.hanzi || item.zh] = Utils.createInteractiveSentence(compactExample.zh, item.hanzi || item.zh);
-          }
-          compactExample._convertedPy = compactExample.py || '';
-          const lessonTag = compactExample.lesson != null ? `L${compactExample.lesson}` : 'L?';
-          const lessonBg = compactExample.book != null ? Utils.getBookBg(compactExample.book) : 'rgba(255, 255, 255, 0.9)';
-          const lessonColor = compactExample.book != null ? Utils.getBookColor(compactExample.book) : 'var(--text-muted)';
-          const moreCount = Math.max(0, allExamples.length - 1);
-          compactExampleHtml = `
-            <div class="study-compact-example-card">
-              <div class="study-compact-example-head">
-                <div class="study-compact-example-tags">
-                  <span class="example-lesson-tag" style="background:${lessonBg}; color:${lessonColor}; border: 1px solid ${lessonColor}40;">${lessonTag}</span>
-                  <span class="example-lesson-tag" style="background:var(--primary); color:white; border:none;">Top Match</span>
+        const compactExamplesHtml = allExamples
+          .slice()
+          .sort(sortExamples)
+          .map(ex => {
+            ex._cachedInteractive = ex._cachedInteractive || {};
+            if (!ex._cachedInteractive[item.hanzi || item.zh]) {
+              ex._cachedInteractive[item.hanzi || item.zh] = Utils.createInteractiveSentence(ex.zh, item.hanzi || item.zh);
+            }
+            ex._convertedPy = ex.py || '';
+            const isPrimary = primaryExample && ex === primaryExample;
+            const lessonTag = ex.lesson != null ? `L${ex.lesson}` : 'L?';
+            const lessonBg = ex.book != null ? Utils.getBookBg(ex.book) : 'rgba(255, 255, 255, 0.9)';
+            const lessonColor = ex.book != null ? Utils.getBookColor(ex.book) : 'var(--text-muted)';
+            const primaryBadge = isPrimary ? `<span class="example-lesson-tag study-compact-example-badge">Top Match</span>` : '';
+
+            return `
+              <div class="study-compact-example-card ${isPrimary ? 'is-primary' : ''}">
+                <div class="study-compact-example-head">
+                  <div class="study-compact-example-tags">
+                    <span class="example-lesson-tag" style="background:${lessonBg}; color:${lessonColor}; border: 1px solid ${lessonColor}40;">${lessonTag}</span>
+                    ${primaryBadge}
+                  </div>
+                  <button class="ex-speaker-btn" data-action="speak" data-text="${ex.zh}" title="Play Audio">
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>
+                  </button>
                 </div>
-                <button class="ex-speaker-btn" data-action="speak" data-text="${compactExample.zh}" title="Play Audio">
-                  <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>
-                </button>
+                <div class="example-zh">${ex._cachedInteractive[item.hanzi || item.zh]}</div>
+                <div class="example-py" style="${App.state.noPinyin || App.state.noExamplePinyin ? 'display:none' : ''}">${ex._convertedPy}</div>
+                <div class="example-en" style="${App.state.noTranslation ? 'display:none' : ''}">${ex.en || ''}</div>
               </div>
-              <div class="example-zh">${compactExample._cachedInteractive[item.hanzi || item.zh]}</div>
-              <div class="example-py" style="${App.state.noPinyin || App.state.noExamplePinyin ? 'display:none' : ''}">${compactExample._convertedPy}</div>
-              <div class="example-en" style="${App.state.noTranslation ? 'display:none' : ''}">${compactExample.en || ''}</div>
-              ${moreCount ? `<div class="study-compact-example-more">+${moreCount} more example${moreCount === 1 ? '' : 's'} in Sentences</div>` : ''}
-            </div>
-          `;
+            `;
+          }).join('');
+
+        if (compactExamplesHtml) {
+          compactExampleHtml = `<div class="study-compact-example-list">${compactExamplesHtml}</div>`;
         }
       }
   
@@ -853,7 +862,6 @@ Object.assign(window.UI, {
       `;
       tagEl.textContent = answerModeLabel;
       const isMobileTyping = window.matchMedia('(max-width: 768px)').matches;
-      const appShell = document.getElementById('app');
       let shouldHoldFocus = false;
 
       const focusInput = () => {
@@ -872,11 +880,6 @@ Object.assign(window.UI, {
       if (input && wrap) {
         input.onfocus = () => {
           requestAnimationFrame(() => {
-            if (isMobileTyping) {
-              if (appShell) appShell.scrollTop = 0;
-              if (this.container) this.container.scrollTop = 0;
-              window.scrollTo(0, 0);
-            }
             if (document.activeElement === input) wrap.classList.add('keyboard-open');
           });
         };
