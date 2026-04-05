@@ -33,19 +33,10 @@ init() {
     this.container.style.overflowY = 'auto';
     this.container.style.webkitOverflowScrolling = 'touch';
 
-    const setDockHidden = (hidden) => {
-        document.body.classList.toggle('dock-hidden', hidden);
-        App.state.hideDock = hidden;
-        App.saveSettings();
-    };
-
     document.querySelectorAll('.nav-item').forEach(btn => {
       if (btn.dataset.action) {
           btn.addEventListener('click', (e) => {
               e.stopPropagation();
-              if (btn.dataset.action === 'toggle-dock') {
-                  setDockHidden(true);
-              }
           });
           return;
       }
@@ -62,23 +53,11 @@ init() {
       });
     });
 
-    const dockShowBtn = document.getElementById('dockShowBtn');
-    if (dockShowBtn) {
-        dockShowBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            setDockHidden(false);
-        });
+    document.body.classList.remove('dock-hidden');
+    if (App.state.hideDock) {
+        App.state.hideDock = false;
+        App.saveSettings();
     }
-
-    const dockHideBtn = document.getElementById('dockHideBtn');
-    if (dockHideBtn) {
-        dockHideBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            setDockHidden(true);
-        });
-    }
-
-    if (App.state.hideDock) setDockHidden(true);
 
     document.addEventListener('click', () => {
         this.closePopups();

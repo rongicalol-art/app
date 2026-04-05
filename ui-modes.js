@@ -783,23 +783,26 @@ Object.assign(window.UI, {
       const input = document.getElementById('userAnswer');
       const wrap = document.getElementById('quizWrap');
       const revealBox = document.getElementById('quizRevealBox');
+      const isMobileTyping = window.matchMedia('(max-width: 768px)').matches;
+
+      const focusInput = () => {
+        if (!input) return;
+        try {
+          input.focus({ preventScroll: true });
+        } catch {
+          input.focus();
+        }
+        if (typeof input.setSelectionRange === 'function') {
+          const end = input.value.length;
+          try { input.setSelectionRange(end, end); } catch {}
+        }
+      };
   
       if (input && wrap) {
         input.addEventListener('focus', () => {
           requestAnimationFrame(() => {
             if (document.activeElement === input) wrap.classList.add('keyboard-open');
           });
-          let frame = 0;
-          const keepPinned = () => {
-            window.scrollTo(0, 0);
-            document.body.scrollTop = 0;
-            document.documentElement.scrollTop = 0;
-            const app = document.getElementById('app');
-            if (app) app.scrollTop = 0;
-            frame++;
-            if (frame < 30) requestAnimationFrame(keepPinned);
-          };
-          requestAnimationFrame(keepPinned);
         });
         input.addEventListener('blur', () => wrap.classList.remove('keyboard-open'));
       }
@@ -850,10 +853,17 @@ Object.assign(window.UI, {
           App.saveSettings();
           if (typeof UI.celebrate === 'function') UI.celebrate();
   
-          setTimeout(() => {
-            App.state.lastSwipe = 'right';
-            App.next();
-          }, App.state.fastNext ? 1000 : 2200);
+          if (isMobileTyping && App.state.fastNext) {
+            requestAnimationFrame(() => {
+              App.state.lastSwipe = 'right';
+              App.next();
+            });
+          } else {
+            setTimeout(() => {
+              App.state.lastSwipe = 'right';
+              App.next();
+            }, App.state.fastNext ? 1000 : 2200);
+          }
         } else {
           App.speakText(item.hanzi || item.zh);
           input.classList.remove('shake', 'state-wrong');
@@ -878,8 +888,13 @@ Object.assign(window.UI, {
       };
   
       input.onkeyup = e => { if (e.key === 'Enter') check(); };
-      setTimeout(() => { if (input) input.focus(); }, 10);
-      setTimeout(() => { if (input) input.focus(); }, 360);
+      if (isMobileTyping) {
+        requestAnimationFrame(() => requestAnimationFrame(focusInput));
+      } else {
+        focusInput();
+        requestAnimationFrame(focusInput);
+        setTimeout(focusInput, 180);
+      }
     },
   
     renderQuizMC(item) {
