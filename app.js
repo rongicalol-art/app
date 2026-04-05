@@ -677,6 +677,17 @@ updateActiveList(preserveState = false) {
     this.preloadUpcomingChars();
   },
 
+  cycleSeparateMode() {
+      this.state.separateMode = this.state.separateMode === 'off' ? 'all' : 'off';
+      this.state.modeCache = {};
+      this.saveSettings();
+      this.updateActiveList();
+      if (typeof UI !== 'undefined') {
+          UI.render();
+          UI.showToast(`Split characters ${this.state.separateMode === 'off' ? 'off' : 'on'}`);
+      }
+  },
+
   clearReviewList() {
       this.state.learnedItems.clear();
       this.saveLearned();
@@ -1681,7 +1692,9 @@ updateActiveList(preserveState = false) {
         d: this.state.dialogueFilter,
         h: this.state.hideLearned,
         s: this.state.separateMode,
-        sh: this.state.shuffle
+        sh: this.state.shuffle,
+        qt: this.state.quizType,
+        lh: this.state.listeningHard
     });
 
     this.state.modeCache[this.state.mode] = {
@@ -1738,7 +1751,9 @@ updateActiveList(preserveState = false) {
             d: this.state.dialogueFilter,
             h: this.state.hideLearned,
             s: this.state.separateMode,
-            sh: this.state.shuffle
+            sh: this.state.shuffle,
+            qt: this.state.quizType,
+            lh: this.state.listeningHard
         });
 
         if (this.state.modeCache[newMode] && this.state.modeCache[newMode].filterKey === currentFilterKey && this.state.modeCache[newMode].list) {

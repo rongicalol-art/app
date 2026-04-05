@@ -210,8 +210,6 @@ Object.assign(window.UI, {
         });
       }
   
-      let typeHtml = displayTypes.length > 0 ? `<div style="position: absolute; top: 16px; right: 16px; display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; z-index: 10;">${displayTypes.join('')}</div>` : '';
-  
       const safeDefinition = item.def == null || String(item.def).trim().toLowerCase() === 'undefined'
         ? ''
         : String(item.def).trim();
@@ -223,7 +221,14 @@ Object.assign(window.UI, {
       const backContentClasses = `face-content vocab-content${isDense ? ' is-dense' : ''}${isVeryDense ? ' is-very-dense' : ''}`;
       const frontHeroClasses = `hanzi-display hanzi-display hz-hero ${studyHzClass}`;
       const backHeroClasses = `hanzi-display hanzi-display hz-hero study-hz-back ${studyHzClass}${isDense ? ' study-hz-back-dense' : ''}`;
-  
+      const hasDefinition = !App.state.noTranslation && Boolean(safeDefinition);
+      const hasPosTags = displayTypes.length > 0;
+      const studyMetaClasses = [
+        'study-meta-row',
+        hasPosTags ? 'has-pos' : 'study-meta-row--solo',
+        !hasDefinition && hasPosTags ? 'study-meta-row--tags-only' : ''
+      ].filter(Boolean).join(' ');
+
       if (!App.state.noPinyin) {
         if (isVeryDense) {
           pinyinStyle = 'font-size: 0.88rem; line-height: 1.18; margin-bottom: 0.15rem; font-weight: 700;';
@@ -351,15 +356,19 @@ Object.assign(window.UI, {
   
       backFace.innerHTML = `
         <div class="${backContentClasses}" style="position: relative;">
-          ${typeHtml}
           <div class="${backMainClasses}" style="margin: auto 0; display: flex; flex-direction: column; align-items: center; width: 100%;">
             <div class="study-back-core">
-              <div style="display: flex; justify-content: center; align-items: center; flex-wrap: wrap; margin-bottom: 0.25rem; width: 100%;">
+              <div class="study-pinyin-row">
                 <div class="pinyin-display" style="${pinyinStyle}">${studyPinyinHtml}</div>
               </div>
-              <div id="pos-explanation-box" style="display:none; background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:8px 12px; margin-bottom:12px; font-size:0.85rem; color:#475569; text-align:center; max-width:85%; box-shadow:inset 0 2px 4px rgba(0,0,0,0.02); line-height:1.4;"></div>
               <div class="${backHeroClasses}">${backHanziHtml}</div>
-              <div class="${studyDefClasses}" style="${App.state.noTranslation || !safeDefinition ? 'display:none' : ''}">${safeDefinition}</div>
+              ${(hasDefinition || hasPosTags) ? `
+                <div class="${studyMetaClasses}">
+                  ${hasDefinition ? `<div class="${studyDefClasses}">${safeDefinition}</div>` : ''}
+                  ${hasPosTags ? `<div class="study-pos-list">${displayTypes.join('')}</div>` : ''}
+                </div>
+              ` : ''}
+              <div id="pos-explanation-box" style="display:none; background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:8px 12px; margin-top:10px; font-size:0.85rem; color:#475569; text-align:center; max-width:85%; box-shadow:inset 0 2px 4px rgba(0,0,0,0.02); line-height:1.4;"></div>
             </div>
             ${hookHtml ? `<div class="study-back-hook-slot">${hookHtml}</div>` : ''}
           </div>

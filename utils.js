@@ -567,6 +567,10 @@ const Utils = {
 
       let pinyinParts = (item.pinyin || '').trim().split(/\s+/).filter(Boolean);
       const useCharLookup = pinyinParts.length !== chars.length;
+      const baseItem = Object.fromEntries(
+        Object.entries(item).filter(([key]) => !key.startsWith('_'))
+      );
+      const baseId = item.id || item.hanzi || item.word || `${item.book || 'b'}-${item.lesson || 'l'}-${base}`;
 
       chars.forEach((char, idx) => {
         if (seen.has(char)) return;
@@ -581,13 +585,13 @@ const Utils = {
         const hook = (DATA.CHARS && DATA.CHARS[char]?.hook) || '';
 
         const charItem = {
-          ...item,
+          ...baseItem,
           hanzi: char,
           pinyin: py,
           def,
           hook,
           __parent: item.hanzi,
-          id: `${item.id}-char-${idx}`
+          id: `${baseId}-char-${idx}`
         };
         charItem.searchKey = this.normalizeSearch(`${char}${py}${def}`);
         expanded.push(charItem);

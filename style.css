@@ -1106,6 +1106,7 @@ input:checked + .slider { background-color: var(--primary); } input:checked + .s
   flex-direction: column;
   justify-content: center;
   align-items: center;
+  gap: 2px;
 }
 .face-content.vocab-content.is-dense {
   padding: 16px 16px 18px;
@@ -1119,11 +1120,22 @@ input:checked + .slider { background-color: var(--primary); } input:checked + .s
   padding-bottom: 14px;
 }
 .study-back-main.is-very-dense {
-  justify-content: flex-start;
-  padding-top: 6px;
+  justify-content: center;
+  padding-top: 0;
 }
 .study-back-main.is-very-dense .study-back-core {
-  justify-content: flex-start;
+  justify-content: center;
+}
+.study-pinyin-row {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: 0.25rem;
+}
+.study-back-core .pinyin-display {
+  color: var(--primary-dark);
 }
 .study-back-hook-slot {
   width: 100%;
@@ -1131,6 +1143,38 @@ input:checked + .slider { background-color: var(--primary); } input:checked + .s
   padding-top: 12px;
   display: flex;
   justify-content: center;
+}
+.study-meta-row {
+  width: min(100%, 34ch);
+  margin-top: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px 10px;
+  flex-wrap: wrap;
+}
+.study-meta-row--solo {
+  display: block;
+}
+.study-meta-row--solo .study-def {
+  width: min(100%, 29ch);
+  margin-inline: auto;
+}
+.study-meta-row.has-pos .study-def {
+  width: auto;
+  max-width: min(100%, 24ch);
+  margin-top: 0;
+}
+.study-meta-row--tags-only {
+  width: min(100%, 100%);
+}
+.study-pos-list {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  max-width: 100%;
 }
 .face-content.vocab-content.is-dense .study-back-hook-slot {
   padding-top: 9px;
@@ -1165,7 +1209,8 @@ input:checked + .slider { background-color: var(--primary); } input:checked + .s
   line-height: 1.38;
 }
 .study-def {
-  width: min(100%, 29ch);
+  width: auto;
+  max-width: min(100%, 29ch);
   margin-top: 8px;
   font-family: 'Nunito', sans-serif;
   font-size: clamp(1rem, 2.5vw, 1.14rem);
@@ -1181,11 +1226,11 @@ input:checked + .slider { background-color: var(--primary); } input:checked + .s
   line-height: 1.42;
 }
 .study-back-main.is-dense .study-def {
-  margin-top: 6px;
+  margin-top: 0;
   max-width: min(100%, 31ch);
 }
 .study-back-main.is-very-dense .study-def {
-  margin-top: 5px;
+  margin-top: 0;
   font-size: clamp(0.84rem, 2vw, 0.92rem);
   line-height: 1.34;
 }
