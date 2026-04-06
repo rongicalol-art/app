@@ -34,6 +34,8 @@ const App = {
     fastNext: true,
     listeningHard: false,
     listeningToneTest: false,
+    listeningMode: 'def',
+    readExpandedIndex: null,
     writingShowOutline: false,
     writingHideDrawing: false,
     writingFullscreen: true,
@@ -471,6 +473,12 @@ const App = {
         this.state.fastNext = parsed.fastNext ?? true;
         this.state.listeningHard = parsed.listeningHard || false;
         this.state.listeningToneTest = parsed.listeningToneTest || false;
+        this.state.listeningMode = ['def', 'hz', 'py'].includes(parsed.listeningMode)
+          ? parsed.listeningMode
+          : this.state.listeningToneTest
+            ? 'py'
+            : 'def';
+        this.state.listeningHard = false;
         this.state.writingShowOutline = parsed.writingShowOutline ?? false;
         this.state.writingHideDrawing = parsed.writingHideDrawing || false;
         this.state.showHooks = parsed.showHooks ?? true;
@@ -523,6 +531,7 @@ const App = {
       fastNext: this.state.fastNext,
       listeningHard: this.state.listeningHard,
       listeningToneTest: this.state.listeningToneTest,
+      listeningMode: this.state.listeningMode,
       writingShowOutline: this.state.writingShowOutline,
       writingHideDrawing: this.state.writingHideDrawing,
       showHooks: this.state.showHooks,
@@ -726,8 +735,7 @@ const App = {
   },
 
 updateActiveList(preserveState = false) {
-    const isSentencesSource = (this.state.mode === 'listening' && this.state.listeningHard) ||
-                              ['sentences', 'builder'].includes(this.state.mode) ||
+    const isSentencesSource = ['sentences', 'builder'].includes(this.state.mode) ||
                               (['quiz', 'quiz-mc'].includes(this.state.mode) && this.state.quizType === 'translate');
                               
     const source = isSentencesSource ? DATA.SENTENCES : DATA.VOCAB;
@@ -842,7 +850,7 @@ updateActiveList(preserveState = false) {
   },
 
   animateAndRender(direction) {
-      const skipAnimationModes = ['writing', 'list']; 
+      const skipAnimationModes = ['writing', 'list', 'sentences']; 
       if (skipAnimationModes.includes(this.state.mode)) {
           return UI.render();
       }
@@ -1034,11 +1042,52 @@ updateActiveList(preserveState = false) {
     this.saveSettings();
     this.state.isFlipped = false;
     this.state.isStudyBreakdownOpen = false;
+    this.state.readExpandedIndex = null;
     this.state.skipFlipAnimationOnce = true;
     this.state.builderTokens = [];
     this.state.builderAnswer = [];
     setTimeout(() => this.preloadUpcomingChars(), 280);
     this.animateAndRender('next'); 
+  },
+
+  jumpToIndex(index, options = {}) {
+    if (!this.state.activeList.length) return;
+
+    const targetIndex = Math.max(0, Math.min(index, this.state.activeList.length - 1));
+    if (targetIndex === this.state.currentIndex) return;
+
+    const openReader = !!options.openReader;
+    const direction = targetIndex > this.state.currentIndex ? 'next' : 'prev';
+    this.state.currentIndex = targetIndex;
+    this.state.isFlipped = false;
+    this.state.isStudyBreakdownOpen = false;
+    this.state.readExpandedIndex = openReader ? targetIndex : null;
+    this.state.skipFlipAnimationOnce = true;
+    this.state.builderTokens = [];
+    this.state.builderAnswer = [];
+    this.saveSettings();
+    setTimeout(() => this.preloadUpcomingChars(), 280);
+    this.animateAndRender(direction);
+  },
+
+  toggleReaderEntry(index) {
+    if (!this.state.activeList.length) return;
+
+    const targetIndex = Math.max(0, Math.min(index, this.state.activeList.length - 1));
+    if (targetIndex !== this.state.currentIndex) {
+      this.jumpToIndex(targetIndex, { openReader: true });
+      return;
+    }
+
+    const nextOpen = this.state.readExpandedIndex === targetIndex ? null : targetIndex;
+    this.state.readExpandedIndex = nextOpen;
+    const entry = document.querySelector(`.reader-entry[data-reader-index="${targetIndex}"]`);
+    if (entry) {
+      entry.classList.toggle('is-open', nextOpen === targetIndex);
+      entry.setAttribute('aria-expanded', nextOpen === targetIndex ? 'true' : 'false');
+    } else if (typeof UI !== 'undefined') {
+      UI.render();
+    }
   },
 
   renderSessionComplete() {
@@ -1225,6 +1274,7 @@ updateActiveList(preserveState = false) {
       this.state.currentIndex = 0;
       this.state.isFlipped = false;
       this.state.isStudyBreakdownOpen = false;
+      this.state.readExpandedIndex = null;
       this.state.isFinished = false; // FIX: Ensure finished state is reset
       this.state.streak = 0; // FIX: Reset streak for the review
       UI.render();
@@ -1234,8 +1284,7 @@ updateActiveList(preserveState = false) {
   restartSession() {
       // FIX: Grab the full dataset so we unlearn everything in the current filter,
       // not just the shrunk down activeList.
-      const isSentencesSource = (this.state.mode === 'listening' && this.state.listeningHard) ||
-                                ['sentences', 'builder'].includes(this.state.mode) ||
+      const isSentencesSource = ['sentences', 'builder'].includes(this.state.mode) ||
                                 (['quiz', 'quiz-mc'].includes(this.state.mode) && this.state.quizType === 'translate');
       const source = isSentencesSource ? DATA.SENTENCES : DATA.VOCAB;
 
@@ -1259,6 +1308,7 @@ updateActiveList(preserveState = false) {
       this.state.currentIndex = 0;
       this.state.isFlipped = false;
       this.state.isStudyBreakdownOpen = false;
+      this.state.readExpandedIndex = null;
       
       UI.render();
       UI.showToast("Session restarted");
@@ -1269,6 +1319,7 @@ updateActiveList(preserveState = false) {
     this.state.currentIndex = (this.state.currentIndex - 1 + this.state.activeList.length) % this.state.activeList.length;
     this.state.isFlipped = false;
     this.state.isStudyBreakdownOpen = false;
+    this.state.readExpandedIndex = null;
     this.state.skipFlipAnimationOnce = true;
     this.state.builderTokens = [];
     this.state.builderAnswer = [];
@@ -1375,7 +1426,7 @@ updateActiveList(preserveState = false) {
       const item = this.state.activeList[this.state.currentIndex];
       if (!item) return;
 
-      if (!this.state.isFlipped) this.toggleFlip(true);
+      if (this.state.mode === 'study' && !this.state.isFlipped) this.toggleFlip(true);
 
       const token = this._autoPlayToken || 0;
       const checkToken = () => this.state.autoPlay && token === this._autoPlayToken;
@@ -1446,13 +1497,19 @@ updateActiveList(preserveState = false) {
     }
   },
 
-  speakText(text, lang = 'zh-TW') {
+  speakText(text, lang = 'zh-TW', options = {}) {
       return new Promise(resolve => {
           if (!text || !window.speechSynthesis) return resolve();
           window.speechSynthesis.cancel();
 
           const u = new SpeechSynthesisUtterance(text);
-          u.rate = lang.startsWith('en') ? 1.0 : Math.max(this.state.ttsRate, 0.75); // Prevent glitching Natural voices
+          const baseRate = lang.startsWith('en') ? 1.0 : Math.max(this.state.ttsRate, 0.75);
+          const requestedRate = typeof options.rate === 'number'
+            ? options.rate
+            : typeof options.rateMultiplier === 'number'
+              ? baseRate * options.rateMultiplier
+              : baseRate;
+          u.rate = Math.max(0.55, Math.min(1.15, requestedRate)); // Prevent glitching Natural voices
           u.lang = lang;
           
           if (lang.startsWith('zh')) {
@@ -1796,7 +1853,7 @@ updateActiveList(preserveState = false) {
       container.addEventListener('click', (e) => {
           if (!isCurrentApp()) return;
           if (e.target.closest('button, a, input, textarea, details, summary, .interactive-char, .hook-edit-btn, [data-action], canvas, svg, .writing-target-inner, .study-mini-breakdown')) return;
-          if (!['study', 'sentences', 'writing'].includes(this.state.mode)) return;
+          if (!['study', 'writing'].includes(this.state.mode)) return;
 
           // Prevent ghost clicks after a swipe
           if (Date.now() - lastSwipeTime < 400) return;
@@ -1831,12 +1888,14 @@ updateActiveList(preserveState = false) {
           if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
 
           if (e.key === 'ArrowRight') {
+              if (this.state.mode === 'sentences') return;
               if (this.state.mode === 'writing') {
                   this.state.writingCharIndex = 0;
                   this.state.lastSwipe = 'right';
               }
               this.next(false);
           } else if (e.key === 'ArrowLeft') {
+              if (this.state.mode === 'sentences') return;
               if (this.state.mode === 'writing') {
                   this.state.writingCharIndex = 0;
                   this.state.lastSwipe = 'left';
@@ -1844,7 +1903,15 @@ updateActiveList(preserveState = false) {
               this.prev();
           } else if (e.key === ' ' || e.code === 'Space' || e.key === 'ArrowUp' || e.key === 'ArrowDown' || e.key.toLowerCase() === 'f') {
               e.preventDefault();
-              if (this.state.mode !== 'writing') {
+              if (this.state.mode === 'sentences') {
+                  if (e.key === ' ' || e.code === 'Space') {
+                      this.toggleReaderEntry(this.state.currentIndex);
+                      const item = this.state.activeList[this.state.currentIndex];
+                      if (item && item.zh) {
+                          this.speakText(item.zh, 'zh-TW');
+                      }
+                  }
+              } else if (this.state.mode !== 'writing') {
                   this.toggleFlip();
               }
           }
@@ -2057,14 +2124,14 @@ updateActiveList(preserveState = false) {
       const appearsTag = appearsHint ? `<span class="appears-tag" style="background:${appearsHint.bg}; color:${appearsHint.color}; border-color:${appearsHint.color};">B${appearsHint.book} L${appearsHint.lesson}</span>` : '';
 
       row.innerHTML = `
-          <span class="appears-label interactive-char" onclick="App.handleCharClick(event, '${targetChar}')" style="cursor:pointer; display:flex; align-items:center; gap:6px; transition:0.2s;" title="Explore ${targetChar}">
+          <span class="appears-label interactive-char" onclick="App.handleCharClick(event, '${targetChar}')" title="Explore ${targetChar}">
               in ${targetChar} 
               <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg>
               ${appearsTag}
           </span> 
           <div class="appears-list">${interactive}</div>
       `;
-      row.setAttribute('onclick', `App.handleCharClick(event, '${targetChar}')`);w
+      row.setAttribute('onclick', `App.handleCharClick(event, '${targetChar}')`);
 
       if (bentoNode) {
           bentoNode.classList.add('expanded'); 
@@ -2076,6 +2143,57 @@ updateActiveList(preserveState = false) {
               e.currentTarget.classList.add('active-preview');
           }
       }
+  },
+
+  toggleLookupNode(e, node) {
+      if (e) {
+          const blockedTarget = e.target.closest('.interactive-char, .interactive-word, button, a, .sub-component-item, .appears-in-row');
+          if (blockedTarget) return;
+          e.preventDefault();
+      }
+      if (!node || node.dataset.lookupAnimating === '1') return;
+
+      const body = node.querySelector('.bento-body-wrapper');
+      if (!body) return;
+
+      const isOpening = !node.classList.contains('expanded');
+      const onTransitionEnd = event => {
+          if (event.target !== body || event.propertyName !== 'height') return;
+          if (isOpening) body.style.height = 'auto';
+          node.dataset.lookupAnimating = '';
+          body.style.willChange = '';
+          body.style.overflow = '';
+          body.removeEventListener('transitionend', onTransitionEnd);
+      };
+
+      node.dataset.lookupAnimating = '1';
+      body.style.overflow = 'hidden';
+      body.style.willChange = 'height, opacity';
+      body.removeEventListener('transitionend', onTransitionEnd);
+
+      if (isOpening) {
+          node.classList.add('expanded');
+          body.style.height = '0px';
+          body.style.opacity = '0';
+          void body.offsetHeight;
+          const targetHeight = body.scrollHeight;
+          requestAnimationFrame(() => {
+              body.style.height = `${targetHeight}px`;
+              body.style.opacity = '1';
+          });
+      } else {
+          const startHeight = body.scrollHeight;
+          body.style.height = `${startHeight}px`;
+          body.style.opacity = '1';
+          void body.offsetHeight;
+          node.classList.remove('expanded');
+          requestAnimationFrame(() => {
+              body.style.height = '0px';
+              body.style.opacity = '0';
+          });
+      }
+
+      body.addEventListener('transitionend', onTransitionEnd);
   },
 
   _generateWordHTML(char, vocabMatch, fallbackPy, fallbackDef) {
@@ -2150,9 +2268,9 @@ updateActiveList(preserveState = false) {
           const clueChar = charData.phonetic_clue.indicator_component;
           const cluePy = Utils.formatNumberedPinyin(charData.phonetic_clue.indicator_pinyin);
           soundHintHTML = `
-              <div style="font-family: 'Nunito', sans-serif; font-size: 0.9rem; color: var(--text-muted); font-weight: 600; margin-top: 4px;">
-                  Sound hint: 
-                  <span class="interactive-char" onclick="App.handleCharClick(event, '${clueChar}')" style="cursor: pointer; color: var(--primary); font-family: 'twkai', serif; font-size: 1.2rem; margin: 0 2px;">${clueChar}</span> 
+              <div class="lookup-sound-hint">
+                  Sound hint:
+                  <span class="interactive-char lookup-sound-char" onclick="App.handleCharClick(event, '${clueChar}')">${clueChar}</span>
                   (${cluePy})
               </div>
           `;
@@ -2316,7 +2434,7 @@ updateActiveList(preserveState = false) {
               
               appearsInHTML = `
                   <div class="appears-in-row" id="${rowId}" onclick="App.handleCharClick(event, '${charStr}', '${safePy}', '${safeDef}')">
-                      <span class="appears-label interactive-char" onclick="App.handleCharClick(event, '${charStr}', '${safePy}', '${safeDef}')" style="cursor:pointer; display:flex; align-items:center; gap:6px; transition:0.2s;" title="Explore ${charStr}">
+                      <span class="appears-label interactive-char" onclick="App.handleCharClick(event, '${charStr}', '${safePy}', '${safeDef}')" title="Explore ${charStr}">
                           in ${charStr} 
                           <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg>
                           ${appearsTag}
@@ -2326,7 +2444,7 @@ updateActiveList(preserveState = false) {
               `;
           }
 
-          const clickAttr = hasExpandedContent ? `onclick="this.classList.toggle('expanded')"` : '';
+          const clickAttr = hasExpandedContent ? `onclick="App.toggleLookupNode(event, this)"` : '';
           
           let expandedBodyHTML = '';
           if (hasExpandedContent) {

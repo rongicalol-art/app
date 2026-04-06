@@ -482,6 +482,11 @@ Object.assign(window.UI, {
       if (!uniqueChars.length) return '';
 
       const escapeAttr = (value) => String(value || '').replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+      const sortByStudyOrder = (a, b) => {
+        const aScore = (Number(a?.book) || 99) * 1000 + (Number(a?.lesson) || 99);
+        const bScore = (Number(b?.book) || 99) * 1000 + (Number(b?.lesson) || 99);
+        return aScore - bScore;
+      };
       const charCardsHtml = uniqueChars.slice(0, 4).map(char => {
         const charData = DATA.CHARS && DATA.CHARS[char] ? DATA.CHARS[char] : {};
         const pinyin = Utils.formatNumberedPinyin(Array.isArray(charData.pinyin) ? charData.pinyin[0] : (charData.pinyin || ''));
@@ -495,8 +500,16 @@ Object.assign(window.UI, {
           }))
           .filter(component => component.char && component.char !== '?');
 
-        const relatedVocab = ((DATA.VOCAB_BY_CHAR && DATA.VOCAB_BY_CHAR[char]) || [])
-          .filter(v => v && v.hanzi && v.hanzi !== rawWord && v.hanzi !== char)
+        const vocabAppearances = Array.from(
+          new Map(
+            [...((DATA.VOCAB_BY_CHAR && DATA.VOCAB_BY_CHAR[char]) || [])]
+              .filter(v => v && v.hanzi && v.hanzi !== char)
+              .sort(sortByStudyOrder)
+              .map(v => [String(v.hanzi).trim(), v])
+          ).values()
+        );
+        const relatedVocab = vocabAppearances
+          .filter(v => v.hanzi !== rawWord)
           .slice(0, 4);
         const relatedComponents = (typeof App.findRelatedCharacters === 'function' ? App.findRelatedCharacters(char) : [])
           .filter(c => c && c.hanzi && c.hanzi !== rawWord && c.hanzi !== char)
@@ -514,7 +527,6 @@ Object.assign(window.UI, {
             ${topComponents.length > 3 ? `<span class="study-mini-preview-more">+${topComponents.length - 3}</span>` : ''}
           </div>
         ` : '';
-
         const componentsHtml = topComponents.length
           ? topComponents.map(component => {
               const safeChar = escapeAttr(component.char);
@@ -594,7 +606,11 @@ Object.assign(window.UI, {
                 <svg viewBox="0 0 24 24" fill="currentColor"><path d="M7.41 8.59 12 13.17l4.59-4.58L18 10l-6 6-6-6z"/></svg>
               </span>
             </button>
-            ${previewHtml}
+            ${previewHtml ? `
+              <div class="study-mini-char-meta">
+                ${previewHtml}
+              </div>
+            ` : ''}
             <div class="study-mini-char-body">
               <div class="study-mini-section">
                 <div class="study-mini-section-title">Parts</div>
@@ -678,58 +694,154 @@ Object.assign(window.UI, {
     },
   
     renderSentences(item) {
-      const pinyinStyle = App.state.noPinyin ? 'display:none' : 'font-size: 1.5rem; margin-bottom: 1rem;';
-      item._zhHTML = item._zhHTML || Utils.createInteractiveSentence(item.zh);
-      
-      // Disable smart pinyin, just use standard
-      item._coloredPy = item.py || '';
-  
-      let wrapper = this.container.querySelector('.sentence-static-wrapper');
       let animClass = App.state.skipFadeInOnce ? '' : 'fade-in';
-  
-      if (!wrapper) {
-        if (App.state.lastSwipe === 'right') animClass = 'swipe-in-right';
-        else if (App.state.lastSwipe === 'left') animClass = 'swipe-in-left';
-  
-        this.container.innerHTML = `
-          <div class="sentence-static-wrapper card-wrapper relative-center-wrapper ${animClass}">
-            <div class="card-container sentence-card-container">
-              <div class="card" data-action="toggle-flip">
-                <div class="card__face card__face--front" id="sentenceFront"></div>
-                <div class="card__face card__face--back" id="sentenceBack"></div>
+      if (App.state.lastSwipe === 'right') animClass = 'swipe-in-right';
+      else if (App.state.lastSwipe === 'left') animClass = 'swipe-in-left';
+
+      const list = Array.isArray(App.state.activeList) && App.state.activeList.length
+        ? App.state.activeList
+        : [item];
+      const currentIndex = Math.max(0, Math.min(App.state.currentIndex || 0, list.length - 1));
+      
+      const feedHtml = list.map((sentenceItem, idx) => {
+        const absoluteIndex = idx;
+        const isOpen = App.state.readExpandedIndex === absoluteIndex;
+        sentenceItem._zhHTML = sentenceItem._zhHTML || Utils.createInteractiveSentence(sentenceItem.zh);
+
+        return `
+          <article class="reader-entry ${isOpen ? ' is-open' : ''}" data-reader-index="${absoluteIndex}" aria-expanded="${isOpen ? 'true' : 'false'}">
+            <div class="reader-entry-sentence">${sentenceItem._zhHTML}</div>
+            <div class="reader-entry-detail-wrap">
+              <div class="reader-entry-detail">
+                <div class="reader-entry-detail-inner">
+                  ${!App.state.noTranslation && sentenceItem.en ? `
+                    <div class="reader-entry-gloss">${sentenceItem.en}</div>
+                      ` : '<div class="reader-entry-gloss"></div>'}
+                      <button class="reader-audio-btn" data-reader-audio="${absoluteIndex}" type="button" aria-label="Play sentence" title="Play sentence">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                          <path d="M4.75 13.42v-2.84c0-.86.69-1.55 1.55-1.55h2.56l4.67-3.78c.72-.58 1.77-.07 1.77.86v11.78c0 .93-1.05 1.44-1.77.86l-4.67-3.78H6.3c-.86 0-1.55-.69-1.55-1.55Z"/>
+                          <path d="M18.1 9.15c1.42 1.33 1.42 4.37 0 5.7"/>
+                          <path d="M20.05 6.72c2.73 2.39 2.73 8.17 0 10.56"/>
+                        </svg>
+                      </button>
+                </div>
               </div>
             </div>
-          </div>
+          </article>
         `;
-        wrapper = this.container.querySelector('.sentence-static-wrapper');
-      }
-  
-      const card = wrapper.querySelector('.card');
-  
-      if (App.state.skipFlipAnimationOnce) card.classList.add('no-flip-transition');
-      if (App.state.isFlipped) card.classList.add('flipped');
-      else card.classList.remove('flipped');
-  
-      if (App.state.skipFlipAnimationOnce) {
-        App.state.skipFlipAnimationOnce = false;
-        requestAnimationFrame(() => card.classList.remove('no-flip-transition'));
-      }
-  
-      document.getElementById('sentenceFront').innerHTML = `
-        <div class="face-content">
-          <div class="card-center-layout"><div class="hanzi-display hz-sentence">${item._zhHTML}</div></div>
+      }).join('');
+
+      this.container.innerHTML = `
+        <div class="sentence-static-wrapper reader-shell relative-center-wrapper ${animClass}">
+          <section class="reader-feed" id="readerCarousel" aria-label="Sentence reader">
+            ${feedHtml}
+          </section>
         </div>
       `;
-  
-      document.getElementById('sentenceBack').innerHTML = `
-        <div class="face-content">
-          <div class="card-center-layout">
-            <div class="pinyin-display sentence-pinyin" style="${pinyinStyle}">${item._coloredPy}</div>
-            <div class="hanzi-display hz-sentence-back">${item._zhHTML}</div>
-            <div class="def-display sentence-def">${item.en}</div>
-          </div>
-        </div>
-      `;
+
+      const carousel = this.container.querySelector('#readerCarousel');
+      const entries = Array.from(carousel.querySelectorAll('.reader-entry'));
+      let scrollTimeout;
+
+      const updateCoverFlow = () => {
+          const carouselCenter = carousel.scrollTop + carousel.clientHeight / 2;
+          let closestIndex = -1;
+          let minDistance = Infinity;
+
+          entries.forEach((entry, idx) => {
+              const entryCenter = entry.offsetTop + entry.offsetHeight / 2;
+              const distance = entryCenter - carouselCenter;
+              const absDistance = Math.abs(distance);
+              
+              if (absDistance < minDistance) {
+                  minDistance = absDistance;
+                  closestIndex = idx;
+              }
+          });
+
+          entries.forEach((entry, idx) => {
+              if (idx === closestIndex) {
+                  if (!entry.classList.contains('is-current')) {
+                      entry.classList.add('is-current');
+                      entry.setAttribute('aria-current', 'true');
+                  }
+              } else {
+                  if (entry.classList.contains('is-current')) {
+                      entry.classList.remove('is-current');
+                      entry.removeAttribute('aria-current');
+                  }
+              }
+          });
+
+          if (closestIndex !== -1) {
+              const absIndex = Number(entries[closestIndex].dataset.readerIndex);
+              if (App.state.currentIndex !== absIndex) {
+                  App.state.currentIndex = absIndex;
+                  clearTimeout(scrollTimeout);
+                  scrollTimeout = setTimeout(() => {
+                      App.saveSettings();
+                      const pct = ((App.state.currentIndex + 1) / App.state.activeList.length) * 100;
+                      document.querySelectorAll('.global-progress-fill').forEach(fill => fill.style.width = `${pct}%`);
+                      document.querySelectorAll('.global-progress-text').forEach(t => t.textContent = `${App.state.currentIndex + 1} / ${App.state.activeList.length}`);
+                  }, 150);
+              }
+          }
+      };
+
+      carousel.addEventListener('scroll', () => requestAnimationFrame(updateCoverFlow), { passive: true });
+      
+      requestAnimationFrame(() => {
+          const initialEntry = carousel.querySelector(`[data-reader-index="${currentIndex}"]`);
+          if (initialEntry) {
+              const targetScroll = initialEntry.offsetTop - (carousel.clientHeight / 2) + (initialEntry.offsetHeight / 2);
+              carousel.scrollTop = targetScroll;
+          }
+          updateCoverFlow();
+      });
+
+      this.container.querySelector('.reader-shell').addEventListener('click', e => {
+          const height = window.innerHeight;
+          const y = e.clientY;
+          const cardHeight = (entries[0]?.offsetHeight || carousel.clientHeight * 0.4) + 24;
+          
+          if (y < height * 0.25) {
+              e.stopPropagation();
+              carousel.scrollBy({ top: -cardHeight, behavior: 'smooth' });
+          } else if (y > height * 0.75) {
+              e.stopPropagation();
+              carousel.scrollBy({ top: cardHeight, behavior: 'smooth' });
+          }
+      });
+
+      this.container.querySelectorAll('.reader-entry[data-reader-index]').forEach(node => {
+        node.addEventListener('click', e => {
+          if (e.target.closest('.interactive-char, .interactive-word, button, a')) return;
+          
+          if (!node.classList.contains('is-current')) {
+              const targetScroll = node.offsetTop - (carousel.clientHeight / 2) + (node.offsetHeight / 2);
+              carousel.scrollTo({ top: targetScroll, behavior: 'smooth' });
+              return;
+          }
+
+          const nextIndex = Number(node.dataset.readerIndex);
+          if (!Number.isFinite(nextIndex)) return;
+          
+          const isOpen = node.classList.contains('is-open');
+          App.state.readExpandedIndex = isOpen ? null : nextIndex;
+          node.classList.toggle('is-open', !isOpen);
+          node.setAttribute('aria-expanded', !isOpen ? 'true' : 'false');
+        });
+      });
+
+      this.container.querySelectorAll('[data-reader-audio]').forEach(btn => {
+        btn.addEventListener('click', e => {
+          e.stopPropagation();
+          const nextIndex = Number(btn.dataset.readerAudio);
+          const sentenceItem = list[nextIndex];
+          if (!sentenceItem?.zh) return;
+          App.speakText(sentenceItem.zh, 'zh-TW');
+        });
+      });
     },
   
     renderQuiz(item) {
@@ -1339,6 +1451,27 @@ Object.assign(window.UI, {
       App.saveSettings();
       UI.render();
     },
+
+    setListeningMode(value, jumpToListening = false) {
+      const validModes = ['def', 'hz', 'py'];
+      if (!validModes.includes(value)) return;
+      App.state.listeningMode = value;
+      App.state.listeningToneTest = value === 'py';
+      App.state.listeningHard = false;
+      App.state.modeCache = {};
+      App.saveSettings();
+
+      const hardToggle = document.getElementById('listeningHardToggle');
+      if (hardToggle) hardToggle.checked = App.state.listeningHard;
+      const toneToggle = document.getElementById('listeningToneTestToggle');
+      if (toneToggle) toneToggle.checked = App.state.listeningToneTest;
+
+      if (jumpToListening && App.state.mode !== 'listening') {
+        App.setMode('listening');
+        return;
+      }
+      UI.render();
+    },
   
     renderList() {
       if (!document.getElementById('listContent')) {
@@ -1487,15 +1620,456 @@ Object.assign(window.UI, {
     },
   
     renderListening(item) {
+      const escapeAttr = value => String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/"/g, '&quot;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+      const escapeHtml = value => String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+      const getCleanHanzi = candidate => {
+        if (!candidate) return '';
+        if (candidate._cleanHz === undefined) {
+          let hz = candidate.hanzi || candidate.zh || '';
+          if (hz.includes('/') || hz.includes('／')) hz = hz.split(/[\/／]/)[0];
+          candidate._cleanHz = hz.trim();
+        }
+        return candidate._cleanHz || '';
+      };
+      const getHanziHtml = candidate => {
+        if (!candidate) return '';
+        const cleanHz = getCleanHanzi(candidate);
+        if (candidate._processedListeningHanzi !== true) {
+          const parts = cleanHz.split(/([（(].*?[）)])/g);
+          let plainHtml = '';
+          parts.forEach(part => {
+            if (!part) return;
+            if (part.match(/^[（(].*[）)]$/)) {
+              plainHtml += `<span style="font-size: 0.55em; opacity: 0.7; margin: 0 2px; display: inline-block; vertical-align: middle;">${Utils.createInteractiveHanzi(part, false)}</span>`;
+            } else {
+              plainHtml += Utils.createInteractiveHanzi(part, false);
+            }
+          });
+          candidate._listeningHanziHtml = plainHtml;
+          candidate._processedListeningHanzi = true;
+        }
+        return candidate._listeningHanziHtml || Utils.createInteractiveHanzi(cleanHz, false);
+      };
+      const getCleanPinyin = candidate => {
+        if (!candidate) return '';
+        if (candidate._cleanPy === undefined) {
+          let py = candidate.pinyin || candidate.py || '';
+          if (py.includes('/') || py.includes('／')) py = py.split(/[\/／]/)[0];
+          candidate._cleanPy = py.replace(/[（(].*?[）)]/g, '').trim();
+        }
+        return candidate._cleanPy || '';
+      };
+      const getCompactDef = candidate => {
+        const def = App.sanitizeDefinition(candidate?.def || candidate?.en);
+        const compact = typeof App.compactDefinition === 'function'
+          ? App.compactDefinition(def, { fallback: '' })
+          : def;
+        return compact || def || '';
+      };
+      const splitPinyinTokens = (value, sourceHanzi = '') => {
+        const raw = String(value || '')
+          .split(/[\/／]/)[0]
+          .replace(/[（(].*?[）)]/g, '')
+          .trim();
+        if (!raw) return [];
+
+        const spaced = raw.split(/\s+/).filter(Boolean);
+        if (spaced.length > 1) return spaced;
+
+        const chars = (String(sourceHanzi || '').match(/[\p{Script=Han}]/gu) || []);
+        if (!chars.length) return [raw];
+
+        const normalizePy = token => window.Utils && typeof Utils.normalizeQuizInput === 'function'
+          ? Utils.normalizeQuizInput(token)
+          : String(token || '')
+            .toLowerCase()
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .replace(/[0-9]/g, '')
+            .replace(/ü/g, 'u')
+            .replace(/v/g, 'u')
+            .replace(/[^a-z]/g, '');
+        const normalized = normalizePy(raw);
+        if (!normalized) return [raw];
+
+        const charCandidates = chars.map(char => {
+          const rawPy = DATA.CHARS && DATA.CHARS[char] ? DATA.CHARS[char].pinyin : '';
+          const list = Array.isArray(rawPy) ? rawPy : [rawPy];
+          return list
+            .flatMap(entry => String(entry || '').split(/[\/／,，;]/))
+            .map(entry => entry.trim())
+            .filter(Boolean)
+            .map(entry => normalizePy(entry))
+            .find(Boolean) || '';
+        });
+
+        if (charCandidates.length === chars.length && charCandidates.every(Boolean) && charCandidates.join('') === normalized) {
+          let pos = 0;
+          return charCandidates.map(candidate => {
+            const token = raw.slice(pos, pos + candidate.length);
+            pos += candidate.length;
+            return token;
+          }).filter(Boolean);
+        }
+
+        const pinyinRegex = /^(zh|ch|sh|[bpmfdtnlgkhjqxrzcsyw])?(iang|iong|uang|ueng|ang|eng|ong|iao|ian|uan|van|ing|uai|uei|ai|ei|ao|ou|an|en|er|ia|ie|ua|uo|ui|iu|in|un|vn|ue|ve|a|o|e|i|u|v)$/;
+        const path = [];
+        const search = (charIndex, pos) => {
+          if (charIndex === chars.length) return pos === normalized.length;
+          for (let end = Math.min(normalized.length, pos + 6); end > pos; end--) {
+            const piece = normalized.slice(pos, end);
+            if (!pinyinRegex.test(piece)) continue;
+            path.push(piece);
+            if (search(charIndex + 1, end)) return true;
+            path.pop();
+          }
+          return false;
+        };
+
+        if (search(0, 0) && path.length === chars.length) {
+          let pos = 0;
+          return path.map(piece => {
+            const token = raw.slice(pos, pos + piece.length);
+            pos += piece.length;
+            return token;
+          }).filter(Boolean);
+        }
+
+        return [raw];
+      };
+      const formatPinyinDisplay = (value, sourceHanzi = '') => {
+        const tokens = splitPinyinTokens(value, sourceHanzi);
+        if (!tokens.length) return '';
+        return tokens.map(token => {
+          if (window.Utils && typeof Utils.convertTones === 'function') return Utils.convertTones(token);
+          return Utils.formatNumberedPinyin(token);
+        }).join(' ');
+      };
+      const normalizeCompare = value => {
+        if (value == null) return '';
+        const text = String(value).trim();
+        if (listeningMode === 'py') {
+          return text.replace(/\s+/g, '').toLowerCase();
+        }
+        return text;
+      };
+      const buildToneVariants = (pinyin, sourceHanzi = '') => {
+        const correctDisplay = formatPinyinDisplay(pinyin, sourceHanzi);
+        if (!correctDisplay) return [];
+
+        const variants = [];
+        const seen = new Set([normalizeCompare(correctDisplay)]);
+        const pushVariant = variant => {
+          const compare = normalizeCompare(variant);
+          if (!compare || seen.has(compare)) return false;
+          seen.add(compare);
+          variants.push(variant);
+          return true;
+        };
+
+        if (window.Utils && typeof Utils.generateToneDistractors === 'function') {
+          Utils.generateToneDistractors(correctDisplay)
+            .map(variant => formatPinyinDisplay(variant, sourceHanzi) || variant)
+            .forEach(pushVariant);
+        }
+
+        const tokens = splitPinyinTokens(correctDisplay, sourceHanzi);
+        const charToTone = {
+          a: 'āáǎàa', e: 'ēéěèe', i: 'īíǐìi', o: 'ōóǒòo', u: 'ūúǔùu', ü: 'ǖǘǚǜü'
+        };
+        const detectTone = syllable => {
+          for (const [base, chars] of Object.entries(charToTone)) {
+            for (let index = 0; index < chars.length; index++) {
+              if (syllable.includes(chars[index])) return { base, tone: index + 1, chars };
+            }
+          }
+          return null;
+        };
+
+        if (tokens.length) {
+          for (let tokenIndex = 0; tokenIndex < tokens.length && variants.length < 2; tokenIndex++) {
+            const token = tokens[tokenIndex];
+            const detected = detectTone(token);
+            if (!detected) continue;
+            const altTones = [1, 2, 3, 4, 5].filter(tone => tone !== detected.tone);
+            for (const altTone of altTones) {
+              const nextToken = token.replace(new RegExp(detected.chars[detected.tone - 1], 'i'), detected.chars[altTone - 1]);
+              const next = tokens.map((part, index) => index === tokenIndex ? nextToken : part).join(' ');
+              if (pushVariant(next) && variants.length >= 2) break;
+            }
+          }
+        }
+
+        return variants.slice(0, 2);
+      };
+      const listeningModes = { def: true, hz: true, py: true };
+      const listeningMode = listeningModes[App.state.listeningMode]
+        ? App.state.listeningMode
+        : App.state.listeningToneTest
+            ? 'py'
+            : 'def';
+      const exampleItem = typeof App.getSmartExamples === 'function'
+        ? (App.getSmartExamples(item)[0] || null)
+        : null;
+      const pureHanzi = getCleanHanzi(item);
+      const hanziHtml = getHanziHtml(item);
+      const pinyinText = getCleanPinyin(item);
+      const tonedPinyinText = formatPinyinDisplay(pinyinText, pureHanzi);
+      const defText = App.sanitizeDefinition(item.def || item.en);
+      const compactDefText = getCompactDef(item);
+      const revealDefText = compactDefText || defText;
+      const audioText = pureHanzi || item.hanzi || item.zh || '';
+      const exampleAudioText = String(exampleItem?.zh || '').trim();
+      const animClass = App.state.skipFadeInOnce ? '' : App.state.lastSwipe === 'right' ? 'swipe-in-right' : App.state.lastSwipe === 'left' ? 'swipe-in-left' : 'fade-in';
+
+      const createChoice = (candidate, overrideValue = '') => {
+        const candidateHz = getCleanHanzi(candidate);
+        const candidateHzHtml = getHanziHtml(candidate);
+        const candidatePy = getCleanPinyin(candidate);
+        const candidateDef = getCompactDef(candidate) || App.sanitizeDefinition(candidate.def || candidate.en) || '';
+
+        if (listeningMode === 'hz') {
+          return {
+            value: candidateHz,
+            compare: normalizeCompare(candidateHz),
+            mainHtml: candidateHzHtml || escapeHtml(candidateHz),
+            subHtml: ''
+          };
+        }
+
+        if (listeningMode === 'py') {
+          return {
+            value: candidatePy,
+            compare: normalizeCompare(candidatePy),
+            mainHtml: escapeHtml(formatPinyinDisplay(candidatePy, getCleanHanzi(candidate)) || candidatePy),
+            subHtml: ''
+          };
+        }
+
+        const chosenDef = overrideValue || candidateDef;
+        return {
+          value: chosenDef,
+          compare: normalizeCompare(chosenDef),
+          mainHtml: escapeHtml(chosenDef),
+          subHtml: ''
+        };
+      };
+
+      const correctChoice = listeningMode === 'def'
+        ? createChoice(item, revealDefText || 'Meaning unavailable')
+        : createChoice(item);
+      const correctCompare = correctChoice.compare;
+
+      let answerOptions = [];
+      const source = Array.isArray(App.state.activeList) && App.state.activeList.length ? App.state.activeList : (DATA.VOCAB || []);
+      const pool = source.filter(candidate => candidate && candidate !== item);
+      const seen = new Set([correctCompare]);
+
+      const pushChoice = choice => {
+        if (!choice || !choice.compare || seen.has(choice.compare)) return false;
+        seen.add(choice.compare);
+        answerOptions.push(choice);
+        return true;
+      };
+
+      if (listeningMode === 'def' && window.Utils && typeof Utils.generateDefDistractors === 'function') {
+        Utils.generateDefDistractors(item)
+          .filter(choice => choice && normalizeCompare(choice) !== correctCompare)
+          .forEach(choice => {
+            pushChoice({
+              value: choice,
+              compare: normalizeCompare(choice),
+              mainHtml: escapeHtml(choice),
+              subHtml: ''
+            });
+          });
+      }
+
+      if (listeningMode === 'py') {
+        buildToneVariants(pinyinText, pureHanzi).forEach(variant => {
+          pushChoice({
+            value: variant,
+            compare: normalizeCompare(variant),
+            mainHtml: escapeHtml(formatPinyinDisplay(variant, pureHanzi) || variant),
+            subHtml: ''
+          });
+        });
+      } else {
+        const shuffledPool = [...pool].sort(() => Math.random() - 0.5);
+        for (let i = 0; i < shuffledPool.length && answerOptions.length < 2; i++) {
+          pushChoice(createChoice(shuffledPool[i]));
+        }
+
+        while (answerOptions.length < 2 && shuffledPool.length) {
+          const candidate = shuffledPool[Math.floor(Math.random() * shuffledPool.length)];
+          if (!candidate) break;
+          pushChoice(createChoice(candidate));
+        }
+
+        if (answerOptions.length < 2) {
+          const fallbackPool = (DATA.VOCAB || []).filter(candidate => candidate && candidate !== item);
+          const shuffledFallback = [...fallbackPool].sort(() => Math.random() - 0.5);
+          for (let i = 0; i < shuffledFallback.length && answerOptions.length < 2; i++) {
+            pushChoice(createChoice(shuffledFallback[i]));
+          }
+        }
+      }
+
+      answerOptions = [correctChoice, ...answerOptions.slice(0, 2)].sort(() => Math.random() - 0.5);
+
       this.container.innerHTML = `
-        <div class="unstable-screen fade-in">
-          <div class="unstable-icon">🎧🛠️🥺</div>
-          <h2 class="unstable-title">Tuning the Audio!</h2>
-          <p class="unstable-text">The Listening Test is currently unstable and getting a tune-up.<br><br>Check back later!</p>
-          <button class="btn-main" onclick="App.setMode('study')" style="margin-top: 24px; box-shadow: 0 8px 20px rgba(236, 72, 153, 0.3);">Go back to safety</button>
+        <div class="listening-shell ${animClass}" id="listeningShell">
+          <div class="listening-card-wrap">
+          <div class="listening-card">
+            <div class="listening-content">
+              <div class="listening-audio-deck">
+                <button class="listening-audio-btn is-word" id="listeningPlayBtn" type="button" aria-label="Play word" title="Play word">
+                  <span class="listening-audio-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M4.75 13.42v-2.84c0-.86.69-1.55 1.55-1.55h2.56l4.67-3.78c.72-.58 1.77-.07 1.77.86v11.78c0 .93-1.05 1.44-1.77.86l-4.67-3.78H6.3c-.86 0-1.55-.69-1.55-1.55Z"/>
+                      <path d="M18.1 9.15c1.42 1.33 1.42 4.37 0 5.7"/>
+                      <path d="M20.05 6.72c2.73 2.39 2.73 8.17 0 10.56"/>
+                    </svg>
+                  </span>
+                </button>
+                <span class="listening-audio-separator" aria-hidden="true"></span>
+                <button class="listening-audio-btn is-example${exampleAudioText ? '' : ' is-disabled'}" id="listeningExampleBtn" type="button" aria-label="Play example" title="Play example"${exampleAudioText ? '' : ' disabled'}>
+                  <span class="listening-audio-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M8.1 6.3A2.3 2.3 0 0 0 5.8 8.6v4.35a2.3 2.3 0 0 0 2.3 2.3h.78v2.45l3.23-2.45h3.7a2.3 2.3 0 0 0 2.3-2.3V8.6a2.3 2.3 0 0 0-2.3-2.3Z"/>
+                      <path d="M9.35 9.45h.1"/>
+                      <path d="M12 9.45h.1"/>
+                      <path d="M14.65 9.45h.1"/>
+                      <path d="M9.1 12.5h5.8"/>
+                    </svg>
+                  </span>
+                </button>
+              </div>
+
+              <div class="listening-answer-block">
+                <div class="listen-options-grid${listeningMode === 'py' ? ' tones' : ''}" id="listeningOptions">
+                  ${answerOptions.map((option, index) => `
+                    <button
+                      class="listen-option-card mode-${listeningMode}"
+                      type="button"
+                      data-value="${escapeAttr(option.value)}"
+                      data-compare="${escapeAttr(option.compare)}"
+                      style="animation-delay:${index * 0.04}s;"
+                    >
+                      <span class="listen-opt-main">${option.mainHtml}</span>
+                      ${option.subHtml ? `<span class="listen-opt-sub">${option.subHtml}</span>` : ''}
+                    </button>
+                  `).join('')}
+                </div>
+
+                <div class="listening-reveal-box" id="listeningRevealBox" aria-live="polite">
+                  <div class="listening-reveal-head">Answer</div>
+                  <div class="listening-reveal-hz">${hanziHtml}</div>
+                  ${tonedPinyinText ? `<div class="listening-reveal-py">${tonedPinyinText}</div>` : ''}
+                  ${revealDefText ? `<div class="listening-reveal-def">${escapeHtml(revealDefText)}</div>` : ''}
+                </div>
+              </div>
+            </div>
+          </div>
+          </div>
         </div>
       `;
-      return;
+
+      const playBtn = document.getElementById('listeningPlayBtn');
+      const exampleBtn = document.getElementById('listeningExampleBtn');
+      const revealBox = document.getElementById('listeningRevealBox');
+      const optionsHost = document.getElementById('listeningOptions');
+      let isProcessing = false;
+      let playToken = 0;
+
+      const setReveal = state => {
+        if (!revealBox) return;
+        revealBox.className = 'listening-reveal-box is-visible';
+        if (state) revealBox.classList.add(state);
+      };
+
+      const clearReveal = () => {
+        if (!revealBox) return;
+        revealBox.className = 'listening-reveal-box';
+      };
+
+      const playAudio = async (text, activeBtn) => {
+        if (!text) return;
+        const token = ++playToken;
+        [playBtn, exampleBtn].forEach(btn => btn?.classList.remove('playing'));
+        activeBtn?.classList.add('playing');
+        try {
+          await App.speakText(text, 'zh-TW');
+        } finally {
+          if (token !== playToken) return;
+          [playBtn, exampleBtn].forEach(btn => btn?.classList.remove('playing'));
+        }
+      };
+
+      const handleWrong = () => {
+        isProcessing = true;
+        App.state.streak = 0;
+        if (typeof UI.updateStreak === 'function') UI.updateStreak();
+        App.saveSettings();
+        const key = item.hanzi || item.zh;
+        if (!App.state.sessionMistakes.includes(key)) App.state.sessionMistakes.push(key);
+        if (window.Sound) window.Sound.play('wrong');
+        setReveal('is-wrong');
+        setTimeout(() => {
+          App.state.lastSwipe = 'left';
+          App.next();
+        }, App.state.fastNext ? 900 : 1800);
+      };
+
+      const handleCorrect = () => {
+        App.state.streak++;
+        if (typeof UI.updateStreak === 'function') UI.updateStreak();
+        App.saveSettings();
+        if (window.Sound) window.Sound.play('correct');
+        if (typeof UI.celebrate === 'function') UI.celebrate();
+        setReveal('is-correct');
+        isProcessing = true;
+        setTimeout(() => {
+          App.state.lastSwipe = 'right';
+          App.next();
+        }, App.state.fastNext ? 900 : 1800);
+      };
+
+      if (optionsHost) {
+        optionsHost.querySelectorAll('.listen-option-card').forEach(btn => {
+          btn.onclick = () => {
+            if (isProcessing) return;
+            const selectedCompare = btn.dataset.compare || '';
+
+            optionsHost.querySelectorAll('.listen-option-card').forEach(card => {
+              card.disabled = true;
+              if ((card.dataset.compare || '') === correctCompare) card.classList.add('state-correct');
+            });
+
+            if (selectedCompare === correctCompare) {
+              handleCorrect();
+            } else {
+              btn.classList.add('state-wrong');
+              handleWrong();
+            }
+          };
+        });
+      }
+
+      playBtn.onclick = () => playAudio(audioText, playBtn);
+      if (exampleBtn) exampleBtn.onclick = () => playAudio(exampleAudioText, exampleBtn);
+
+      clearReveal();
+      requestAnimationFrame(() => {
+        setTimeout(() => { playAudio(audioText, playBtn); }, 180);
+      });
     },
   
     renderWriting(item) {

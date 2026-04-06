@@ -5,16 +5,18 @@ const UI = {
   subModes: {
       'study': [
           { label: 'Cards', mode: 'study', icon: '<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 14H4V6h16v12zM6 10h12v2H6zm0 4h8v2H6z"/></svg>' },
-          { label: 'List', mode: 'list', icon: '<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z"/></svg>' }
-      ],
-      'sentences': [
-          { label: 'Read', mode: 'sentences', icon: '<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg>' },
+          { label: 'List', mode: 'list', icon: '<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z"/></svg>' },
+          { label: 'Read', mode: 'sentences', icon: '<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v18H6.5A2.5 2.5 0 0 1 4 18.5v-13z"/></svg>' },
           { label: 'Build', mode: 'builder', icon: '<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M22.7 19l-9.1-9.1c.9-2.3.4-5-1.5-6.9-2-2-5-2.4-7.4-1.3L9 6 6 9 1.6 4.7C.4 7.1.9 10.1 2.9 12.1c1.9 1.9 4.6 2.4 6.9 1.5l9.1 9.1c.4.4 1 .4 1.4 0l2.3-2.3c.5-.4.5-1.1.1-1.4z"/></svg>' }
       ],
       'quiz': [
           { label: 'Type', mode: 'quiz', icon: '<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>' },
-          { label: 'Choice', mode: 'quiz-mc', icon: '<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>' },
-          { label: 'Listen', mode: 'listening', icon: '<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M12 3v9.28c-.47-.17-.97-.28-1.5-.28C8.01 12 6 14.01 6 16.5S8.01 21 10.5 21c2.31 0 4.2-1.75 4.45-4H15V6h4V3h-7z"/></svg>' }
+          { label: 'Choice', mode: 'quiz-mc', icon: '<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>' }
+      ],
+      'listening': [
+          { label: 'Meaning', mode: 'listening', active: () => App.state.mode === 'listening' && (App.state.listeningMode || 'def') === 'def', onSelect: () => UI.setListeningMode('def', true), icon: '<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M4 5h16v2H4zm0 6h16v2H4zm0 6h10v2H4z"/></svg>' },
+          { label: 'Hanzi', mode: 'listening', active: () => App.state.mode === 'listening' && App.state.listeningMode === 'hz', onSelect: () => UI.setListeningMode('hz', true), icon: '<span class="nav-popup-hanzi-icon">字</span>' },
+          { label: 'Tones', mode: 'listening', active: () => App.state.mode === 'listening' && App.state.listeningMode === 'py', onSelect: () => UI.setListeningMode('py', true), icon: '<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M4 17c3-1 5-4 6-9 1 3 3 6 6 7 2 .7 3.5.8 4 .8v2c-.7 0-2.6-.1-5-.9-2.3-.8-4.1-2.1-5.5-4-1.3 2.6-3.4 4.4-6.5 5.1z"/></svg>' }
       ]
   },
 
@@ -202,7 +204,6 @@ init() {
     bindToggle('noHanziColorToggle', 'noHanziColor', () => UI.render());
     bindToggle('noTranslationToggle', 'noTranslation', () => UI.render());
     bindToggle('fastNextToggle', 'fastNext');
-    bindToggle('listeningToneTestToggle', 'listeningToneTest', () => { if (App.state.mode === 'listening') UI.render(); });
     bindToggle('writingGuidelinesToggle', 'writingShowOutline', () => { if (App.state.mode === 'writing') UI.render(); });
     bindToggle('writingHideDrawingToggle', 'writingHideDrawing', () => { if (App.state.mode === 'writing') UI.render(); });
     bindToggle('showHooksToggle', 'showHooks', () => UI.render());
@@ -247,11 +248,32 @@ init() {
         });
     }
 
+    const ltToggle = document.getElementById('listeningToneTestToggle');
+    if (ltToggle) {
+        ltToggle.checked = App.state.listeningToneTest;
+        ltToggle.addEventListener('change', (e) => {
+          App.state.listeningToneTest = e.target.checked;
+          if (e.target.checked && !App.state.listeningHard) {
+            App.state.listeningMode = 'py';
+          } else if (!e.target.checked && App.state.listeningMode === 'py') {
+            App.state.listeningMode = 'def';
+          }
+          App.state.modeCache = {};
+          App.saveSettings();
+          if (App.state.mode === 'listening') UI.render();
+        });
+    }
+
     const lhToggle = document.getElementById('listeningHardToggle');
     if (lhToggle) {
         lhToggle.checked = App.state.listeningHard;
         lhToggle.addEventListener('change', (e) => {
           App.state.listeningHard = e.target.checked;
+          if (e.target.checked) {
+            App.state.listeningMode = 'type';
+          } else if (App.state.listeningMode === 'type') {
+            App.state.listeningMode = App.state.listeningToneTest ? 'py' : 'def';
+          }
           App.state.modeCache = {}; 
           App.saveSettings();
           if (App.state.mode === 'listening') {
@@ -480,8 +502,14 @@ init() {
         const item = document.createElement('button');
         item.className = 'nav-popup-btn';
         item.innerHTML = `${opt.icon || ''}<span>${opt.label}</span>`;
-        if (App.state.mode === opt.mode) item.classList.add('active');
-        item.onclick = (e) => { e.stopPropagation(); App.setMode(opt.mode); this.closePopups(); };
+        const isActive = typeof opt.active === 'function' ? opt.active() : App.state.mode === opt.mode;
+        if (isActive) item.classList.add('active');
+        item.onclick = (e) => {
+          e.stopPropagation();
+          if (typeof opt.onSelect === 'function') opt.onSelect();
+          else App.setMode(opt.mode);
+          this.closePopups();
+        };
         popup.appendChild(item);
     });
 
@@ -618,8 +646,7 @@ showCourseSelector() {
           if (focusedLesson && tempLessons.includes(focusedLesson)) {
               const l = focusedLesson;
               
-              const isSentencesSource = (App.state.mode === 'listening' && App.state.listeningHard) ||
-                                        ['sentences', 'builder'].includes(App.state.mode) ||
+              const isSentencesSource = ['sentences', 'builder'].includes(App.state.mode) ||
                                         (['quiz', 'quiz-mc'].includes(App.state.mode) && App.state.quizType === 'translate');
               const source = isSentencesSource ? DATA.SENTENCES : DATA.VOCAB;
               const lessonItems = source.filter(i => tempBook.includes(String(i.book)) && String(i.lesson) === l);
@@ -799,10 +826,8 @@ showCourseSelector() {
   updateNavHighlight() {
     document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
     let target = App.state.mode;
-    if (target === 'list') target = 'study';
-    if (target === 'builder') target = 'sentences';
+    if (target === 'list' || target === 'sentences' || target === 'builder') target = 'study';
     if (target === 'quiz-mc') target = 'quiz';
-    if (target === 'listening') target = 'quiz';
     const btn = document.querySelector(`.nav-item[data-mode="${target}"]`);
     if (btn) btn.classList.add('active');
   },
@@ -853,7 +878,7 @@ showCourseSelector() {
             sticker.id = 'streakSticker';
         }
 
-        const container = document.querySelector('.quiz-card-group') || document.querySelector('.listening-card') || document.querySelector('.card-container');
+        const container = document.querySelector('.quiz-card-group') || document.querySelector('.listening-card-wrap') || document.querySelector('.card-container');
         if (container) {
             container.style.position = 'relative';
             if (sticker.parentElement !== container) container.appendChild(sticker);
@@ -1052,7 +1077,7 @@ showCourseSelector() {
 
 	    this.updateAutoPlayButton();
 
-    const lockMainScroll = window.matchMedia('(max-width: 768px)').matches && App.state.mode === 'quiz';
+    const lockMainScroll = window.matchMedia('(max-width: 768px)').matches && ['quiz', 'listening'].includes(App.state.mode);
     const appShell = document.getElementById('app');
     this.container.style.overflowY = lockMainScroll ? 'hidden' : 'auto';
     this.container.style.webkitOverflowScrolling = lockMainScroll ? 'auto' : 'touch';
