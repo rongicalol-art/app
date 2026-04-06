@@ -185,6 +185,8 @@ Object.assign(window.UI, {
       if (item._cleanHz === undefined) {
         let hz = item.hanzi || item.zh || '';
         let py = item.pinyin || item.py || '';
+        if (String(hz).toLowerCase() === 'undefined') hz = '';
+        if (String(py).toLowerCase() === 'undefined') py = '';
         if (hz.includes('/') || hz.includes('／')) {
           hz = hz.split(/[\/／]/)[0];
           py = py.split(/[\/／]/)[0];
@@ -333,8 +335,14 @@ Object.assign(window.UI, {
               if (!ex._cachedInteractive[item.hanzi || item.zh]) {
                 ex._cachedInteractive[item.hanzi || item.zh] = Utils.createInteractiveSentence(ex.zh, item.hanzi || item.zh);
               }
-              // Use standard pinyin for examples as well
-              ex._convertedPy = ex.py || '';
+
+              let exPy = ex.py || '';
+              if (String(exPy).toLowerCase() === 'undefined') exPy = '';
+              ex._convertedPy = exPy;
+              
+              let exEn = ex.en || '';
+              if (String(exEn).toLowerCase() === 'undefined') exEn = '';
+
               const isPrimary = primaryExample && ex === primaryExample;
               const lessonTag = ex.lesson != null ? `L${ex.lesson}` : 'L?';
               const lessonBg = ex.book != null ? Utils.getBookBg(ex.book) : 'rgba(255, 255, 255, 0.9)';
@@ -352,9 +360,9 @@ Object.assign(window.UI, {
                       <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>
                     </button>
                   </div>
-                  <div class="example-zh">${ex._cachedInteractive[item.hanzi || item.zh]}</div>
-                  <div class="example-py" style="${App.state.noPinyin || App.state.noExamplePinyin ? 'display:none' : ''}">${ex._convertedPy}</div>
-                  <div class="example-en" style="${App.state.noTranslation ? 'display:none' : ''}">${ex.en}</div>
+                  <div class="example-zh">${ex._cachedInteractive[item.hanzi || item.zh] || ''}</div>
+                  <div class="example-py" style="${App.state.noPinyin || App.state.noExamplePinyin ? 'display:none' : ''}">${ex._convertedPy || ''}</div>
+                  <div class="example-en" style="${App.state.noTranslation ? 'display:none' : ''}">${exEn}</div>
                 </div>
               `;
             }).join('');
@@ -388,7 +396,14 @@ Object.assign(window.UI, {
             if (!ex._cachedInteractive[item.hanzi || item.zh]) {
               ex._cachedInteractive[item.hanzi || item.zh] = Utils.createInteractiveSentence(ex.zh, item.hanzi || item.zh);
             }
-            ex._convertedPy = ex.py || '';
+            
+            let exPy = ex.py || '';
+            if (String(exPy).toLowerCase() === 'undefined') exPy = '';
+            ex._convertedPy = exPy;
+            
+            let exEn = ex.en || '';
+            if (String(exEn).toLowerCase() === 'undefined') exEn = '';
+
             const isPrimary = primaryExample && ex === primaryExample;
             const lessonTag = ex.lesson != null ? `L${ex.lesson}` : 'L?';
             const lessonBg = ex.book != null ? Utils.getBookBg(ex.book) : 'rgba(255, 255, 255, 0.9)';
@@ -406,9 +421,9 @@ Object.assign(window.UI, {
                     <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>
                   </button>
                 </div>
-                <div class="example-zh">${ex._cachedInteractive[item.hanzi || item.zh]}</div>
-                <div class="example-py" style="${App.state.noPinyin || App.state.noExamplePinyin ? 'display:none' : ''}">${ex._convertedPy}</div>
-                <div class="example-en" style="${App.state.noTranslation ? 'display:none' : ''}">${ex.en || ''}</div>
+              <div class="example-zh">${ex._cachedInteractive[item.hanzi || item.zh] || ''}</div>
+              <div class="example-py" style="${App.state.noPinyin || App.state.noExamplePinyin ? 'display:none' : ''}">${ex._convertedPy || ''}</div>
+              <div class="example-en" style="${App.state.noTranslation ? 'display:none' : ''}">${exEn}</div>
               </div>
             `;
           }).join('');
@@ -447,7 +462,7 @@ Object.assign(window.UI, {
           <div class="${backMainClasses}" style="margin: auto 0; display: flex; flex-direction: column; align-items: center; width: 100%;">
             <div class="study-back-core">
               <div class="study-pinyin-row">
-                <div class="pinyin-display" style="${pinyinStyle}">${studyPinyinHtml}</div>
+                <div class="pinyin-display" style="${pinyinStyle}">${studyPinyinHtml || ''}</div>
               </div>
               <div class="${backHeroClasses}">${backHanziHtml}</div>
               ${(hasDefinition || hasPosTags) ? `
@@ -820,7 +835,6 @@ Object.assign(window.UI, {
           if (!node.classList.contains('is-current')) {
               const targetScroll = node.offsetTop - (carousel.clientHeight / 2) + (node.offsetHeight / 2);
               carousel.scrollTo({ top: targetScroll, behavior: 'smooth' });
-              return;
           }
 
           const nextIndex = Number(node.dataset.readerIndex);
@@ -830,6 +844,12 @@ Object.assign(window.UI, {
           App.state.readExpandedIndex = isOpen ? null : nextIndex;
           node.classList.toggle('is-open', !isOpen);
           node.setAttribute('aria-expanded', !isOpen ? 'true' : 'false');
+              
+              // Auto-play audio when opening the card
+              if (!isOpen) {
+                  const audioBtn = node.querySelector('.reader-audio-btn');
+                  if (audioBtn) audioBtn.click();
+              }
         });
       });
 
