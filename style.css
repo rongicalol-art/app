@@ -4861,3 +4861,882 @@ body.hide-example-pinyin .sentence-pinyin { display: none !important; }
         padding: 14px 16px 12px;
     }
 }
+
+/* --- Dialogue Player --- */
+body.dialogue-player-mode {
+  color: var(--text-main);
+}
+
+body.dialogue-player-mode::before {
+  background:
+    linear-gradient(180deg, rgba(255, 247, 250, 0.86) 0%, rgba(255, 241, 247, 0.78) 48%, rgba(255, 250, 252, 0.74) 100%),
+    radial-gradient(circle at 18% 14%, rgba(255, 158, 181, 0.16) 0%, rgba(255, 158, 181, 0) 32%),
+    radial-gradient(circle at 78% 18%, rgba(255, 214, 228, 0.28) 0%, rgba(255, 214, 228, 0) 30%),
+    url('5178019.jpg') no-repeat center top;
+  background-size: cover;
+}
+
+body.dialogue-player-mode #app {
+  padding-top: max(128px, env(safe-area-inset-top) + 114px) !important;
+  padding-bottom: calc(var(--nav-height) + 26px) !important;
+}
+
+body.dialogue-player-mode #mainContainer {
+  max-width: 1040px;
+  padding-left: 16px;
+  padding-right: 16px;
+}
+
+body.dialogue-player-mode .dynamic-island-wrapper,
+body.dialogue-player-mode #topSubNav {
+  display: none !important;
+}
+
+.dialogue-player-chrome-host {
+  position: fixed;
+  top: max(12px, env(safe-area-inset-top) + 8px);
+  left: 0;
+  right: 0;
+  z-index: 1105;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+  opacity: 0;
+  overflow: visible;
+  transition: opacity 0.3s ease;
+}
+
+.dialogue-player-chrome-host.is-visible {
+  opacity: 1;
+}
+
+body.dialogue-player-panel-open .dialogue-player-chrome-host {
+  pointer-events: auto;
+  z-index: 3005;
+}
+
+.dialogue-player-wrapper {
+  position: relative;
+  width: 100%;
+  min-height: calc(100dvh - var(--nav-height) - 156px);
+  display: flex;
+  justify-content: center;
+  align-items: stretch;
+  padding: 0 0 12px;
+}
+
+.dialogue-player-topbar {
+  width: min(720px, calc(100vw - 24px));
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto auto;
+  grid-template-areas: "progress time menu play";
+  gap: 10px;
+  align-items: center;
+  padding: 10px 10px 10px 12px;
+  border-radius: 24px;
+  border: 1px solid rgba(255, 158, 181, 0.28);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.95) 0%, rgba(255, 247, 250, 0.92) 100%);
+  box-shadow: 0 18px 40px rgba(255, 158, 181, 0.16), 0 4px 12px rgba(255, 158, 181, 0.1);
+  backdrop-filter: blur(24px) saturate(145%);
+  -webkit-backdrop-filter: blur(24px) saturate(145%);
+  pointer-events: auto;
+}
+
+.dialogue-player-progress-wrap {
+  grid-area: progress;
+  min-width: 0;
+}
+
+.dialogue-player-meta-time {
+  grid-area: time;
+  font-family: "SF Pro Text", "Inter", system-ui, sans-serif;
+  font-size: 0.74rem;
+  font-weight: 780;
+  font-variant-numeric: tabular-nums;
+  color: rgba(105, 86, 101, 0.84);
+  flex: 0 0 auto;
+  min-width: 72px;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.dialogue-player-progress {
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.dialogue-player-progress-track {
+  position: relative;
+  display: block;
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(255, 158, 181, 0.18);
+  overflow: hidden;
+  box-shadow: inset 0 1px 2px rgba(255, 158, 181, 0.16);
+}
+
+.dialogue-player-progress-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 0;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--primary-dark) 0%, #ffc5d4 100%);
+  transition: width 0.4s cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+.dialogue-player-progress-thumb {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #ffffff;
+  border: 2px solid rgba(255, 158, 181, 0.42);
+  box-shadow: 0 4px 12px rgba(255, 158, 181, 0.2);
+  transform: translate(-50%, -50%);
+  transition: left 0.4s cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+.dialogue-player-progress-status {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-family: "SF Pro Text", "Inter", system-ui, sans-serif;
+  font-size: 0.68rem;
+  font-weight: 780;
+  letter-spacing: -0.01em;
+  color: rgba(120, 108, 121, 0.82);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+}
+
+.dialogue-player-progress-status[hidden] {
+  display: none !important;
+}
+
+.dialogue-player-menu {
+  grid-area: menu;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.dialogue-player-icon-btn,
+.dialogue-player-toggle {
+  width: 48px;
+  height: 48px;
+  padding: 0;
+  border: 1px solid rgba(255, 158, 181, 0.22);
+  border-radius: 18px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.92) 0%, rgba(255, 244, 247, 0.88) 100%);
+  color: var(--primary-dark);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.92), 0 10px 20px rgba(255, 158, 181, 0.12);
+  transition: all 0.4s cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+.dialogue-player-icon-btn:hover,
+.dialogue-player-toggle:hover:not(:disabled),
+.dialogue-player-menu-trigger[aria-expanded="true"] {
+  transform: translateY(-1px) scale(1.02);
+  color: #ec4899;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.98), 0 14px 28px rgba(255, 158, 181, 0.16);
+}
+
+.dialogue-player-icon-btn svg,
+.dialogue-player-toggle svg {
+  width: 20px;
+  height: 20px;
+}
+
+.dialogue-player-toggle {
+  grid-area: play;
+  width: 54px;
+  height: 54px;
+  border-radius: 20px;
+  color: #ffffff;
+  background: linear-gradient(180deg, #ffb3c6 0%, #ff9eb5 100%);
+  border-color: rgba(255, 158, 181, 0.4);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.38), 0 16px 30px rgba(255, 158, 181, 0.24);
+}
+
+.dialogue-player-toggle.is-loading svg {
+  animation: dialogue-player-spin 0.9s linear infinite;
+}
+
+@keyframes dialogue-player-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.dialogue-player-toggle:hover:not(:disabled) {
+  color: #ffffff;
+  background: linear-gradient(180deg, #ffbdd0 0%, #ff9eb5 100%);
+}
+
+.dialogue-player-toggle:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.dialogue-player-settings-modal {
+  position: fixed !important;
+  inset: 0 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 20px !important;
+  background: rgba(15, 23, 42, 0.42) !important;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  opacity: 0 !important;
+  pointer-events: none !important;
+  transition: opacity 0.28s ease !important;
+  z-index: 10020 !important;
+}
+
+.dialogue-player-settings-modal.open {
+  opacity: 1 !important;
+  pointer-events: auto !important;
+}
+
+.dialogue-player-settings-sheet {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.99) 0%, rgba(255, 248, 251, 0.98) 100%) !important;
+  width: min(92vw, 760px) !important;
+  height: min(88vh, 760px) !important;
+  max-width: 760px !important;
+  max-height: 88vh !important;
+  border-radius: 32px !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  overflow: hidden !important;
+  display: flex !important;
+  flex-direction: column !important;
+  box-shadow: 0 28px 70px rgba(15, 23, 42, 0.18), 0 0 0 1px rgba(255, 255, 255, 0.4) !important;
+  transform: scale(0.965) translateY(14px) !important;
+  opacity: 0 !important;
+  transition: transform 0.4s cubic-bezier(0.25, 1, 0.5, 1), opacity 0.28s ease !important;
+}
+
+.dialogue-player-settings-modal.open .dialogue-player-settings-sheet {
+  transform: scale(1) translateY(0) !important;
+  opacity: 1 !important;
+}
+
+.dialogue-player-settings-content {
+  flex: 1 1 auto;
+  width: 100%;
+  height: 100%;
+  max-height: none !important;
+  overflow-y: auto !important;
+  padding: 0 !important;
+  padding-right: 0 !important;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y !important;
+}
+
+.dialogue-player-settings-window {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+body.dialogue-player-panel-open {
+  overflow: hidden;
+}
+
+.dialogue-player-panel-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  margin-bottom: 0;
+  padding: 22px 24px 16px;
+  background: linear-gradient(180deg, rgba(255, 252, 253, 0.98) 0%, rgba(255, 247, 249, 0.95) 100%);
+  border-bottom: 1px solid rgba(255, 158, 181, 0.12);
+}
+
+.dialogue-player-panel-title-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.dialogue-player-panel-kicker {
+  font-family: "SF Pro Text", "Inter", system-ui, sans-serif;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(236, 72, 153, 0.68);
+}
+
+.dialogue-player-panel-title {
+  font-family: "SF Pro Display", "Inter", system-ui, sans-serif;
+  font-size: 1.3rem;
+  font-weight: 720;
+  letter-spacing: -0.04em;
+  color: var(--text-strong);
+}
+
+.dialogue-player-panel-copy {
+  flex: 1 0 100%;
+  font-family: "SF Pro Text", "Inter", system-ui, sans-serif;
+  font-size: 0.86rem;
+  line-height: 1.45;
+  color: rgba(120, 108, 121, 0.78);
+  margin-top: 2px;
+}
+
+.dialogue-player-settings-stack {
+  display: grid;
+  grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.15fr);
+  padding: 18px 24px 24px;
+  gap: 14px;
+}
+
+.dialogue-player-settings-card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px;
+  border-radius: 24px;
+  border: 1px solid rgba(255, 158, 181, 0.14);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.72) 0%, rgba(255, 247, 249, 0.82) 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.84);
+}
+
+.dialogue-player-settings-card--script {
+  min-height: 0;
+}
+
+.dialogue-player-settings-card-head {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.dialogue-player-settings-card-title {
+  font-family: "SF Pro Display", "Inter", system-ui, sans-serif;
+  font-size: 1rem;
+  font-weight: 760;
+  letter-spacing: -0.03em;
+  color: var(--text-strong);
+}
+
+.dialogue-player-settings-card-copy {
+  font-family: "SF Pro Text", "Inter", system-ui, sans-serif;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  color: rgba(120, 108, 121, 0.74);
+}
+
+.dialogue-player-panel-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
+  gap: 12px;
+}
+
+.dialogue-player-panel-close {
+  width: 42px;
+  height: 42px;
+  flex: 0 0 auto;
+  border: 1px solid rgba(255, 158, 181, 0.18);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.84);
+  color: var(--primary-dark);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.92);
+  transition: all 0.3s cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+.dialogue-player-panel-close:hover {
+  color: #ec4899;
+  transform: scale(1.03);
+}
+
+.dialogue-player-panel-close svg {
+  width: 18px;
+  height: 18px;
+}
+
+.dialogue-player-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.dialogue-player-field--textarea {
+  margin-top: 0;
+  flex: 1;
+}
+
+.dialogue-player-field-label {
+  font-family: "SF Pro Text", "Inter", system-ui, sans-serif;
+  font-size: 0.76rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(120, 108, 121, 0.72);
+}
+
+.dialogue-player-chip-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.dialogue-player-chip-group--tight {
+  gap: 6px;
+}
+
+.dialogue-player-chip {
+  min-height: 42px;
+  padding: 11px 14px;
+  border: 1px solid rgba(255, 158, 181, 0.18);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.7);
+  color: rgba(120, 108, 121, 0.78);
+  font-family: "SF Pro Text", "Inter", system-ui, sans-serif;
+  font-size: 0.9rem;
+  font-weight: 720;
+  letter-spacing: -0.01em;
+  cursor: pointer;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.92);
+  transition: all 0.25s cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+.dialogue-player-chip:hover,
+.dialogue-player-chip.is-active {
+  color: #ec4899;
+  border-color: rgba(255, 158, 181, 0.32);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(255, 241, 246, 0.94) 100%);
+  box-shadow: 0 10px 22px rgba(255, 158, 181, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.96);
+}
+
+.dialogue-player-select,
+.dialogue-player-input {
+  width: 100%;
+  border: 1px solid rgba(255, 158, 181, 0.18);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.78);
+  color: var(--text-main);
+  font-family: "SF Pro Text", "Inter", system-ui, sans-serif;
+  font-size: 0.96rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.88);
+  outline: none;
+}
+
+.dialogue-player-select {
+  appearance: none;
+  padding: 12px 14px;
+}
+
+.dialogue-player-field--slider {
+  gap: 10px;
+}
+
+.dialogue-player-slider-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.dialogue-player-slider-caption {
+  font-family: "SF Pro Text", "Inter", system-ui, sans-serif;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.dialogue-player-slider-value {
+  font-family: "SF Pro Display", "Inter", system-ui, sans-serif;
+  font-size: 0.96rem;
+  font-weight: 760;
+  letter-spacing: -0.03em;
+  color: #ec4899;
+}
+
+.dialogue-player-range {
+  width: 100%;
+  appearance: none;
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(255, 158, 181, 0.14);
+  outline: none;
+}
+
+.dialogue-player-range::-webkit-slider-thumb {
+  appearance: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #fff;
+  border: 2px solid rgba(255, 158, 181, 0.38);
+  box-shadow: 0 8px 20px rgba(255, 158, 181, 0.18);
+}
+
+.dialogue-player-range::-moz-range-thumb {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #fff;
+  border: 2px solid rgba(255, 158, 181, 0.38);
+  box-shadow: 0 8px 20px rgba(255, 158, 181, 0.18);
+}
+
+.dialogue-player-input {
+  min-height: 250px;
+  padding: 14px 16px;
+  resize: vertical;
+  line-height: 1.52;
+}
+
+.dialogue-player-input::placeholder {
+  color: rgba(120, 108, 121, 0.46);
+}
+
+.dialogue-player-shell {
+  position: relative;
+  width: min(100%, 980px);
+  height: calc(100dvh - var(--nav-height) - 176px);
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 22px clamp(14px, 4vw, 28px);
+  border-radius: 36px;
+  border: 1.5px solid rgba(255, 158, 181, 0.24);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.66) 0%, rgba(255, 246, 249, 0.62) 100%);
+  box-shadow: 0 22px 54px rgba(255, 158, 181, 0.14), 0 8px 18px rgba(148, 163, 184, 0.08);
+  backdrop-filter: blur(18px) saturate(120%);
+  -webkit-backdrop-filter: blur(18px) saturate(120%);
+  overflow: hidden;
+}
+
+.dialogue-player-stage-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 2px 6px 0;
+}
+
+.dialogue-player-eyebrow {
+  font-family: "SF Pro Text", "Inter", system-ui, sans-serif;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgba(236, 72, 153, 0.64);
+}
+
+.dialogue-player-subtitle {
+  font-family: "SF Pro Text", "Inter", system-ui, sans-serif;
+  font-size: 0.9rem;
+  line-height: 1.45;
+  color: rgba(120, 108, 121, 0.76);
+}
+
+.dialogue-player-lines {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: min(12vh, 128px) clamp(8px, 2vw, 14px) min(18vh, 180px);
+  scroll-behavior: smooth;
+  touch-action: pan-y !important;
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
+  mask-image: linear-gradient(180deg, transparent 0%, #000 9%, #000 88%, transparent 100%);
+  -webkit-mask-image: linear-gradient(180deg, transparent 0%, #000 9%, #000 88%, transparent 100%);
+}
+
+.dialogue-player-empty {
+  min-height: 44vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  gap: 8px;
+  padding: 0 20px;
+}
+
+.dialogue-player-empty-title {
+  font-family: "SF Pro Display", "Inter", system-ui, sans-serif;
+  font-size: 1.18rem;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  color: var(--text-strong);
+}
+
+.dialogue-player-empty-copy {
+  max-width: 430px;
+  font-family: "SF Pro Text", "Inter", system-ui, sans-serif;
+  font-size: 0.94rem;
+  line-height: 1.5;
+  color: rgba(120, 108, 121, 0.7);
+}
+
+.dialogue-player-line {
+  display: block;
+  width: 100%;
+  padding: 18px 0;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  opacity: 0.34;
+  transform: scale(0.97);
+  transform-origin: center left;
+  touch-action: pan-y !important;
+  transition: all 0.4s cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+.dialogue-player-line:hover {
+  opacity: 0.58;
+}
+
+.dialogue-player-line.is-active {
+  opacity: 1;
+  transform: scale(1.02);
+}
+
+.dialogue-player-line-text {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 10px 14px;
+  font-family: "SF Pro Display", "Inter", system-ui, sans-serif;
+  font-size: clamp(1.42rem, 3.5vw, 3.15rem);
+  font-weight: 620;
+  line-height: 1.04;
+  letter-spacing: -0.055em;
+  color: var(--text-main);
+  transition: all 0.4s cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+.dialogue-player-line.is-active .dialogue-player-line-text {
+  font-weight: 760;
+  color: var(--text-strong);
+}
+
+.dialogue-player-speaker {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: rgba(255, 179, 198, 0.18);
+  border: 1px solid rgba(255, 158, 181, 0.18);
+  color: #ec4899;
+  font-family: "SF Pro Text", "Inter", system-ui, sans-serif;
+  font-size: 0.34em;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  transform: translateY(-0.12em);
+}
+
+.dialogue-player-line-copy {
+  text-wrap: balance;
+}
+
+.dialogue-player-line-content {
+  flex: 1 1 360px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.dialogue-player-line-translation {
+  max-height: 0;
+  overflow: hidden;
+  opacity: 0;
+  transform: translateY(-4px);
+  font-family: "Nunito", system-ui, sans-serif;
+  font-size: clamp(0.92rem, 1.4vw, 1.08rem);
+  font-weight: 700;
+  line-height: 1.45;
+  letter-spacing: -0.01em;
+  color: rgba(120, 108, 121, 0.78);
+  transition: max-height 0.35s cubic-bezier(0.25, 1, 0.5, 1), opacity 0.28s ease, transform 0.35s cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+.dialogue-player-line.is-active .dialogue-player-line-translation {
+  max-height: 96px;
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.dialogue-player-line.has-hanzi .dialogue-player-line-copy,
+.dialogue-player-line.has-hanzi .dialogue-player-line-copy .interactive-char,
+.dialogue-player-line.has-hanzi .dialogue-player-line-copy .interactive-word {
+  font-family: 'twkai', 'Noto Serif TC', serif;
+  font-weight: normal;
+  letter-spacing: 0.01em;
+}
+
+.dialogue-player-line.has-hanzi .dialogue-player-line-copy .interactive-char,
+.dialogue-player-line.has-hanzi .dialogue-player-line-copy .interactive-word {
+  color: inherit;
+  line-height: inherit;
+}
+
+.dialogue-player-line-copy .interactive-word {
+  padding: 0 0.12em;
+  margin: 0 -0.04em;
+}
+
+@media (max-width: 767px) {
+  body.dialogue-player-mode #app {
+    padding-top: max(120px, env(safe-area-inset-top) + 108px) !important;
+    padding-bottom: calc(var(--nav-height) + 18px) !important;
+  }
+
+  .dialogue-player-wrapper {
+    min-height: calc(100dvh - var(--nav-height) - 152px);
+  }
+
+  .dialogue-player-chrome-host {
+    top: max(10px, env(safe-area-inset-top) + 6px);
+  }
+
+  .dialogue-player-topbar {
+    width: calc(100vw - 18px);
+    grid-template-columns: minmax(0, 1fr) auto auto auto;
+    grid-template-areas: "progress time menu play";
+    gap: 8px;
+    padding: 10px;
+    border-radius: 22px;
+  }
+
+  .dialogue-player-meta-time {
+    display: block;
+    min-width: 76px;
+    font-size: 0.76rem;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+  }
+
+  .dialogue-player-settings-modal {
+    align-items: flex-end !important;
+    padding:
+      max(8px, env(safe-area-inset-top) + 8px)
+      8px
+      calc(var(--nav-height) + env(safe-area-inset-bottom) + 8px)
+      8px !important;
+  }
+
+  .dialogue-player-settings-sheet {
+    width: 100% !important;
+    max-width: none !important;
+    height: calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - var(--nav-height) - 20px) !important;
+    max-height: none !important;
+    border-radius: 28px !important;
+    transform: translateY(18px) scale(0.985) !important;
+  }
+
+  .dialogue-player-settings-modal.open .dialogue-player-settings-sheet {
+    transform: translateY(0) scale(1) !important;
+  }
+
+  .dialogue-player-settings-content {
+    max-height: none !important;
+  }
+
+  .dialogue-player-panel-head {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    margin-bottom: 0;
+    padding: 16px 16px 14px;
+    background: linear-gradient(180deg, rgba(255, 252, 253, 0.98) 0%, rgba(255, 247, 249, 0.94) 100%);
+    border-bottom: 1px solid rgba(255, 158, 181, 0.12);
+  }
+
+  .dialogue-player-settings-stack {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 14px 16px 16px;
+    grid-template-columns: 1fr;
+    gap: 12px;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .dialogue-player-panel-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .dialogue-player-settings-card {
+    padding: 14px;
+    border-radius: 20px;
+  }
+
+  .dialogue-player-input {
+    min-height: 180px;
+    max-height: 34dvh;
+  }
+
+  .dialogue-player-shell {
+    height: calc(100dvh - var(--nav-height) - 176px);
+    padding: 16px 14px;
+    border-radius: 28px;
+  }
+
+  .dialogue-player-lines {
+    padding-top: 64px;
+    padding-bottom: min(24vh, 170px);
+  }
+
+  .dialogue-player-line {
+    padding: 14px 0;
+  }
+
+  .dialogue-player-line-text {
+    font-size: clamp(1.36rem, 7.8vw, 2.3rem);
+    gap: 8px 10px;
+  }
+
+  .dialogue-player-icon-btn,
+  .dialogue-player-toggle {
+    width: 44px;
+    height: 44px;
+    border-radius: 16px;
+  }
+
+  .dialogue-player-toggle {
+    width: 48px;
+    height: 48px;
+    border-radius: 18px;
+  }
+
+  .dialogue-player-speaker {
+    font-size: 0.4em;
+    padding: 5px 10px;
+  }
+}

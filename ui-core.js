@@ -16,7 +16,8 @@ const UI = {
       'listening': [
           { label: 'Meaning', mode: 'listening', active: () => App.state.mode === 'listening' && (App.state.listeningMode || 'def') === 'def', onSelect: () => UI.setListeningMode('def', true), icon: '<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M4 5h16v2H4zm0 6h16v2H4zm0 6h10v2H4z"/></svg>' },
           { label: 'Hanzi', mode: 'listening', active: () => App.state.mode === 'listening' && App.state.listeningMode === 'hz', onSelect: () => UI.setListeningMode('hz', true), icon: '<span class="nav-popup-hanzi-icon">字</span>' },
-          { label: 'Tones', mode: 'listening', active: () => App.state.mode === 'listening' && App.state.listeningMode === 'py', onSelect: () => UI.setListeningMode('py', true), icon: '<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M4 17c3-1 5-4 6-9 1 3 3 6 6 7 2 .7 3.5.8 4 .8v2c-.7 0-2.6-.1-5-.9-2.3-.8-4.1-2.1-5.5-4-1.3 2.6-3.4 4.4-6.5 5.1z"/></svg>' }
+          { label: 'Tones', mode: 'listening', active: () => App.state.mode === 'listening' && App.state.listeningMode === 'py', onSelect: () => UI.setListeningMode('py', true), icon: '<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M4 17c3-1 5-4 6-9 1 3 3 6 6 7 2 .7 3.5.8 4 .8v2c-.7 0-2.6-.1-5-.9-2.3-.8-4.1-2.1-5.5-4-1.3 2.6-3.4 4.4-6.5 5.1z"/></svg>' },
+          { label: 'Dialogue', mode: 'listening', active: () => App.state.mode === 'listening' && App.state.listeningMode === 'dialogue', onSelect: () => UI.setListeningMode('dialogue', true), icon: '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17.5h8.2l3.3 2.5V7a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2v8.5a2 2 0 0 0 2 2Z"/><path d="M8.75 9.25h6.5"/><path d="M8.75 12.5h4.75"/></svg>' }
       ]
   },
 
@@ -1002,10 +1003,460 @@ showCourseSelector() {
     this.toastTimer = setTimeout(() => toast.classList.remove('show'), duration);
   },
 
+  formatDialoguePlayerTime(ms) {
+    const totalSeconds = Math.max(0, Math.floor((Number(ms) || 0) / 1000));
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = String(totalSeconds % 60).padStart(2, '0');
+    return `${minutes}:${seconds}`;
+  },
+
+  getDialoguePlayerToggleIcon(isPlaying, isPreparing = false) {
+    if (isPreparing) {
+      return `
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="8.5" opacity="0.28"></circle>
+          <path d="M12 3.5a8.5 8.5 0 0 1 8.5 8.5"></path>
+        </svg>
+      `;
+    }
+
+    if (isPlaying) {
+      return `
+        <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+          <rect x="6.25" y="5.25" width="4.5" height="13.5" rx="1.5"></rect>
+          <rect x="13.25" y="5.25" width="4.5" height="13.5" rx="1.5"></rect>
+        </svg>
+      `;
+    }
+
+    return `
+      <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+        <path d="M8.1 5.4c0-.98 1.08-1.58 1.92-1.08l8.68 5.53c.77.49.77 1.63 0 2.12l-8.68 5.53c-.84.5-1.92-.1-1.92-1.08V5.4Z"></path>
+      </svg>
+    `;
+  },
+
+  escapeDialoguePlayerHtml(value) {
+    return String(value ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  },
+
+  formatDialoguePlayerLineHtml(text, options = {}) {
+    const line = typeof App.parseDialoguePlayerLine === 'function'
+      ? App.parseDialoguePlayerLine(text)
+      : { speaker: '', bodyText: String(text || ''), hasSpeaker: false };
+    const bodyMarkup = line.hasHanzi && window.Utils && typeof Utils.createInteractiveSentence === 'function'
+      ? Utils.createInteractiveSentence(line.bodyText || line.rawText || '')
+      : this.escapeDialoguePlayerHtml(line.bodyText || line.rawText || '');
+    const translation = String(options.translation || '').trim();
+
+    return `
+      ${line.hasSpeaker ? `<span class="dialogue-player-speaker">${this.escapeDialoguePlayerHtml(line.speaker)}</span>` : ''}
+      <span class="dialogue-player-line-content">
+        <span class="dialogue-player-line-copy">${bodyMarkup}</span>
+        ${translation ? `<span class="dialogue-player-line-translation">${this.escapeDialoguePlayerHtml(translation)}</span>` : ''}
+      </span>
+    `;
+  },
+
+  getDialoguePlayerChromeMarkup() {
+    return `
+      <div class="dialogue-player-topbar" id="dialoguePlayerTopbar">
+        <div class="dialogue-player-progress-wrap">
+          <button class="dialogue-player-progress" id="dialoguePlayerProgress" type="button" aria-label="Dialogue progress">
+            <span class="dialogue-player-progress-track">
+              <span class="dialogue-player-progress-fill" id="dialoguePlayerProgressFill"></span>
+              <span class="dialogue-player-progress-thumb" id="dialoguePlayerProgressThumb"></span>
+              <span class="dialogue-player-progress-status" id="dialoguePlayerProgressStatus" hidden>Preparing audio...</span>
+            </span>
+          </button>
+        </div>
+
+        <div class="dialogue-player-meta-time" id="dialoguePlayerMetaTime">0:00 left</div>
+
+        <div class="dialogue-player-menu">
+          <button type="button" class="dialogue-player-icon-btn dialogue-player-menu-trigger" id="dialoguePlayerSettingsButton" aria-label="Open dialogue settings" aria-expanded="false" aria-controls="dialoguePlayerSettingsModal">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M4 6h16"></path>
+              <path d="M7 12h13"></path>
+              <path d="M10 18h10"></path>
+              <circle cx="7" cy="6" r="1.7" fill="currentColor" stroke="none"></circle>
+              <circle cx="10" cy="18" r="1.7" fill="currentColor" stroke="none"></circle>
+            </svg>
+          </button>
+        </div>
+
+        <button class="dialogue-player-toggle" id="dialoguePlayerToggle" type="button" aria-label="Play dialogue"></button>
+      </div>
+
+      <div class="modal-overlay dialogue-player-settings-modal" id="dialoguePlayerSettingsModal">
+        <div class="modal-sheet dialogue-player-settings-sheet">
+          <div class="modal-content dialogue-player-settings-content" id="dialoguePlayerSettingsContent">
+            <div class="dialogue-player-settings-window">
+              <div class="dialogue-player-panel-head">
+                <div class="dialogue-player-panel-title-wrap">
+                  <div class="dialogue-player-panel-kicker">Dialogue Setup</div>
+                  <div class="dialogue-player-panel-title">Playback + Script</div>
+                </div>
+                <button type="button" class="dialogue-player-panel-close" id="dialoguePlayerClosePanel" aria-label="Close dialogue settings">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M18 6 6 18"></path>
+                    <path d="m6 6 12 12"></path>
+                  </svg>
+                </button>
+                <div class="dialogue-player-panel-copy">Conversation assigns voices per speaker and reads only the actual line. Tap any highlighted word or character in the stage for lookup without breaking the script.</div>
+              </div>
+
+              <div class="dialogue-player-settings-stack">
+                <section class="dialogue-player-settings-card">
+                  <div class="dialogue-player-settings-card-head">
+                    <div class="dialogue-player-settings-card-title">Playback</div>
+                    <div class="dialogue-player-settings-card-copy">Set delivery before you hit play.</div>
+                  </div>
+
+                  <label class="dialogue-player-field">
+                    <span class="dialogue-player-field-label">Type</span>
+                    <div class="dialogue-player-chip-group" id="dialoguePlayerTypeGroup">
+                      <button type="button" class="dialogue-player-chip" data-dialogue-setting="dialoguePlayerContentType" data-dialogue-value="conversation">Conversation</button>
+                      <button type="button" class="dialogue-player-chip" data-dialogue-setting="dialoguePlayerContentType" data-dialogue-value="narration">Narration</button>
+                      <button type="button" class="dialogue-player-chip" data-dialogue-setting="dialoguePlayerContentType" data-dialogue-value="shadowing">Shadowing</button>
+                    </div>
+                  </label>
+
+                  <div class="dialogue-player-panel-grid">
+                    <label class="dialogue-player-field">
+                      <span class="dialogue-player-field-label">Voice</span>
+                      <select id="dialoguePlayerVoiceSelect" class="dialogue-player-select">
+                        <option value="auto">Auto Detect</option>
+                        <option value="zh">Mandarin</option>
+                        <option value="en">English</option>
+                      </select>
+                    </label>
+
+                    <label class="dialogue-player-field">
+                      <span class="dialogue-player-field-label">Cadence</span>
+                      <div class="dialogue-player-chip-group dialogue-player-chip-group--tight" id="dialoguePlayerPacingGroup">
+                        <button type="button" class="dialogue-player-chip" data-dialogue-setting="dialoguePlayerPacing" data-dialogue-value="relaxed">Relaxed</button>
+                        <button type="button" class="dialogue-player-chip" data-dialogue-setting="dialoguePlayerPacing" data-dialogue-value="steady">Steady</button>
+                        <button type="button" class="dialogue-player-chip" data-dialogue-setting="dialoguePlayerPacing" data-dialogue-value="slow">Slow</button>
+                      </div>
+                    </label>
+                  </div>
+
+                  <label class="dialogue-player-field dialogue-player-field--slider">
+                    <span class="dialogue-player-field-label">Speed</span>
+                    <div class="dialogue-player-slider-head">
+                      <span class="dialogue-player-slider-caption">Speech speed</span>
+                      <span class="dialogue-player-slider-value" id="dialoguePlayerSpeedValue">1.0x</span>
+                    </div>
+                    <input id="dialoguePlayerSpeedRange" class="dialogue-player-range" type="range" min="0.5" max="2" step="0.05" value="1">
+                  </label>
+                </section>
+
+                <section class="dialogue-player-settings-card dialogue-player-settings-card--script">
+                  <div class="dialogue-player-settings-card-head">
+                    <div class="dialogue-player-settings-card-title">Script</div>
+                    <div class="dialogue-player-settings-card-copy">Use <code>Speaker: line</code> format to split voices by character.</div>
+                  </div>
+
+                  <label class="dialogue-player-field dialogue-player-field--textarea">
+                    <span class="dialogue-player-field-label">Dialogue</span>
+                    <textarea
+                      id="dialoguePlayerInput"
+                      class="dialogue-player-input"
+                      spellcheck="false"
+                      placeholder="Paste dialogue here...
+
+Speaker A: We should go now.
+Speaker B: Wait. I need one more minute.
+Speaker A: Fine. But we leave after this."
+                    ></textarea>
+                  </label>
+                </section>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+  },
+
+  ensureDialoguePlayerChrome() {
+    let host = document.getElementById('dialoguePlayerChromeHost');
+    if (!host) {
+      host = document.createElement('div');
+      host.id = 'dialoguePlayerChromeHost';
+      host.className = 'dialogue-player-chrome-host';
+      document.body.appendChild(host);
+    }
+
+    if (!host.querySelector('#dialoguePlayerTopbar')) {
+      host.innerHTML = this.getDialoguePlayerChromeMarkup();
+
+      const input = document.getElementById('dialoguePlayerInput');
+      const progress = document.getElementById('dialoguePlayerProgress');
+      const toggle = document.getElementById('dialoguePlayerToggle');
+      const settingsBtn = document.getElementById('dialoguePlayerSettingsButton');
+      const settingsModal = document.getElementById('dialoguePlayerSettingsModal');
+      const voiceSelect = document.getElementById('dialoguePlayerVoiceSelect');
+      const speedRange = document.getElementById('dialoguePlayerSpeedRange');
+      const wrapper = document.getElementById('dialoguePlayerWrapper');
+      const closePanelBtn = document.getElementById('dialoguePlayerClosePanel');
+      let commitTimer = 0;
+      const setDialogueSettingsOpen = isOpen => {
+        if (!settingsModal) return;
+        settingsModal.classList.toggle('open', !!isOpen);
+        if (settingsBtn) settingsBtn.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+        if (wrapper) wrapper.classList.toggle('is-panel-open', !!isOpen);
+        document.body.classList.toggle('dialogue-player-panel-open', !!isOpen);
+        if (isOpen && input) setTimeout(() => input.focus(), 40);
+      };
+
+      if (input) {
+        input.addEventListener('input', e => {
+          clearTimeout(commitTimer);
+          const nextValue = e.target.value;
+          commitTimer = window.setTimeout(() => App.setDialoguePlayerText(nextValue), 100);
+        });
+
+        input.addEventListener('blur', e => {
+          clearTimeout(commitTimer);
+          App.setDialoguePlayerText(e.target.value);
+        });
+      }
+
+      if (toggle) {
+        toggle.addEventListener('click', () => {
+          if (window.Sound) window.Sound.play('click');
+          App.toggleDialoguePlayerPlayback();
+        });
+      }
+
+      if (progress) {
+        progress.addEventListener('click', e => {
+          const track = progress.getBoundingClientRect();
+          const ratio = track.width ? (e.clientX - track.left) / track.width : 0;
+          App.seekDialoguePlayerToProgress(ratio);
+        });
+      }
+
+      if (settingsBtn) {
+        settingsBtn.addEventListener('click', () => {
+          if (window.Sound) window.Sound.play('click');
+          setDialogueSettingsOpen(true);
+        });
+      }
+
+      host.querySelectorAll('[data-dialogue-setting][data-dialogue-value]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          if (window.Sound) window.Sound.play('click');
+          App.setDialoguePlayerSetting(btn.dataset.dialogueSetting, btn.dataset.dialogueValue);
+        });
+      });
+
+      if (voiceSelect) {
+        voiceSelect.addEventListener('change', e => App.setDialoguePlayerSetting('dialoguePlayerVoiceMode', e.target.value));
+      }
+
+      if (speedRange) {
+        speedRange.addEventListener('input', e => {
+          const nextValue = Math.max(0.5, Math.min(2, Number(e.target.value) || 1));
+          const valueEl = document.getElementById('dialoguePlayerSpeedValue');
+          if (valueEl) valueEl.textContent = `${nextValue.toFixed(2).replace(/\.00$/, '.0').replace(/(\.\d)0$/, '$1')}x`;
+        });
+
+        speedRange.addEventListener('change', e => {
+          App.setDialoguePlayerSetting('dialoguePlayerSpeed', Math.max(0.5, Math.min(2, Number(e.target.value) || 1)));
+        });
+      }
+
+      if (closePanelBtn) {
+        closePanelBtn.addEventListener('click', () => {
+          setDialogueSettingsOpen(false);
+        });
+      }
+
+      if (settingsModal) {
+        settingsModal.addEventListener('click', e => {
+          if (e.target === settingsModal) {
+            setDialogueSettingsOpen(false);
+          }
+        });
+      }
+    }
+
+    host.classList.add('is-visible');
+    return host;
+  },
+
+  teardownDialoguePlayerChrome() {
+    const host = document.getElementById('dialoguePlayerChromeHost');
+    if (!host) return;
+    const settingsModal = host.querySelector('#dialoguePlayerSettingsModal');
+    if (settingsModal) settingsModal.classList.remove('open');
+    const settingsBtn = host.querySelector('#dialoguePlayerSettingsButton');
+    if (settingsBtn) settingsBtn.setAttribute('aria-expanded', 'false');
+    document.body.classList.remove('dialogue-player-panel-open');
+    document.body.classList.remove('dialogue-player-preparing');
+    host.classList.remove('is-visible');
+    host.innerHTML = '';
+  },
+
+  renderDialoguePlayer() {
+    this.ensureDialoguePlayerChrome();
+
+    if (!document.getElementById('dialoguePlayerWrapper')) {
+      this.container.innerHTML = `
+        <div class="listening-wrapper dialogue-player-wrapper fade-in" id="dialoguePlayerWrapper">
+          <section class="dialogue-player-shell" aria-label="Dialogue player">
+            <div class="dialogue-player-stage-copy">
+              <div class="dialogue-player-eyebrow">Lyric View</div>
+              <div class="dialogue-player-subtitle">Tap any line to jump. The active line stays centered while playback moves.</div>
+            </div>
+            <div class="dialogue-player-lines" id="dialoguePlayerLines" aria-live="polite"></div>
+          </section>
+        </div>
+      `;
+    }
+
+    const view = App.getDialoguePlayerViewModel();
+    const input = document.getElementById('dialoguePlayerInput');
+    const linesHost = document.getElementById('dialoguePlayerLines');
+    const wrapper = document.getElementById('dialoguePlayerWrapper');
+    const voiceSelect = document.getElementById('dialoguePlayerVoiceSelect');
+    const speedRange = document.getElementById('dialoguePlayerSpeedRange');
+    const speedValue = document.getElementById('dialoguePlayerSpeedValue');
+
+    if (wrapper) wrapper.dataset.sessionId = String(view.sessionId || 0);
+    if (input && input.value !== view.text) input.value = view.text;
+    if (voiceSelect && voiceSelect.value !== App.state.dialoguePlayerVoiceMode) voiceSelect.value = App.state.dialoguePlayerVoiceMode;
+    if (speedRange && Number(speedRange.value) !== App.getDialoguePlayerSpeed()) speedRange.value = String(App.getDialoguePlayerSpeed());
+    if (speedValue) speedValue.textContent = `${App.getDialoguePlayerSpeed().toFixed(2).replace(/\.00$/, '.0').replace(/(\.\d)0$/, '$1')}x`;
+
+    if (linesHost) {
+      if (!view.hasLines) {
+        linesHost.innerHTML = `
+          <div class="dialogue-player-empty">
+            <div class="dialogue-player-empty-title">Paste dialogue to build the timeline.</div>
+            <div class="dialogue-player-empty-copy">Open the editor in the top bar, pick a type, then paste your scene.</div>
+          </div>
+        `;
+      } else {
+        linesHost.innerHTML = view.lines.map((line, index) => `
+          <button
+            class="dialogue-player-line${index === view.activeLineIndex ? ' is-active' : ''}${line.text && /[\u4e00-\u9fff]/.test(line.text) ? ' has-hanzi' : ''}"
+            type="button"
+            data-dialogue-index="${index}"
+            aria-current="${index === view.activeLineIndex ? 'true' : 'false'}"
+          >
+            <span class="dialogue-player-line-text">${this.formatDialoguePlayerLineHtml(line.text, {
+              translation: typeof App.getDialoguePlayerLineTranslation === 'function'
+                ? App.getDialoguePlayerLineTranslation(line.text)
+                : ''
+            })}</span>
+          </button>
+        `).join('');
+
+        linesHost.querySelectorAll('[data-dialogue-index]').forEach(btn => {
+          btn.addEventListener('click', e => {
+            if (e.target.closest('[data-action="show-char-details"]')) return;
+            if (window.Sound) window.Sound.play('click');
+            App.seekDialoguePlayerToLine(btn.dataset.dialogueIndex);
+          });
+        });
+      }
+    }
+
+    this.updateDialoguePlayerUI({ centerOnActive: true, instant: true });
+  },
+
+  updateDialoguePlayerUI(options = {}) {
+    const wrapper = document.getElementById('dialoguePlayerWrapper');
+    if (!wrapper) return;
+
+    const view = App.getDialoguePlayerViewModel();
+    const toggle = document.getElementById('dialoguePlayerToggle');
+    const fill = document.getElementById('dialoguePlayerProgressFill');
+    const thumb = document.getElementById('dialoguePlayerProgressThumb');
+    const metaTime = document.getElementById('dialoguePlayerMetaTime');
+    const progressStatus = document.getElementById('dialoguePlayerProgressStatus');
+    const allLines = wrapper.querySelectorAll('[data-dialogue-index]');
+    const trackProgress = view.isPreparing ? view.prepareProgress : view.progress;
+    const progressPercent = `${(trackProgress * 100).toFixed(3)}%`;
+
+    wrapper.classList.toggle('is-playing', view.isPlaying);
+    wrapper.classList.toggle('is-preparing', view.isPreparing);
+    wrapper.classList.toggle('is-empty', !view.hasLines);
+    document.body.classList.toggle('dialogue-player-preparing', view.isPreparing);
+
+    if (toggle) {
+      toggle.innerHTML = this.getDialoguePlayerToggleIcon(view.isPlaying, view.isPreparing);
+      toggle.setAttribute('aria-label', view.isPreparing ? 'Cancel audio preparation' : view.isPlaying ? 'Pause dialogue' : 'Play dialogue');
+      toggle.disabled = !view.hasLines;
+      toggle.classList.toggle('is-loading', view.isPreparing);
+    }
+
+    if (fill) fill.style.width = progressPercent;
+    if (thumb) thumb.style.left = progressPercent;
+    if (metaTime) {
+      const remainingMs = Math.max(0, view.durationMs - view.currentTimeMs);
+      metaTime.textContent = view.hasLines
+        ? view.isPreparing
+          ? `${Math.max(1, Math.round(view.prepareProgress * 100))}%`
+          : `${this.formatDialoguePlayerTime(remainingMs)} left`
+        : '0:00 left';
+    }
+    if (progressStatus) {
+      const labelText = view.isPreparing ? (view.prepareLabel || 'Preparing audio...') : '';
+      progressStatus.textContent = labelText;
+      progressStatus.hidden = !labelText;
+    }
+
+    allLines.forEach((lineEl, index) => {
+      const isActive = index === view.activeLineIndex;
+      lineEl.classList.toggle('is-active', isActive);
+      lineEl.setAttribute('aria-current', isActive ? 'true' : 'false');
+    });
+
+    document.querySelectorAll('[data-dialogue-setting][data-dialogue-value]').forEach(btn => {
+      const key = btn.dataset.dialogueSetting;
+      const isActive = key && String(App.state[key]) === String(btn.dataset.dialogueValue);
+      btn.classList.toggle('is-active', isActive);
+      btn.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+    });
+
+    if (view.hasLines && options.centerOnActive !== false) {
+      this.centerDialoguePlayerLine(view.activeLineIndex, options.instant ? 'auto' : 'smooth');
+    }
+  },
+
+  centerDialoguePlayerLine(index, behavior = 'smooth') {
+    const linesHost = document.getElementById('dialoguePlayerLines');
+    const target = linesHost?.querySelector(`[data-dialogue-index="${index}"]`);
+    if (!linesHost || !target) return;
+    target.scrollIntoView({
+      behavior,
+      block: 'center',
+      inline: 'nearest'
+    });
+  },
+
   render() {
     if (!this.container) return;
+    const isDialoguePlayer = App.state.mode === 'listening' && App.state.listeningMode === 'dialogue';
+    document.body.classList.toggle('dialogue-player-mode', isDialoguePlayer);
+    if (!isDialoguePlayer) {
+      this.teardownDialoguePlayerChrome();
+    }
 
-    if (App.state.mode === 'list') {
+    if (isDialoguePlayer) {
+        this.container.style.justifyContent = 'stretch';
+        this.container.style.paddingTop = '0';
+        this.container.style.alignItems = 'stretch';
+    } else if (App.state.mode === 'list') {
         this.container.style.justifyContent = 'flex-start';
         this.container.style.paddingTop = '10px'; // 🌟 FIX: Removed the massive gap!
         this.container.style.alignItems = 'stretch';
@@ -1023,7 +1474,7 @@ showCourseSelector() {
     const hasStudyContainer = this.container.querySelector('.card-container') && !this.container.querySelector('.card-container').style.maxWidth;
     
     const isListeningMode = App.state.mode === 'listening';
-    const hasListeningContainer = this.container.querySelector('.listening-wrapper');
+    const hasListeningContainer = this.container.querySelector('.listening-wrapper, #dialoguePlayerWrapper');
     
     const isWritingMode = App.state.mode === 'writing';
     const hasWritingContainer = this.container.querySelector('#writingAppWrapper');
@@ -1032,7 +1483,7 @@ showCourseSelector() {
         this.container.innerHTML = ''; 
     }
     
-    if (App.state.activeList.length === 0 && App.state.mode !== 'list') {
+    if (!isDialoguePlayer && App.state.activeList.length === 0 && App.state.mode !== 'list') {
       if (App.state.hideLearned && App.state.learnedItems.size > 0 && App.state.mode === 'study') {
           this.container.innerHTML = `<div style="text-align:center; padding:40px; color:var(--text-main);"><div style="font-size:4rem; margin-bottom:20px;">🎉</div><h2>All items learned!</h2><p style="color:var(--text-muted); margin-bottom:20px;">Great job clearing the list.</p><button class="btn-sec" onclick="App.state.hideLearned=false; App.saveSettings(); App.updateActiveList(); UI.render();">Review All</button></div>`;
       } else {
@@ -1041,22 +1492,25 @@ showCourseSelector() {
       return;
     }
 
-    if (App.state.currentIndex >= App.state.activeList.length) App.state.currentIndex = 0;
-    let item = App.state.activeList[App.state.currentIndex];
-    
-    if (!item) {
-        App.state.currentIndex = 0;
-        item = App.state.activeList[0];
-        if (!item) return;
+    let item = null;
+    if (!isDialoguePlayer) {
+        if (App.state.currentIndex >= App.state.activeList.length) App.state.currentIndex = 0;
+        item = App.state.activeList[App.state.currentIndex];
+        
+        if (!item) {
+            App.state.currentIndex = 0;
+            item = App.state.activeList[0];
+            if (!item) return;
+        }
     }
     
-    if (App.state.isFinished) {
+    if (!isDialoguePlayer && App.state.isFinished) {
         if (App.state.autoPlay) App.stopAutoPlay();
         this.renderSummary();
         return;
     }
 
-    const showProgress = ['study', 'sentences', 'quiz', 'quiz-mc', 'listening', 'writing', 'builder', 'list'].includes(App.state.mode);
+    const showProgress = !isDialoguePlayer && ['study', 'sentences', 'quiz', 'quiz-mc', 'listening', 'writing', 'builder', 'list'].includes(App.state.mode);
     const hasList = App.state.activeList && App.state.activeList.length > 0;
     const islandIsland = document.getElementById('dynamicIsland');
     
@@ -1077,7 +1531,7 @@ showCourseSelector() {
 
 	    this.updateAutoPlayButton();
 
-    const lockMainScroll = window.matchMedia('(max-width: 768px)').matches && ['quiz', 'listening'].includes(App.state.mode);
+    const lockMainScroll = isDialoguePlayer || (window.matchMedia('(max-width: 768px)').matches && ['quiz', 'listening'].includes(App.state.mode));
     const appShell = document.getElementById('app');
     this.container.style.overflowY = lockMainScroll ? 'hidden' : 'auto';
     this.container.style.webkitOverflowScrolling = lockMainScroll ? 'auto' : 'touch';
@@ -1104,7 +1558,7 @@ showCourseSelector() {
     }
     else if (App.state.mode === 'list') this.renderList();
    
-    if (['quiz', 'quiz-mc', 'listening'].includes(App.state.mode)) {
+    if (['quiz', 'quiz-mc', 'listening'].includes(App.state.mode) && !isDialoguePlayer) {
         this.updateStreak();
     }
   },

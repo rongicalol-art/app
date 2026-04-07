@@ -1474,11 +1474,15 @@ Object.assign(window.UI, {
     },
 
     setListeningMode(value, jumpToListening = false) {
-      const validModes = ['def', 'hz', 'py'];
+      const validModes = ['def', 'hz', 'py', 'dialogue'];
       if (!validModes.includes(value)) return;
+      const wasDialogue = App.state.listeningMode === 'dialogue';
       App.state.listeningMode = value;
       App.state.listeningToneTest = value === 'py';
       App.state.listeningHard = false;
+      if (wasDialogue && value !== 'dialogue' && typeof App.pauseDialoguePlayer === 'function') {
+        App.pauseDialoguePlayer({ persist: false, updateUI: false });
+      }
       App.state.modeCache = {};
       App.saveSettings();
 
@@ -1641,6 +1645,11 @@ Object.assign(window.UI, {
     },
   
     renderListening(item) {
+      if (App.state.listeningMode === 'dialogue') {
+        this.renderDialoguePlayer();
+        return;
+      }
+
       const escapeAttr = value => String(value ?? '')
         .replace(/&/g, '&amp;')
         .replace(/"/g, '&quot;')
