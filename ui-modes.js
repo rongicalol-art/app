@@ -835,6 +835,7 @@ Object.assign(window.UI, {
           if (!node.classList.contains('is-current')) {
               const targetScroll = node.offsetTop - (carousel.clientHeight / 2) + (node.offsetHeight / 2);
               carousel.scrollTo({ top: targetScroll, behavior: 'smooth' });
+              return; // Prevents expanding mid-scroll so animation doesn't teleport
           }
 
           const nextIndex = Number(node.dataset.readerIndex);

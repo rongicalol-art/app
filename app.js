@@ -64,6 +64,8 @@ const App = {
     ttsReadExampleEn: false,
     ttsItemInterval: 1.0,
     ttsCardInterval: 2.0,
+    ttsVoiceZh: '',
+    ttsVoiceEn: '',
   },
   
  async init() {
@@ -214,6 +216,17 @@ const App = {
     }
 
     return compact || fallback;
+  },
+
+  setTtsVoice(lang, voiceName) {
+      if (lang === 'zh') {
+          this.state.ttsVoiceZh = voiceName;
+          this._cachedVoice = null;
+      } else {
+          this.state.ttsVoiceEn = voiceName;
+          this._cachedEnVoice = null;
+      }
+      this.saveSettings();
   },
 
   getItemId(item) {
@@ -406,10 +419,16 @@ const App = {
     DATA.SENTENCES = [];
     DATA.SENTENCES_BY_LESSON = {};
     DATA.SENTENCES_BY_CHAR = {};
+    const sentenceSet = new Set();
+
     (window.sentences || []).forEach(s => {
         const book = String(s.book_id || '1').replace(/^[a-z]+/i, '');
         const lesson = String(parseInt(s.lesson_id || '0', 10));
         const zh = s.sentence ? s.sentence.replace(/<br\s*\/?>/gi, ' ') : '';
+
+        if (sentenceSet.has(zh)) return;
+        sentenceSet.add(zh);
+
         const py = s.pinyin ? s.pinyin.replace(/<br\s*\/?>/gi, ' ') : '';
         const en = s.english ? s.english.replace(/<br\s*\/?>/gi, ' ') : '';
         const entry = {
@@ -496,6 +515,8 @@ const App = {
         this.state.quizAnswer = parsed.quizAnswer || 'py';
         this.state.mcPrompt = parsed.mcPrompt || 'hz';
         this.state.mcAnswer = parsed.mcAnswer || 'def';
+        this.state.ttsVoiceZh = parsed.ttsVoiceZh || '';
+        this.state.ttsVoiceEn = parsed.ttsVoiceEn || '';
         
         // 🌟 NEW: Restore exact session location
         this.state.mode = parsed.mode || 'study';
@@ -549,6 +570,8 @@ const App = {
       quizAnswer: this.state.quizAnswer,
       mcPrompt: this.state.mcPrompt,
       mcAnswer: this.state.mcAnswer,
+      ttsVoiceZh: this.state.ttsVoiceZh,
+      ttsVoiceEn: this.state.ttsVoiceEn,
       
       // 🌟 NEW: Save exact session location
       mode: this.state.mode,
@@ -1537,8 +1560,19 @@ updateActiveList(preserveState = false) {
       if (this._cachedVoice || !window.speechSynthesis) return;
       const voices = window.speechSynthesis.getVoices();
       const zhVoices = voices.filter(v => v.lang.toLowerCase().includes('zh'));
+
+      if (this.state.ttsVoiceZh) {
+          const userVoice = zhVoices.find(v => v.name === this.state.ttsVoiceZh);
+          if (userVoice) {
+              this._cachedVoice = userVoice;
+              return;
+          }
+      }
+
       if (zhVoices.length > 0) {
           this._cachedVoice = 
+              zhVoices.find(v => v.name.includes('YunJhe') && v.name.includes('Natural')) ||
+              zhVoices.find(v => v.name.includes('HsiaoChen') && v.name.includes('Natural')) ||
               zhVoices.find(v => v.name.includes('Natural') && (v.lang.includes('TW') || v.name.includes('Taiwan'))) ||
               zhVoices.find(v => (v.name.includes('Siri') || v.name.includes('Apple') || v.name.includes('Google')) && (v.lang.includes('TW') || v.name.includes('Taiwan'))) ||
               zhVoices.find(v => v.lang.includes('TW') || v.lang.includes('Hant') || v.name.includes('Taiwan')) ||
@@ -1550,6 +1584,15 @@ updateActiveList(preserveState = false) {
       if (this._cachedEnVoice || !window.speechSynthesis) return;
       const voices = window.speechSynthesis.getVoices();
       const enVoices = voices.filter(v => v.lang.toLowerCase().replace('_', '-').includes('en'));
+
+      if (this.state.ttsVoiceEn) {
+          const userVoice = enVoices.find(v => v.name === this.state.ttsVoiceEn);
+          if (userVoice) {
+              this._cachedEnVoice = userVoice;
+              return;
+          }
+      }
+
       if (enVoices.length > 0) {
           this._cachedEnVoice = 
               // 1. Top Priority: Microsoft Edge "Natural" Voices
