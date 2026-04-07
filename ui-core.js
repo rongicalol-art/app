@@ -1206,13 +1206,26 @@ Speaker A: Fine. But we leave after this."
       const wrapper = document.getElementById('dialoguePlayerWrapper');
       const closePanelBtn = document.getElementById('dialoguePlayerClosePanel');
       let commitTimer = 0;
+      const focusWithoutScroll = element => {
+        if (!element) return;
+        try {
+          element.focus({ preventScroll: true });
+        } catch (error) {
+          element.focus();
+        }
+      };
       const setDialogueSettingsOpen = isOpen => {
         if (!settingsModal) return;
+        if (settingsModal.classList.contains('open') === !!isOpen) return;
         settingsModal.classList.toggle('open', !!isOpen);
         if (settingsBtn) settingsBtn.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
         if (wrapper) wrapper.classList.toggle('is-panel-open', !!isOpen);
         document.body.classList.toggle('dialogue-player-panel-open', !!isOpen);
-        if (isOpen && input) setTimeout(() => input.focus(), 40);
+        if (isOpen && closePanelBtn) {
+          window.requestAnimationFrame(() => focusWithoutScroll(closePanelBtn));
+        } else if (!isOpen && settingsBtn) {
+          window.requestAnimationFrame(() => focusWithoutScroll(settingsBtn));
+        }
       };
 
       if (input) {
@@ -1246,7 +1259,7 @@ Speaker A: Fine. But we leave after this."
       if (settingsBtn) {
         settingsBtn.addEventListener('click', () => {
           if (window.Sound) window.Sound.play('click');
-          setDialogueSettingsOpen(true);
+          setDialogueSettingsOpen(!settingsModal?.classList.contains('open'));
         });
       }
 
@@ -1282,6 +1295,13 @@ Speaker A: Fine. But we leave after this."
       if (settingsModal) {
         settingsModal.addEventListener('click', e => {
           if (e.target === settingsModal) {
+            setDialogueSettingsOpen(false);
+          }
+        });
+
+        settingsModal.addEventListener('keydown', e => {
+          if (e.key === 'Escape') {
+            e.preventDefault();
             setDialogueSettingsOpen(false);
           }
         });

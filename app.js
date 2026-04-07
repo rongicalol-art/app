@@ -128,12 +128,36 @@ const App = {
     document.body.classList.toggle('mode-quiz-mc', this.state.mode === 'quiz-mc');
     document.body.classList.toggle('focus-mode', this.state.mode === 'writing');
     UI.init();
-    UI.render();
+    try {
+      UI.render();
+    } catch (renderError) {
+      console.error('Initial UI render failed, falling back to study mode.', renderError);
+      this.recoverFromInitialRenderFailure();
+      UI.render();
+      this.saveSettings();
+    }
     this.setupInteraction();
 
     // 🌟 PRE-COMPUTE HEAVY INDICES IN THE BACKGROUND TO PREVENT UI JANK LATER
     const runBackground = window.requestIdleCallback || window.setTimeout;
     runBackground(() => this.buildCharacterIndices());
+  },
+
+  recoverFromInitialRenderFailure() {
+    if (this.state.mode === 'listening' && this.state.listeningMode === 'dialogue') {
+      this.pauseDialoguePlayer({ persist: false, updateUI: false });
+    }
+
+    this.state.mode = 'study';
+    this.state.listeningMode = 'def';
+    this.state.readExpandedIndex = null;
+    this.state.dialoguePlayerActiveLineIndex = 0;
+    this.state.dialoguePlayerCurrentTimeMs = 0;
+    this.state.skipFadeInOnce = true;
+    document.body.dataset.mode = this.state.mode;
+    document.body.classList.toggle('mode-quiz', false);
+    document.body.classList.toggle('mode-quiz-mc', false);
+    document.body.classList.toggle('focus-mode', false);
   },
 
   getDialoguePlayerLines(text = this.state.dialoguePlayerText) {

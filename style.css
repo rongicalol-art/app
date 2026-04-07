@@ -4944,6 +4944,8 @@ body.dialogue-player-panel-open .dialogue-player-chrome-host {
 
 .dialogue-player-progress-wrap {
   grid-area: progress;
+  display: flex;
+  align-items: center;
   min-width: 0;
 }
 
@@ -4961,6 +4963,8 @@ body.dialogue-player-panel-open .dialogue-player-chrome-host {
 }
 
 .dialogue-player-progress {
+  display: block;
+  width: 100%;
   min-width: 0;
   padding: 0;
   border: 0;
@@ -4971,6 +4975,7 @@ body.dialogue-player-panel-open .dialogue-player-chrome-host {
 .dialogue-player-progress-track {
   position: relative;
   display: block;
+  width: 100%;
   height: 10px;
   border-radius: 999px;
   background: rgba(255, 158, 181, 0.18);
@@ -5099,12 +5104,12 @@ body.dialogue-player-panel-open .dialogue-player-chrome-host {
   align-items: center !important;
   justify-content: center !important;
   padding: 20px !important;
-  background: rgba(15, 23, 42, 0.42) !important;
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
+  background: rgba(15, 23, 42, 0.3) !important;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
   opacity: 0 !important;
   pointer-events: none !important;
-  transition: opacity 0.28s ease !important;
+  transition: opacity 0.18s ease !important;
   z-index: 10020 !important;
 }
 
@@ -5125,10 +5130,12 @@ body.dialogue-player-panel-open .dialogue-player-chrome-host {
   overflow: hidden !important;
   display: flex !important;
   flex-direction: column !important;
-  box-shadow: 0 28px 70px rgba(15, 23, 42, 0.18), 0 0 0 1px rgba(255, 255, 255, 0.4) !important;
-  transform: scale(0.965) translateY(14px) !important;
+  box-shadow: 0 22px 54px rgba(15, 23, 42, 0.14), 0 0 0 1px rgba(255, 255, 255, 0.4) !important;
+  transform: translate3d(0, 10px, 0) scale(0.99) !important;
   opacity: 0 !important;
-  transition: transform 0.4s cubic-bezier(0.25, 1, 0.5, 1), opacity 0.28s ease !important;
+  will-change: transform, opacity;
+  contain: layout paint;
+  transition: transform 0.22s cubic-bezier(0.25, 1, 0.5, 1), opacity 0.18s ease !important;
 }
 
 .dialogue-player-settings-modal.open .dialogue-player-settings-sheet {
@@ -5147,6 +5154,7 @@ body.dialogue-player-panel-open .dialogue-player-chrome-host {
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
   touch-action: pan-y !important;
+  contain: layout paint;
 }
 
 .dialogue-player-settings-window {
@@ -5657,7 +5665,7 @@ body.dialogue-player-panel-open {
     height: calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - var(--nav-height) - 20px) !important;
     max-height: none !important;
     border-radius: 28px !important;
-    transform: translateY(18px) scale(0.985) !important;
+    transform: translate3d(0, 12px, 0) scale(0.99) !important;
   }
 
   .dialogue-player-settings-modal.open .dialogue-player-settings-sheet {

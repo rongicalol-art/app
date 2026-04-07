@@ -712,20 +712,36 @@ Object.assign(window.UI, {
       let animClass = App.state.skipFadeInOnce ? '' : 'fade-in';
       if (App.state.lastSwipe === 'right') animClass = 'swipe-in-right';
       else if (App.state.lastSwipe === 'left') animClass = 'swipe-in-left';
+      const escapeHtml = value => String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+      const prehydrateRadius = 10;
 
       const list = Array.isArray(App.state.activeList) && App.state.activeList.length
         ? App.state.activeList
         : [item];
       const currentIndex = Math.max(0, Math.min(App.state.currentIndex || 0, list.length - 1));
+      const getReaderSentenceMarkup = (sentenceItem, hydrate = false) => {
+        if (!sentenceItem) return '';
+        if (hydrate) {
+          sentenceItem._zhHTML = sentenceItem._zhHTML || Utils.createInteractiveSentence(sentenceItem.zh);
+          return sentenceItem._zhHTML;
+        }
+        if (sentenceItem._plainZhHTML === undefined) {
+          sentenceItem._plainZhHTML = escapeHtml(sentenceItem.zh || '');
+        }
+        return sentenceItem._plainZhHTML;
+      };
       
       const feedHtml = list.map((sentenceItem, idx) => {
         const absoluteIndex = idx;
         const isOpen = App.state.readExpandedIndex === absoluteIndex;
-        sentenceItem._zhHTML = sentenceItem._zhHTML || Utils.createInteractiveSentence(sentenceItem.zh);
+        const shouldHydrateNow = isOpen || Math.abs(absoluteIndex - currentIndex) <= prehydrateRadius;
 
         return `
           <article class="reader-entry ${isOpen ? ' is-open' : ''}" data-reader-index="${absoluteIndex}" aria-expanded="${isOpen ? 'true' : 'false'}">
-            <div class="reader-entry-sentence">${sentenceItem._zhHTML}</div>
+            <div class="reader-entry-sentence" data-reader-sentence="${absoluteIndex}"${shouldHydrateNow ? '' : ' data-reader-pending="true"'}>${getReaderSentenceMarkup(sentenceItem, shouldHydrateNow)}</div>
             <div class="reader-entry-detail-wrap">
               <div class="reader-entry-detail">
                 <div class="reader-entry-detail-inner">
@@ -757,6 +773,22 @@ Object.assign(window.UI, {
       const carousel = this.container.querySelector('#readerCarousel');
       const entries = Array.from(carousel.querySelectorAll('.reader-entry'));
       let scrollTimeout;
+      const hydrateReaderEntry = absoluteIndex => {
+        const node = carousel.querySelector(`[data-reader-sentence="${absoluteIndex}"]`);
+        const sentenceItem = list[absoluteIndex];
+        if (!node || !sentenceItem || node.dataset.readerPending !== 'true') return;
+        sentenceItem._zhHTML = sentenceItem._zhHTML || Utils.createInteractiveSentence(sentenceItem.zh);
+        node.innerHTML = sentenceItem._zhHTML;
+        node.removeAttribute('data-reader-pending');
+      };
+      const hydrateReaderWindow = centerIndex => {
+        const baseIndex = Number.isFinite(centerIndex) ? centerIndex : currentIndex;
+        const start = Math.max(0, baseIndex - prehydrateRadius);
+        const end = Math.min(list.length - 1, baseIndex + prehydrateRadius);
+        for (let index = start; index <= end; index += 1) {
+          hydrateReaderEntry(index);
+        }
+      };
 
       const updateCoverFlow = () => {
           const carouselCenter = carousel.scrollTop + carousel.clientHeight / 2;
@@ -790,6 +822,7 @@ Object.assign(window.UI, {
 
           if (closestIndex !== -1) {
               const absIndex = Number(entries[closestIndex].dataset.readerIndex);
+              hydrateReaderWindow(absIndex);
               if (App.state.currentIndex !== absIndex) {
                   App.state.currentIndex = absIndex;
                   clearTimeout(scrollTimeout);
@@ -806,6 +839,7 @@ Object.assign(window.UI, {
       carousel.addEventListener('scroll', () => requestAnimationFrame(updateCoverFlow), { passive: true });
       
       requestAnimationFrame(() => {
+          hydrateReaderWindow(currentIndex);
           const initialEntry = carousel.querySelector(`[data-reader-index="${currentIndex}"]`);
           if (initialEntry) {
               const targetScroll = initialEntry.offsetTop - (carousel.clientHeight / 2) + (initialEntry.offsetHeight / 2);
@@ -843,6 +877,7 @@ Object.assign(window.UI, {
           
           const isOpen = node.classList.contains('is-open');
           App.state.readExpandedIndex = isOpen ? null : nextIndex;
+          hydrateReaderEntry(nextIndex);
           node.classList.toggle('is-open', !isOpen);
           node.setAttribute('aria-expanded', !isOpen ? 'true' : 'false');
               
