@@ -20,7 +20,12 @@
 
 @font-face {
   font-family: 'twkai';
-  src: url('twkai.woff2') format('woff2');
+  src:
+    local('BiauKai'),
+    local('DFKai-SB'),
+    local('KaiTi'),
+    local('STKaiti'),
+    url('twkai.woff2') format('woff2');
   font-weight: normal;
   font-style: normal;
   font-display: swap;
@@ -1156,6 +1161,9 @@ body.mode-quiz-mc .bottom-nav {
   /* A soft vignette effect */
   background: radial-gradient(circle, rgba(0,0,0,0.2) 0%, rgba(0,0,0,0.6) 100%);
   z-index: 1000;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s ease;
 }
 
 .modal-overlay.open { opacity: 1; pointer-events: auto; }
@@ -3049,6 +3057,13 @@ body.hide-example-pinyin .sentence-pinyin { display: none !important; }
 
 .reader-feed::-webkit-scrollbar {
     display: none;
+}
+
+.reader-spacer {
+    width: 1px;
+    flex: 0 0 auto;
+    pointer-events: none;
+    opacity: 0;
 }
 
 .reader-entry {

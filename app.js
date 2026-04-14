@@ -101,10 +101,7 @@ const App = {
  async init() {
     await this.importData();
     this.loadSettings();
-    
-    if ((this.state.mode === 'sentences' || this.state.mode === 'builder') && DATA.SENTENCES.length === 0) {
-      this.state.mode = 'study';
-    }
+    await this.ensureDataLoadedForCurrentState();
 
     try {
         const learned = JSON.parse(localStorage.getItem('fc_learned_items') || '[]');
@@ -119,6 +116,7 @@ const App = {
     if (this.state.activeList.length === 0 && DATA.VOCAB.length > 0 && !this.state.hideLearned) {
       this.state.lessonFilter = ['All'];
       this.state.bookFilter = ['All'];
+      await this.ensureDataLoadedForCurrentState();
       this.updateActiveList(false); // Reset only if the list is broken/empty
       this.saveSettings();
     }
@@ -140,7 +138,11 @@ const App = {
 
     // 🌟 PRE-COMPUTE HEAVY INDICES IN THE BACKGROUND TO PREVENT UI JANK LATER
     const runBackground = window.requestIdleCallback || window.setTimeout;
-    runBackground(() => this.buildCharacterIndices());
+    runBackground(() => {
+      this.buildCharacterIndices().catch(error => {
+        console.error('Character support preload failed', error);
+      });
+    });
   },
 
   recoverFromInitialRenderFailure() {
@@ -1008,15 +1010,66 @@ const App = {
       if (!window._scriptPromises) window._scriptPromises = {};
       if (window._scriptPromises[src]) return window._scriptPromises[src];
 
+      const isLocalFile = window.location.protocol === 'file:';
+      const actualSrc = (isLocalFile && src.includes('?')) ? src.split('?')[0] : src;
+
+      const resolvedSrc = new URL(actualSrc, window.location.href).href;
+      const existingScript = [...document.scripts].find(script => {
+          try {
+              return new URL(script.src, window.location.href).href === resolvedSrc;
+          } catch (e) {
+              return script.getAttribute('src') === actualSrc;
+          }
+      });
+      if (existingScript) return Promise.resolve();
+
       const p = new Promise((resolve, reject) => {
-          if (document.querySelector(`script[src="${src}"]`)) return resolve();
           const script = document.createElement('script');
-          script.src = src;
-          script.onload = resolve;
-          script.onerror = reject;
+          script.src = actualSrc;
+          script.async = true;
+          script.onload = () => resolve();
+          script.onerror = async () => {
+              try {
+                  const response = await fetch(actualSrc, { cache: 'no-store' });
+                  if (!response.ok) {
+                      throw new Error(`Failed to fetch fallback script ${actualSrc}: ${response.status}`);
+                  }
+                  const code = await response.text();
+                  const inlineScript = document.createElement('script');
+                  inlineScript.text = `${code}\n//# sourceURL=${actualSrc}`;
+                  document.head.appendChild(inlineScript);
+                  resolve();
+              } catch (error) {
+                  reject(new Error(`Load failed for ${actualSrc}: ${error?.message || 'unknown script error'}`));
+              }
+          };
           document.head.appendChild(script);
+      }).catch(error => {
+          delete window._scriptPromises[src];
+          throw error;
       });
       window._scriptPromises[src] = p;
+      return p;
+  },
+
+  async fetchJSON(src) {
+      if (!window._jsonPromises) window._jsonPromises = {};
+      if (window._jsonPromises[src]) return window._jsonPromises[src];
+
+      const isLocalFile = window.location.protocol === 'file:';
+      const assetSrc = isLocalFile ? src : `${src}${src.includes('?') ? '&' : '?'}v=20260415charsplit`;
+      const p = fetch(assetSrc)
+          .then(async response => {
+              if (!response.ok) {
+                  throw new Error(`Failed to fetch ${src}: ${response.status}`);
+              }
+              return response.json();
+          })
+          .catch(error => {
+              delete window._jsonPromises[src];
+              throw error;
+          });
+      window._jsonPromises[src] = p;
       return p;
   },
 
@@ -1028,6 +1081,458 @@ const App = {
       } catch(e) {
           return false;
       }
+  },
+
+  normalizeCharRecord(char, record = {}, options = {}) {
+      const keepTree = options.includeTree === true;
+      const pinyin = Array.isArray(record.pinyin) ? [...record.pinyin] : (record.pinyin ? [record.pinyin] : []);
+      const definition = this.sanitizeDefinition(record.def || record.meaning || record.definition);
+      const normalized = {
+          hanzi: char,
+          pinyin,
+          def: definition,
+          meaning: definition,
+          chameleon_alert: record.chameleon_alert || null,
+          phonetic_clue: record.phonetic_clue || null,
+          street_utility: record.street_utility || null
+      };
+
+      if (keepTree && record.deconstruction_tree) {
+          normalized.deconstruction_tree = record.deconstruction_tree;
+      }
+
+      if (record.isGeneratedFallback) normalized.isGeneratedFallback = true;
+      if (options.metaOnly) normalized.isMetaOnly = true;
+
+      return normalized;
+  },
+
+  applyStoredUserHooks() {
+      const userHooks = JSON.parse(localStorage.getItem('fc_user_hooks') || '{}');
+      Object.keys(userHooks).forEach(char => {
+          if (DATA.CHARS[char]) {
+              DATA.CHARS[char].hook = userHooks[char];
+          } else {
+              DATA.CHARS[char] = { hanzi: char, hook: userHooks[char] };
+          }
+      });
+  },
+
+  async loadCharacterMeta() {
+      if (this._characterMetaPromise) return this._characterMetaPromise;
+
+      this._characterMetaPromise = this.fetchJSON('data/chars/meta.json')
+          .then(meta => {
+              Object.entries(meta || {}).forEach(([char, record]) => {
+                  const existing = DATA.CHARS[char] || {};
+                  DATA.CHARS[char] = {
+                      ...existing,
+                      ...this.normalizeCharRecord(char, record, { metaOnly: true }),
+                      hook: existing.hook || record.hook || ''
+                  };
+              });
+              this.applyStoredUserHooks();
+              return DATA.CHARS;
+          })
+          .catch(error => {
+              this._characterMetaPromise = null;
+              throw error;
+          });
+
+      return this._characterMetaPromise;
+  },
+
+  async loadCharacterChunkMap() {
+      if (this._characterChunkMap) return this._characterChunkMap;
+      if (!this._characterChunkMapPromise) {
+          this._characterChunkMapPromise = this.fetchJSON('data/chars/chunk-map.json')
+              .then(map => {
+                  this._characterChunkMap = map || {};
+                  return this._characterChunkMap;
+              })
+              .catch(error => {
+                  this._characterChunkMapPromise = null;
+                  throw error;
+              });
+      }
+      return this._characterChunkMapPromise;
+  },
+
+  async loadCharacterComponentIndex() {
+      if (this._componentIndex) return this._componentIndex;
+      if (!this._componentIndexPromise) {
+          this._componentIndexPromise = this.fetchJSON('data/chars/component-index.json')
+              .then(index => {
+                  this._componentIndex = index || {};
+                  return this._componentIndex;
+              })
+              .catch(error => {
+                  this._componentIndexPromise = null;
+                  throw error;
+              });
+      }
+      return this._componentIndexPromise;
+  },
+
+  async loadCharacterFallbackTreeIndex() {
+      if (this._fallbackTreeIndex) return this._fallbackTreeIndex;
+      if (!this._fallbackTreeIndexPromise) {
+          this._fallbackTreeIndexPromise = this.fetchJSON('data/chars/fallback-tree-index.json')
+              .then(index => {
+                  this._fallbackTreeIndex = index || {};
+                  return this._fallbackTreeIndex;
+              })
+              .catch(error => {
+                  this._fallbackTreeIndexPromise = null;
+                  throw error;
+              });
+      }
+      return this._fallbackTreeIndexPromise;
+  },
+
+  async ensureCharDataLoaded(chars, options = {}) {
+      const uniqueChars = [...new Set((Array.isArray(chars) ? chars : [chars])
+          .map(char => String(char || '').trim())
+          .filter(char => char && /[\u4e00-\u9fff]/.test(char))
+      )];
+
+      if (!uniqueChars.length) return DATA.CHARS;
+
+      await this.loadCharacterChunkMap();
+
+      const pendingByChunk = new Map();
+      uniqueChars.forEach(char => {
+          const existing = DATA.CHARS[char];
+          if (existing && existing.deconstruction_tree && !existing.isMetaOnly) return;
+          const chunkId = this._characterChunkMap ? this._characterChunkMap[char] : '';
+          if (!chunkId) return;
+          if (!pendingByChunk.has(chunkId)) pendingByChunk.set(chunkId, []);
+          pendingByChunk.get(chunkId).push(char);
+      });
+
+      if (!pendingByChunk.size) return DATA.CHARS;
+
+      if (!this._characterChunkPromises) this._characterChunkPromises = {};
+
+      await Promise.all([...pendingByChunk.keys()].map(chunkId => {
+          if (!this._characterChunkPromises[chunkId]) {
+              this._characterChunkPromises[chunkId] = this.fetchJSON(`data/chars/chunks/${chunkId}`)
+                  .then(chunk => {
+                      Object.entries(chunk || {}).forEach(([char, record]) => {
+                          const existing = DATA.CHARS[char] || {};
+                          DATA.CHARS[char] = {
+                              ...existing,
+                              ...this.normalizeCharRecord(char, record, { includeTree: true }),
+                              hook: existing.hook || record.hook || ''
+                          };
+                          delete DATA.CHARS[char].isMetaOnly;
+                      });
+                      this.applyStoredUserHooks();
+                      return chunk;
+                  })
+                  .catch(error => {
+                      delete this._characterChunkPromises[chunkId];
+                      throw error;
+                  });
+          }
+          return this._characterChunkPromises[chunkId];
+      }));
+
+      return DATA.CHARS;
+  },
+
+  async buildCharacterIndices(options = {}) {
+      const includeFallbackTree = options.includeFallbackTree === true;
+      await this.loadCharacterComponentIndex();
+      if (includeFallbackTree) {
+          await this.loadCharacterFallbackTreeIndex();
+      }
+      return {
+          componentIndex: this._componentIndex || {},
+          fallbackTreeIndex: this._fallbackTreeIndex || {}
+      };
+  },
+
+  prefetchCharDataForText(text, options = {}) {
+      const chars = [...new Set((String(text || '').match(/[\u4e00-\u9fff]/g) || []))];
+      if (!chars.length) return;
+
+      const missing = chars.filter(char => {
+          const record = DATA.CHARS[char];
+          return !record || (!record.deconstruction_tree && record.isMetaOnly !== false);
+      });
+      if (!missing.length) return;
+
+      const key = missing.join('');
+      if (!this._prefetchingCharKeys) this._prefetchingCharKeys = new Set();
+      if (this._prefetchingCharKeys.has(key)) return;
+      this._prefetchingCharKeys.add(key);
+
+      this.ensureCharDataLoaded(missing)
+          .then(() => {
+              if (!options.rerender) return;
+              if (!window.UI || typeof UI.render !== 'function') return;
+              if (options.mode && this.state.mode !== options.mode) return;
+              if (options.itemId && this.getItemId(this.state.activeList[this.state.currentIndex]) !== options.itemId) return;
+              UI.render();
+          })
+          .catch(error => {
+              console.error('Failed to prefetch character data', error);
+          })
+          .finally(() => {
+              this._prefetchingCharKeys.delete(key);
+          });
+  },
+
+  normalizeBookId(value) {
+      const raw = String(value || '').trim();
+      if (!raw) return '1';
+      if (raw.toLowerCase() === 'all') return 'All';
+      const match = raw.match(/\d+/);
+      return match ? String(Number.parseInt(match[0], 10)) : raw;
+  },
+
+  normalizeLessonId(value) {
+      const raw = String(value || '').trim();
+      if (!raw) return '0';
+      if (raw.toLowerCase() === 'all') return 'All';
+      const match = raw.match(/\d+/);
+      return match ? String(Number.parseInt(match[0], 10)) : raw;
+  },
+
+  async loadVocabCatalog() {
+      if (this._vocabCatalog) return this._vocabCatalog;
+      if (!this._vocabCatalogPromise) {
+          this._vocabCatalogPromise = this.fetchJSON('data/vocab/catalog.json')
+              .then(catalog => {
+                  this._vocabCatalog = catalog || { books: [], lessonsByBook: {}, dialoguesByBookLesson: {} };
+                  return this._vocabCatalog;
+              })
+              .catch(error => {
+                  this._vocabCatalogPromise = null;
+                  throw error;
+              });
+      }
+      return this._vocabCatalogPromise;
+  },
+
+  async loadSentenceCatalog() {
+      if (this._sentenceCatalog) return this._sentenceCatalog;
+      if (!this._sentenceCatalogPromise) {
+          this._sentenceCatalogPromise = this.fetchJSON('data/sentences/catalog.json')
+              .then(catalog => {
+                  this._sentenceCatalog = catalog || { books: [], lessonsByBook: {}, dialoguesByBookLesson: {} };
+                  return this._sentenceCatalog;
+              })
+              .catch(error => {
+                  this._sentenceCatalogPromise = null;
+                  throw error;
+              });
+      }
+      return this._sentenceCatalogPromise;
+  },
+
+  getCatalogForSource(source = 'vocab') {
+      return source === 'sentences'
+          ? (this._sentenceCatalog || { books: [], lessonsByBook: {}, dialoguesByBookLesson: {} })
+          : (this._vocabCatalog || { books: [], lessonsByBook: {}, dialoguesByBookLesson: {} });
+  },
+
+  getAvailableBooks(source = 'vocab') {
+      const catalog = this.getCatalogForSource(source);
+      return Array.isArray(catalog.books) ? [...catalog.books] : [];
+  },
+
+  getSelectedBookIds() {
+      const raw = Array.isArray(this.state.bookFilter) ? this.state.bookFilter : [this.state.bookFilter || '1'];
+      const normalized = raw.map(value => this.normalizeBookId(value));
+      if (normalized.includes('All')) return this.getAvailableBooks('vocab');
+      return [...new Set(normalized.filter(Boolean))];
+  },
+
+  getAvailableLessonsForBooks(books, source = 'vocab') {
+      const catalog = this.getCatalogForSource(source);
+      const lessonSet = new Set();
+      (books || []).forEach(book => {
+          const key = this.normalizeBookId(book);
+          (catalog.lessonsByBook?.[key] || []).forEach(lesson => lessonSet.add(String(lesson)));
+      });
+      return [...lessonSet].sort((a, b) => Number(a) - Number(b));
+  },
+
+  getAvailableDialoguesForLesson(books, lesson, source = 'vocab') {
+      const catalog = this.getCatalogForSource(source);
+      const lessonId = this.normalizeLessonId(lesson);
+      const dialogueSet = new Set();
+      (books || []).forEach(book => {
+          const key = `${this.normalizeBookId(book)}-${lessonId}`;
+          (catalog.dialoguesByBookLesson?.[key] || []).forEach(dialogue => {
+              if (String(dialogue) !== '0') dialogueSet.add(String(dialogue));
+          });
+      });
+      return [...dialogueSet].sort((a, b) => Number(a) - Number(b));
+  },
+
+  normalizeVocabEntry(entry = {}) {
+      const hanzi = entry.word || entry.hanzi;
+      if (!hanzi) return null;
+      const book = this.normalizeBookId(entry.book_id || entry.book || '1');
+      const lesson = this.normalizeLessonId(entry.lesson_id || entry.lesson || '0');
+      const dialogue = this.normalizeLessonId(entry.dialogue_id || entry.dialogue || '0');
+      const key = entry.id || `${book}-${lesson}-${hanzi}`;
+      const safePinyin = typeof entry.pinyin === 'string' ? entry.pinyin.trim() : '';
+      const safeDef = this.sanitizeDefinition(entry.definition ?? entry.def ?? '');
+      return {
+          ...entry,
+          id: key,
+          hanzi,
+          pinyin: safePinyin,
+          def: safeDef,
+          lesson,
+          book,
+          dialogue,
+          searchKey: Utils.normalizeSearch(`${hanzi}${safePinyin}${safeDef}`)
+      };
+  },
+
+  ingestVocabEntries(entries = []) {
+      if (!(this._vocabItemMap instanceof Map)) this._vocabItemMap = new Map();
+      let added = 0;
+
+      entries.forEach(entry => {
+          const normalized = this.normalizeVocabEntry(entry);
+          if (!normalized || this._vocabItemMap.has(normalized.id)) return;
+          this._vocabItemMap.set(normalized.id, normalized);
+          DATA.VOCAB.push(normalized);
+          added += 1;
+
+          if (!DATA.VOCAB_EXACT_MATCH[normalized.hanzi]) DATA.VOCAB_EXACT_MATCH[normalized.hanzi] = [];
+          DATA.VOCAB_EXACT_MATCH[normalized.hanzi].push(normalized);
+
+          [...new Set(normalized.hanzi.split(''))].forEach(char => {
+              if (!DATA.VOCAB_BY_CHAR[char]) DATA.VOCAB_BY_CHAR[char] = [];
+              DATA.VOCAB_BY_CHAR[char].push(normalized);
+          });
+      });
+
+      if (added > 0) {
+          if (Utils && Object.prototype.hasOwnProperty.call(Utils, '_vocabSet')) Utils._vocabSet = null;
+          this.applyTemporaryVocabHooks();
+      }
+  },
+
+  normalizeSentenceEntry(entry = {}) {
+      const book = this.normalizeBookId(entry.book_id || entry.book || '1');
+      const lesson = this.normalizeLessonId(entry.lesson_id || entry.lesson || '0');
+      const dialogue = this.normalizeLessonId(entry.dialogue_id || entry.dialogue || '0');
+      const zh = entry.sentence ? String(entry.sentence).replace(/<br\s*\/?>/gi, ' ') : String(entry.zh || '').replace(/<br\s*\/?>/gi, ' ');
+      if (!zh) return null;
+      const py = entry.pinyin ? String(entry.pinyin).replace(/<br\s*\/?>/gi, ' ') : String(entry.py || '');
+      const en = entry.english ? String(entry.english).replace(/<br\s*\/?>/gi, ' ') : String(entry.en || '');
+      return {
+          id: entry.source_id || entry.id,
+          zh,
+          py,
+          en,
+          book,
+          lesson,
+          dialogue,
+          seq: Number.parseInt(String(entry.sentence_id || entry.seq || 0), 10) || 0,
+          searchKey: Utils.normalizeSearch(`${zh}${py}${en}`)
+      };
+  },
+
+  ingestSentenceEntries(entries = []) {
+      if (!(this._sentenceTextSet instanceof Set)) this._sentenceTextSet = new Set();
+      let added = 0;
+
+      entries.forEach(entry => {
+          const normalized = this.normalizeSentenceEntry(entry);
+          if (!normalized || this._sentenceTextSet.has(normalized.zh)) return;
+          this._sentenceTextSet.add(normalized.zh);
+          DATA.SENTENCES.push(normalized);
+          added += 1;
+
+          const lessonKey = `${normalized.book}-${normalized.lesson}`;
+          if (!DATA.SENTENCES_BY_LESSON[lessonKey]) DATA.SENTENCES_BY_LESSON[lessonKey] = [];
+          DATA.SENTENCES_BY_LESSON[lessonKey].push(normalized);
+
+          [...new Set(normalized.zh.split(''))].forEach(char => {
+              if (!DATA.SENTENCES_BY_CHAR[char]) DATA.SENTENCES_BY_CHAR[char] = [];
+              DATA.SENTENCES_BY_CHAR[char].push(normalized);
+          });
+      });
+
+      if (added > 0) {
+          this._dialoguePlayerTranslationIndex = null;
+      }
+  },
+
+  async loadVocabBook(book) {
+      const bookId = this.normalizeBookId(book);
+      if (!this._loadedVocabBooks) this._loadedVocabBooks = new Set();
+      if (this._loadedVocabBooks.has(bookId)) return;
+      if (!this._vocabBookPromises) this._vocabBookPromises = {};
+      if (!this._vocabBookPromises[bookId]) {
+          this._vocabBookPromises[bookId] = this.fetchJSON(`data/vocab/books/book-${bookId}.json`)
+              .then(entries => {
+                  this.ingestVocabEntries(entries);
+                  this._loadedVocabBooks.add(bookId);
+                  return true;
+              })
+              .catch(error => {
+                  delete this._vocabBookPromises[bookId];
+                  throw error;
+              });
+      }
+      return this._vocabBookPromises[bookId];
+  },
+
+  async loadSentenceBook(book) {
+      const bookId = this.normalizeBookId(book);
+      if (!this._loadedSentenceBooks) this._loadedSentenceBooks = new Set();
+      if (this._loadedSentenceBooks.has(bookId)) return;
+      if (!this._sentenceBookPromises) this._sentenceBookPromises = {};
+      if (!this._sentenceBookPromises[bookId]) {
+          this._sentenceBookPromises[bookId] = this.fetchJSON(`data/sentences/books/book-${bookId}.json`)
+              .then(entries => {
+                  this.ingestSentenceEntries(entries);
+                  this._loadedSentenceBooks.add(bookId);
+                  return true;
+              })
+              .catch(error => {
+                  delete this._sentenceBookPromises[bookId];
+                  throw error;
+              });
+      }
+      return this._sentenceBookPromises[bookId];
+  },
+
+  async ensureDatasetBooksLoaded(books, options = {}) {
+      const targetBooks = [...new Set((books || []).map(book => this.normalizeBookId(book)).filter(book => book && book !== 'All'))];
+      if (!targetBooks.length) return;
+
+      const tasks = [];
+      if (options.vocab !== false) {
+          targetBooks.forEach(book => tasks.push(this.loadVocabBook(book)));
+      }
+      if (options.sentences !== false) {
+          targetBooks.forEach(book => tasks.push(this.loadSentenceBook(book)));
+      }
+      await Promise.all(tasks);
+  },
+
+  async ensureDataLoadedForCurrentState(options = {}) {
+      await Promise.all([
+          this.loadVocabCatalog(),
+          this.loadSentenceCatalog()
+      ]);
+
+      const selectedBooks = this.getSelectedBookIds();
+      await this.ensureDatasetBooksLoaded(selectedBooks, {
+          vocab: options.vocab !== false,
+          sentences: options.sentences !== false
+      });
   },
 
   writingService: {
@@ -1242,126 +1747,24 @@ const App = {
 
   async importData() {
     // Dynamically load massive data files so they don't block the UI from rendering
-    try {
-        const scripts = ['chars.js', 'new_vocab.js', 'memory.js', 'sentences.js'];
-        let loaded = 0;
-        const fill = document.getElementById('hqProgressFill');
-        
-        for (const src of scripts) {
-            await this.loadScript(src);
-            loaded++;
-            // Advance the loading bar dynamically based on file downloads
-            if (fill) fill.style.width = `${10 + (loaded / scripts.length) * 80}%`;
-        }
-    } catch (e) {}
+    const scripts = ['memory.js'];
+    const fill = document.getElementById('hqProgressFill');
+    let loaded = 0;
 
-    if (window.CHARS_DATA) {
-        if (!Array.isArray(window.CHARS_DATA)) {
-            for (const [hanzi, charData] of Object.entries(window.CHARS_DATA)) {
-                DATA.CHARS[hanzi] = {
-                    ...charData, 
-                    hanzi: hanzi,
-                    pinyin: Array.isArray(charData.pinyin) ? Utils.formatNumberedPinyin(charData.pinyin[0]) : charData.pinyin,
-                    def: this.sanitizeDefinition(charData.meaning || charData.definition)
-                };
-            }
-        } else {
-            window.CHARS_DATA.forEach(c => {
-                DATA.CHARS[c.hanzi] = {
-                    ...c,
-                    def: this.sanitizeDefinition(c.meaning || c.definition),
-                    decomposition: c.components
-                };
-            });
-        }
+    await Promise.all([
+        this.loadCharacterMeta(),
+        this.loadVocabCatalog(),
+        this.loadSentenceCatalog()
+    ]);
+    if (fill) fill.style.width = '35%';
+
+    for (const src of scripts) {
+        await this.loadScript(src);
+        loaded++;
+        if (fill) fill.style.width = `${35 + (loaded / scripts.length) * 20}%`;
     }
 
-    const vocabMap = new Map();
-    (window.new_vocab || []).forEach(v => {
-        const hanzi = v.word || v.hanzi;
-        if (!hanzi) return;
-        const key = v.id || `${v.book_id}-${v.lesson_id}-${hanzi}`;
-        if (!vocabMap.has(key)) {
-            const safePinyin = typeof v.pinyin === 'string' ? v.pinyin.trim() : '';
-            const rawDef = v.definition ?? v.def ?? '';
-            const safeDef = this.sanitizeDefinition(rawDef);
-
-            vocabMap.set(key, {
-                ...v,
-                id: key,
-                hanzi,
-                pinyin: safePinyin,
-                def: safeDef,
-                lesson: String(v.lesson_id || 0),
-                book: String(v.book_id || 1),
-                dialogue: String(v.dialogue_id || '0'),
-                searchKey: Utils.normalizeSearch(`${hanzi}${safePinyin}${safeDef}`)
-            });
-        }
-    });
-    DATA.VOCAB = Array.from(vocabMap.values());
-    this.applyTemporaryVocabHooks();
-
-    // 🌟 PRE-COMPUTE O(1) LOOKUP INDEXES TO AVOID MASSIVE ARRAY ITERATIONS LATER
-    DATA.VOCAB_EXACT_MATCH = {};
-    DATA.VOCAB_BY_CHAR = {};
-    DATA.VOCAB.forEach(v => {
-        if (!DATA.VOCAB_EXACT_MATCH[v.hanzi]) DATA.VOCAB_EXACT_MATCH[v.hanzi] = [];
-        DATA.VOCAB_EXACT_MATCH[v.hanzi].push(v);
-        
-        const uniqueChars = new Set(v.hanzi.split(''));
-        uniqueChars.forEach(c => {
-            if (!DATA.VOCAB_BY_CHAR[c]) DATA.VOCAB_BY_CHAR[c] = [];
-            DATA.VOCAB_BY_CHAR[c].push(v);
-        });
-    });
-
-    DATA.SENTENCES = [];
-    DATA.SENTENCES_BY_LESSON = {};
-    DATA.SENTENCES_BY_CHAR = {};
-    const sentenceSet = new Set();
-
-    (window.sentences || []).forEach(s => {
-        const book = String(s.book_id || '1').replace(/^[a-z]+/i, '');
-        const lesson = String(parseInt(s.lesson_id || '0', 10));
-        const zh = s.sentence ? s.sentence.replace(/<br\s*\/?>/gi, ' ') : '';
-
-        if (sentenceSet.has(zh)) return;
-        sentenceSet.add(zh);
-
-        const py = s.pinyin ? s.pinyin.replace(/<br\s*\/?>/gi, ' ') : '';
-        const en = s.english ? s.english.replace(/<br\s*\/?>/gi, ' ') : '';
-        const entry = {
-            id: s.source_id,
-            zh: zh,
-            py: py,
-            en: en,
-            book,
-            lesson,
-            dialogue: String(s.dialogue_id || '0'),
-            seq: parseInt(s.sentence_id || 0, 10),
-            searchKey: Utils.normalizeSearch(`${zh}${py}${en}`)
-        };
-        DATA.SENTENCES.push(entry);
-        const key = `${book}-${lesson}`;
-        if (!DATA.SENTENCES_BY_LESSON[key]) DATA.SENTENCES_BY_LESSON[key] = [];
-        DATA.SENTENCES_BY_LESSON[key].push(entry);
-        
-        const chars = new Set(entry.zh.split(''));
-        chars.forEach(c => {
-            if (!DATA.SENTENCES_BY_CHAR[c]) DATA.SENTENCES_BY_CHAR[c] = [];
-            DATA.SENTENCES_BY_CHAR[c].push(entry);
-        });
-    });
-
-    const userHooks = JSON.parse(localStorage.getItem('fc_user_hooks') || '{}');
-    Object.keys(userHooks).forEach(char => {
-        if (DATA.CHARS[char]) {
-            DATA.CHARS[char].hook = userHooks[char];
-        } else {
-            DATA.CHARS[char] = { hanzi: char, hook: userHooks[char] };
-        }
-    });
+    this.applyStoredUserHooks();
   },
 
   loadSettings() {
@@ -1379,7 +1782,7 @@ const App = {
         if (Array.isArray(this.state.dialogueFilter)) this.state.dialogueFilter = {};
         this.state.shuffle = parsed.shuffle || false;
         this.state.ttsRate = parsed.ttsRate || 0.85;
-        this.state.quizType = (parsed.quizType === 'translate' && DATA.SENTENCES.length > 0) ? 'translate' : 'vocab';
+        this.state.quizType = parsed.quizType === 'translate' ? 'translate' : 'vocab';
         this.state.quizDefOnly = parsed.quizDefOnly || false;
         this.state.noPinyin = parsed.noPinyin || false;
                 if (!parsed._colorForced) {
@@ -1388,6 +1791,7 @@ const App = {
                     this.state.noHanziColor = (parsed.noHanziColor !== undefined) ? parsed.noHanziColor : true;
                 }
         this.state.noTranslation = parsed.noTranslation || false;
+        this.state.noExamplePinyin = parsed.noExamplePinyin !== undefined ? parsed.noExamplePinyin : true;
         this.state.separateMode = parsed.separateMode || 'off';
         this.state.fastNext = parsed.fastNext ?? true;
         this.state.listeningHard = parsed.listeningHard || false;
@@ -1446,7 +1850,22 @@ const App = {
     }
   },
 
-  saveSettings() {
+  saveSettings(options = {}) {
+    const { defer = false, delay = 180 } = options || {};
+    if (defer) {
+      if (this._saveSettingsTimer) clearTimeout(this._saveSettingsTimer);
+      this._saveSettingsTimer = setTimeout(() => {
+        this._saveSettingsTimer = null;
+        this.saveSettings();
+      }, Math.max(0, delay));
+      return;
+    }
+
+    if (this._saveSettingsTimer) {
+      clearTimeout(this._saveSettingsTimer);
+      this._saveSettingsTimer = null;
+    }
+
     const currentItem = this.state.activeList[this.state.currentIndex];
     const shouldPersistOrder = Array.isArray(this.state.activeList) && this.state.activeList.length > 0 && this.state.activeList.length <= 1500;
     const payload = {
@@ -1461,6 +1880,7 @@ const App = {
       noHanziColor: this.state.noHanziColor,
               _colorForced: true,
       noTranslation: this.state.noTranslation,
+      noExamplePinyin: this.state.noExamplePinyin,
       separateMode: this.state.separateMode,
       fastNext: this.state.fastNext,
       listeningHard: this.state.listeningHard,
@@ -1521,40 +1941,6 @@ const App = {
     localStorage.setItem('fc_user_hooks', JSON.stringify(userHooks));
     if (!DATA.CHARS[char]) DATA.CHARS[char] = { hanzi: char };
     DATA.CHARS[char].hook = text ? text.trim() : '';
-  },
-
-  buildCharacterIndices() {
-      if (this._componentIndex && this._fallbackTreeIndex) return;
-      
-      this._componentIndex = {};
-      this._fallbackTreeIndex = {};
-      
-      const extractComponents = (node, set, visited = new Set()) => {
-          if (!node || visited.has(node)) return;
-          visited.add(node);
-          if (node.component && node.children && node.children.length > 0) {
-              if (!this._fallbackTreeIndex[node.component]) {
-                  this._fallbackTreeIndex[node.component] = node;
-              }
-          }
-          if (node.component) set.add(node.component);
-          if (Array.isArray(node.children)) {
-              node.children.forEach(child => extractComponents(child, set, visited));
-          }
-      };
-
-      Object.values(DATA.CHARS).forEach(c => {
-          if (c.deconstruction_tree) {
-              const comps = new Set();
-              extractComponents(c.deconstruction_tree, comps);
-              comps.forEach(comp => {
-                  if (comp !== c.hanzi) {
-                      if (!this._componentIndex[comp]) this._componentIndex[comp] = [];
-                      this._componentIndex[comp].push(c);
-                  }
-              });
-          }
-      });
   },
 
   saveLearned() {
@@ -2966,7 +3352,7 @@ updateActiveList(preserveState = false) {
         writingDock.classList.add('dock-exit');
     }
 
-    setTimeout(() => {
+    setTimeout(async () => {
       try {
         // Snap the layout changes while invisible
         if (newMode === 'writing') {
@@ -2985,6 +3371,7 @@ updateActiveList(preserveState = false) {
             this.state.isFlipped = false;
             this.state.isStudyBreakdownOpen = false;
         } else {
+            await this.ensureDataLoadedForCurrentState();
             this.updateActiveList(false);
         }
         
@@ -3013,34 +3400,16 @@ updateActiveList(preserveState = false) {
   },
   
   findRelatedCharacters(char) {
-      // 🌟 PRE-COMPUTE O(1) INVERTED INDEX FOR ALL COMPONENTS THE FIRST TIME
       if (!this._componentIndex) {
-          this._componentIndex = {};
-          
-          const extractComponents = (node, set, visited = new Set()) => {
-              if (!node || visited.has(node)) return;
-              visited.add(node);
-              if (node.component) set.add(node.component);
-              if (Array.isArray(node.children)) {
-                  node.children.forEach(child => extractComponents(child, set, visited));
-              }
-          };
-
-          Object.values(DATA.CHARS).forEach(c => {
-              if (c.deconstruction_tree) {
-                  const comps = new Set();
-                  extractComponents(c.deconstruction_tree, comps);
-                  comps.forEach(comp => {
-                      if (comp !== c.hanzi) {
-                          if (!this._componentIndex[comp]) this._componentIndex[comp] = [];
-                          this._componentIndex[comp].push(c);
-                      }
-                  });
-              }
+          this.buildCharacterIndices().catch(error => {
+              console.error('Character index load failed', error);
           });
+          return [];
       }
 
-      return this._componentIndex[char] || [];
+      return ((this._componentIndex && this._componentIndex[char]) || [])
+          .map(targetChar => DATA.CHARS[targetChar] || { hanzi: targetChar })
+          .filter(Boolean);
   },
 
   getVocabHint(hz) {
@@ -3245,7 +3614,7 @@ updateActiveList(preserveState = false) {
   },
 
   _generateCharHeroHTML(char, charData) {
-      let displayPinyin = charData.pinyin || '---';
+      let displayPinyin = Utils.formatNumberedPinyin(Array.isArray(charData.pinyin) ? charData.pinyin[0] : (charData.pinyin || '')) || '---';
       if (charData.chameleon_alert && charData.chameleon_alert.is_polyphone && Array.isArray(charData.chameleon_alert.pinyin_variations)) {
           const variations = charData.chameleon_alert.pinyin_variations
               .map(p => Utils.formatNumberedPinyin(p))
@@ -3486,7 +3855,7 @@ updateActiveList(preserveState = false) {
                 </span>
                 <svg class="network-chevron" viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z"/></svg>
             </div>
-            <div cl ass="network-accordion-body">
+            <div class="network-accordion-body">
                 <div class="network-accordion-inner">
                     <div class="hook-card" style="margin-top: 0;">
                         <div id="hook-display-${char}" class="hook-text">
@@ -3666,7 +4035,7 @@ updateActiveList(preserveState = false) {
       }
   },
 
-  handleCharClick(e, char, fallbackPy = '', fallbackDef = '', isBackNavigation = false) {
+  async handleCharClick(e, char, fallbackPy = '', fallbackDef = '', isBackNavigation = false) {
       if (e) {
           e.preventDefault();
           e.stopPropagation(); 
@@ -3775,10 +4144,12 @@ updateActiveList(preserveState = false) {
               return; 
           }
 
+          await this.ensureCharDataLoaded(char);
+          await this.buildCharacterIndices();
           let charData = DATA.CHARS[char];
 
           if (!charData) {
-              this.buildCharacterIndices(); 
+              await this.buildCharacterIndices({ includeFallbackTree: true });
               let foundTree = this._fallbackTreeIndex ? this._fallbackTreeIndex[char] : null;
 
               let finalPy = fallbackPy;
@@ -3934,12 +4305,12 @@ const startApp = async () => {
 
     } catch (e) {
         console.error("App Init Failed:", e);
-        if (text) text.textContent = "Initialization Failed.";
+        if (text) text.textContent = `Initialization Failed: ${e?.message || 'Unknown error'}`;
         if (fill) fill.style.background = "#ef4444";
         
         const c = document.getElementById('mainContainer');
         if(c) {
-            c.innerHTML = `<div style="padding:20px;text-align:center;position:relative;z-index:10000;">App failed to load.<br><button class="btn-sec" onclick="localStorage.clear();location.reload()" style="margin-top:10px;">Reset Everything</button></div>`;
+            c.innerHTML = `<div style="padding:20px;text-align:center;position:relative;z-index:10000;">App failed to load.<br><small style="display:block;margin-top:8px;opacity:.75;">${String(e?.message || 'Unknown error')}</small><br><button class="btn-sec" onclick="localStorage.clear();location.reload()" style="margin-top:10px;">Reset Everything</button></div>`;
         }
     }
 };
@@ -3951,7 +4322,22 @@ if (document.readyState === 'loading') {
 }
 
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('sw.js');
+  window.addEventListener('load', async () => {
+    const isLocalDevHost = ['localhost', '127.0.0.1'].includes(window.location.hostname);
+    if (isLocalDevHost) {
+      try {
+        const registrations = await navigator.serviceWorker.getRegistrations();
+        await Promise.all(registrations.map(reg => reg.unregister()));
+      } catch (error) {
+        console.warn('Failed to unregister development service workers', error);
+      }
+      return;
+    }
+
+    try {
+      await navigator.serviceWorker.register('sw.js');
+    } catch (error) {
+      console.warn('Service worker registration failed', error);
+    }
   });
 }

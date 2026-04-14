@@ -1,6 +1,22 @@
 Object.assign(window.UI, {
     renderStudy(item) {
       const rawHzStr = (item.hanzi || item.zh || '').replace(/[^\u4e00-\u9fa5]/g, '');
+      if (window.App && typeof App.prefetchCharDataForText === 'function') {
+        App.prefetchCharDataForText(item.hanzi || item.zh || '', {
+          rerender: true,
+          mode: 'study',
+          itemId: typeof App.getItemId === 'function' ? App.getItemId(item) : ''
+        });
+        if (!App._componentIndex && typeof App.buildCharacterIndices === 'function') {
+          App.buildCharacterIndices().then(() => {
+            if (App.state.mode !== 'study') return;
+            if (typeof App.getItemId === 'function' && App.getItemId(App.state.activeList[App.state.currentIndex]) !== App.getItemId(item)) return;
+            if (window.UI && typeof UI.render === 'function') UI.render();
+          }).catch(error => {
+            console.error('Character index preload failed', error);
+          });
+        }
+      }
       const hzLen = rawHzStr.length || 1;
       let pinyinStyle = '';
       const studyHzClass = hzLen === 1
@@ -707,8 +723,17 @@ Object.assign(window.UI, {
         }
       });
     },
+
+    destroyReaderRuntime() {
+      if (this._readerRuntime?.destroy) {
+        this._readerRuntime.destroy();
+      }
+      this._readerRuntime = null;
+    },
   
     renderSentences(item) {
+      this.destroyReaderRuntime();
+
       let animClass = App.state.skipFadeInOnce ? '' : 'fade-in';
       if (App.state.lastSwipe === 'right') animClass = 'swipe-in-right';
       else if (App.state.lastSwipe === 'left') animClass = 'swipe-in-left';
@@ -717,11 +742,18 @@ Object.assign(window.UI, {
         .replace(/</g, '&lt;')
         .replace(/>/g, '&gt;');
       const prehydrateRadius = 10;
+      const windowSize = 48;
+      const edgeBuffer = 10;
+      const entryGap = 24;
+      const collapsedEstimate = window.matchMedia('(min-width: 768px)').matches ? 186 : 168;
+      const expandedExtraEstimate = 108;
 
       const list = Array.isArray(App.state.activeList) && App.state.activeList.length
         ? App.state.activeList
         : [item];
       const currentIndex = Math.max(0, Math.min(App.state.currentIndex || 0, list.length - 1));
+      const readerHeights = new Map();
+      const clampReaderIndex = index => Math.max(0, Math.min(Number(index) || 0, list.length - 1));
       const getReaderSentenceMarkup = (sentenceItem, hydrate = false) => {
         if (!sentenceItem) return '';
         if (hydrate) {
@@ -733,11 +765,10 @@ Object.assign(window.UI, {
         }
         return sentenceItem._plainZhHTML;
       };
-      
-      const feedHtml = list.map((sentenceItem, idx) => {
-        const absoluteIndex = idx;
+      const getReaderEntryHtml = absoluteIndex => {
+        const sentenceItem = list[absoluteIndex];
         const isOpen = App.state.readExpandedIndex === absoluteIndex;
-        const shouldHydrateNow = isOpen || Math.abs(absoluteIndex - currentIndex) <= prehydrateRadius;
+        const shouldHydrateNow = isOpen || Math.abs(absoluteIndex - App.state.currentIndex) <= prehydrateRadius;
 
         return `
           <article class="reader-entry ${isOpen ? ' is-open' : ''}" data-reader-index="${absoluteIndex}" aria-expanded="${isOpen ? 'true' : 'false'}">
@@ -760,19 +791,61 @@ Object.assign(window.UI, {
             </div>
           </article>
         `;
-      }).join('');
+      };
+      const getEstimatedReaderHeight = absoluteIndex => {
+        const measured = readerHeights.get(absoluteIndex);
+        if (measured) return measured;
+        const sentenceLength = String(list[absoluteIndex]?.zh || '').length;
+        const lengthBump = Math.min(Math.max(0, sentenceLength - 14) * 2.8, 120);
+        const openBump = App.state.readExpandedIndex === absoluteIndex ? expandedExtraEstimate : 0;
+        return collapsedEstimate + lengthBump + openBump;
+      };
+      const getVirtualSpanHeight = (start, end) => {
+        if (start > end) return 0;
+        let total = 0;
+        for (let index = start; index <= end; index += 1) {
+          total += getEstimatedReaderHeight(index);
+        }
+        total += Math.max(0, end - start) * entryGap;
+        return Math.max(0, Math.round(total));
+      };
+      const getWindowRange = centerIndex => {
+        const safeCenter = clampReaderIndex(centerIndex);
+        let start = Math.max(0, safeCenter - Math.floor(windowSize / 2));
+        let end = Math.min(list.length - 1, start + windowSize - 1);
+        start = Math.max(0, end - windowSize + 1);
+        return { start, end };
+      };
 
       this.container.innerHTML = `
         <div class="sentence-static-wrapper reader-shell relative-center-wrapper ${animClass}">
-          <section class="reader-feed" id="readerCarousel" aria-label="Sentence reader">
-            ${feedHtml}
-          </section>
+          <section class="reader-feed" id="readerCarousel" aria-label="Sentence reader"></section>
         </div>
       `;
 
+      const shell = this.container.querySelector('.reader-shell');
       const carousel = this.container.querySelector('#readerCarousel');
-      const entries = Array.from(carousel.querySelectorAll('.reader-entry'));
-      let scrollTimeout;
+      const readerRuntime = {
+        rangeStart: 0,
+        rangeEnd: -1,
+        scrollRaf: 0,
+        scrollTimeout: 0,
+        destroy: () => {
+          if (readerRuntime.scrollRaf) cancelAnimationFrame(readerRuntime.scrollRaf);
+          if (readerRuntime.scrollTimeout) clearTimeout(readerRuntime.scrollTimeout);
+        }
+      };
+      this._readerRuntime = readerRuntime;
+
+      const getRenderedEntries = () => Array.from(carousel.querySelectorAll('.reader-entry[data-reader-index]'));
+      const updateReaderProgress = absoluteIndex => {
+        const total = list.length || 1;
+        const pct = ((absoluteIndex + 1) / total) * 100;
+        document.querySelectorAll('.global-progress-fill').forEach(fill => fill.style.width = `${pct}%`);
+        document.querySelectorAll('.global-progress-text').forEach(text => {
+          text.textContent = `${absoluteIndex + 1} / ${total}`;
+        });
+      };
       const hydrateReaderEntry = absoluteIndex => {
         const node = carousel.querySelector(`[data-reader-sentence="${absoluteIndex}"]`);
         const sentenceItem = list[absoluteIndex];
@@ -789,114 +862,192 @@ Object.assign(window.UI, {
           hydrateReaderEntry(index);
         }
       };
-
-      const updateCoverFlow = () => {
-          const carouselCenter = carousel.scrollTop + carousel.clientHeight / 2;
-          let closestIndex = -1;
-          let minDistance = Infinity;
-
-          entries.forEach((entry, idx) => {
-              const entryCenter = entry.offsetTop + entry.offsetHeight / 2;
-              const distance = entryCenter - carouselCenter;
-              const absDistance = Math.abs(distance);
-              
-              if (absDistance < minDistance) {
-                  minDistance = absDistance;
-                  closestIndex = idx;
-              }
-          });
-
-          entries.forEach((entry, idx) => {
-              if (idx === closestIndex) {
-                  if (!entry.classList.contains('is-current')) {
-                      entry.classList.add('is-current');
-                      entry.setAttribute('aria-current', 'true');
-                  }
-              } else {
-                  if (entry.classList.contains('is-current')) {
-                      entry.classList.remove('is-current');
-                      entry.removeAttribute('aria-current');
-                  }
-              }
-          });
-
-          if (closestIndex !== -1) {
-              const absIndex = Number(entries[closestIndex].dataset.readerIndex);
-              hydrateReaderWindow(absIndex);
-              if (App.state.currentIndex !== absIndex) {
-                  App.state.currentIndex = absIndex;
-                  clearTimeout(scrollTimeout);
-                  scrollTimeout = setTimeout(() => {
-                      App.saveSettings();
-                      const pct = ((App.state.currentIndex + 1) / App.state.activeList.length) * 100;
-                      document.querySelectorAll('.global-progress-fill').forEach(fill => fill.style.width = `${pct}%`);
-                      document.querySelectorAll('.global-progress-text').forEach(t => t.textContent = `${App.state.currentIndex + 1} / ${App.state.activeList.length}`);
-                  }, 150);
-              }
+      const syncReaderMeasurements = () => {
+        let didChange = false;
+        getRenderedEntries().forEach(node => {
+          const absoluteIndex = Number(node.dataset.readerIndex);
+          const height = Math.ceil(node.offsetHeight);
+          if (!Number.isFinite(absoluteIndex) || height <= 0) return;
+          const previous = readerHeights.get(absoluteIndex);
+          if (previous === undefined || Math.abs(previous - height) > 1) {
+            readerHeights.set(absoluteIndex, height);
+            didChange = true;
           }
+        });
+        if (!didChange) return;
+        const topSpacer = carousel.querySelector('[data-reader-spacer="top"]');
+        const bottomSpacer = carousel.querySelector('[data-reader-spacer="bottom"]');
+        if (topSpacer) topSpacer.style.height = `${getVirtualSpanHeight(0, readerRuntime.rangeStart - 1)}px`;
+        if (bottomSpacer) bottomSpacer.style.height = `${getVirtualSpanHeight(readerRuntime.rangeEnd + 1, list.length - 1)}px`;
+      };
+      const markCurrentReaderEntry = absoluteIndex => {
+        getRenderedEntries().forEach(node => {
+          const nodeIndex = Number(node.dataset.readerIndex);
+          const isCurrent = nodeIndex === absoluteIndex;
+          node.classList.toggle('is-current', isCurrent);
+          if (isCurrent) node.setAttribute('aria-current', 'true');
+          else node.removeAttribute('aria-current');
+        });
+      };
+      const scrollReaderEntryIntoView = (absoluteIndex, behavior = 'auto') => {
+        const node = carousel.querySelector(`[data-reader-index="${absoluteIndex}"]`);
+        if (!node) return;
+        const top = node.offsetTop - (carousel.clientHeight / 2) + (node.offsetHeight / 2);
+        if (behavior === 'auto') carousel.scrollTop = top;
+        else carousel.scrollTo({ top, behavior });
+      };
+      const renderReaderWindow = (centerIndex, options = {}) => {
+        const safeCenter = clampReaderIndex(centerIndex);
+        const { start, end } = getWindowRange(safeCenter);
+        readerRuntime.rangeStart = start;
+        readerRuntime.rangeEnd = end;
+
+        const parts = [];
+        if (start > 0) {
+          parts.push(`<div class="reader-spacer" data-reader-spacer="top" aria-hidden="true" style="height:${getVirtualSpanHeight(0, start - 1)}px"></div>`);
+        }
+        for (let absoluteIndex = start; absoluteIndex <= end; absoluteIndex += 1) {
+          parts.push(getReaderEntryHtml(absoluteIndex));
+        }
+        if (end < list.length - 1) {
+          parts.push(`<div class="reader-spacer" data-reader-spacer="bottom" aria-hidden="true" style="height:${getVirtualSpanHeight(end + 1, list.length - 1)}px"></div>`);
+        }
+
+        carousel.innerHTML = parts.join('');
+        hydrateReaderWindow(App.state.currentIndex);
+        markCurrentReaderEntry(App.state.currentIndex);
+        syncReaderMeasurements();
+
+        if (Number.isFinite(options.preserveAnchorIndex)) {
+          const anchorNode = carousel.querySelector(`[data-reader-index="${options.preserveAnchorIndex}"]`);
+          if (anchorNode) {
+            carousel.scrollTop = anchorNode.offsetTop - (options.preserveAnchorOffset || 0);
+          }
+        } else if (options.alignCurrent) {
+          scrollReaderEntryIntoView(App.state.currentIndex, 'auto');
+        }
+      };
+      const setReaderCurrentIndex = absoluteIndex => {
+        if (!Number.isFinite(absoluteIndex)) return;
+        hydrateReaderWindow(absoluteIndex);
+        markCurrentReaderEntry(absoluteIndex);
+        updateReaderProgress(absoluteIndex);
+        if (App.state.currentIndex === absoluteIndex) return;
+
+        App.state.currentIndex = absoluteIndex;
+        if (readerRuntime.scrollTimeout) clearTimeout(readerRuntime.scrollTimeout);
+        readerRuntime.scrollTimeout = setTimeout(() => {
+          App.saveSettings({ defer: true, delay: 220 });
+        }, 120);
+      };
+      const syncReaderViewport = () => {
+        const entries = getRenderedEntries();
+        if (!entries.length) return;
+
+        const carouselCenter = carousel.scrollTop + carousel.clientHeight / 2;
+        let closestNode = null;
+        let minDistance = Infinity;
+
+        entries.forEach(node => {
+          const entryCenter = node.offsetTop + (node.offsetHeight / 2);
+          const distance = Math.abs(entryCenter - carouselCenter);
+          if (distance < minDistance) {
+            minDistance = distance;
+            closestNode = node;
+          }
+        });
+
+        if (!closestNode) return;
+
+        const absoluteIndex = Number(closestNode.dataset.readerIndex);
+        if (!Number.isFinite(absoluteIndex)) return;
+
+        setReaderCurrentIndex(absoluteIndex);
+        syncReaderMeasurements();
+
+        const nearStart = absoluteIndex - readerRuntime.rangeStart <= edgeBuffer;
+        const nearEnd = readerRuntime.rangeEnd - absoluteIndex <= edgeBuffer;
+        if ((nearStart && readerRuntime.rangeStart > 0) || (nearEnd && readerRuntime.rangeEnd < list.length - 1)) {
+          renderReaderWindow(absoluteIndex, {
+            preserveAnchorIndex: absoluteIndex,
+            preserveAnchorOffset: closestNode.offsetTop - carousel.scrollTop
+          });
+        }
+      };
+      const scheduleReaderViewportSync = () => {
+        if (readerRuntime.scrollRaf) return;
+        readerRuntime.scrollRaf = requestAnimationFrame(() => {
+          readerRuntime.scrollRaf = 0;
+          syncReaderViewport();
+        });
       };
 
-      carousel.addEventListener('scroll', () => requestAnimationFrame(updateCoverFlow), { passive: true });
-      
-      requestAnimationFrame(() => {
-          hydrateReaderWindow(currentIndex);
-          const initialEntry = carousel.querySelector(`[data-reader-index="${currentIndex}"]`);
-          if (initialEntry) {
-              const targetScroll = initialEntry.offsetTop - (carousel.clientHeight / 2) + (initialEntry.offsetHeight / 2);
-              carousel.scrollTop = targetScroll;
-          }
-          updateCoverFlow();
-      });
+      carousel.addEventListener('scroll', scheduleReaderViewportSync, { passive: true });
 
-      this.container.querySelector('.reader-shell').addEventListener('click', e => {
-          const height = window.innerHeight;
-          const y = e.clientY;
-          const cardHeight = (entries[0]?.offsetHeight || carousel.clientHeight * 0.4) + 24;
-          
-          if (y < height * 0.25) {
-              e.stopPropagation();
-              carousel.scrollBy({ top: -cardHeight, behavior: 'smooth' });
-          } else if (y > height * 0.75) {
-              e.stopPropagation();
-              carousel.scrollBy({ top: cardHeight, behavior: 'smooth' });
-          }
-      });
+      shell.addEventListener('click', e => {
+        if (e.target.closest('.reader-entry, .interactive-char, .interactive-word, button, a')) return;
 
-      this.container.querySelectorAll('.reader-entry[data-reader-index]').forEach(node => {
-        node.addEventListener('click', e => {
-          if (e.target.closest('.interactive-char, .interactive-word, button, a')) return;
-          
-          if (!node.classList.contains('is-current')) {
-              const targetScroll = node.offsetTop - (carousel.clientHeight / 2) + (node.offsetHeight / 2);
-              carousel.scrollTo({ top: targetScroll, behavior: 'smooth' });
-              return; // Prevents expanding mid-scroll so animation doesn't teleport
-          }
+        const height = window.innerHeight;
+        const y = e.clientY;
+        const currentEntry = carousel.querySelector('.reader-entry.is-current') || getRenderedEntries()[0];
+        const cardHeight = (currentEntry?.offsetHeight || carousel.clientHeight * 0.4) + entryGap;
 
-          const nextIndex = Number(node.dataset.readerIndex);
-          if (!Number.isFinite(nextIndex)) return;
-          
-          const isOpen = node.classList.contains('is-open');
-          App.state.readExpandedIndex = isOpen ? null : nextIndex;
-          hydrateReaderEntry(nextIndex);
-          node.classList.toggle('is-open', !isOpen);
-          node.setAttribute('aria-expanded', !isOpen ? 'true' : 'false');
-              
-              // Auto-play audio when opening the card
-              if (!isOpen) {
-                  const audioBtn = node.querySelector('.reader-audio-btn');
-                  if (audioBtn) audioBtn.click();
-              }
-        });
-      });
-
-      this.container.querySelectorAll('[data-reader-audio]').forEach(btn => {
-        btn.addEventListener('click', e => {
+        if (y < height * 0.25) {
           e.stopPropagation();
-          const nextIndex = Number(btn.dataset.readerAudio);
-          const sentenceItem = list[nextIndex];
-          if (!sentenceItem?.zh) return;
-          App.speakText(sentenceItem.zh, 'zh-TW');
+          carousel.scrollBy({ top: -cardHeight, behavior: 'smooth' });
+        } else if (y > height * 0.75) {
+          e.stopPropagation();
+          carousel.scrollBy({ top: cardHeight, behavior: 'smooth' });
+        }
+      });
+
+      carousel.addEventListener('click', e => {
+        const audioBtn = e.target.closest('[data-reader-audio]');
+        if (audioBtn) {
+          e.stopPropagation();
+          const absoluteIndex = Number(audioBtn.dataset.readerAudio);
+          const sentenceItem = list[absoluteIndex];
+          if (sentenceItem?.zh) App.speakText(sentenceItem.zh, 'zh-TW');
+          return;
+        }
+
+        if (e.target.closest('.interactive-char, .interactive-word, button, a')) return;
+
+        const entry = e.target.closest('.reader-entry[data-reader-index]');
+        if (!entry) return;
+
+        const absoluteIndex = Number(entry.dataset.readerIndex);
+        if (!Number.isFinite(absoluteIndex)) return;
+
+        if (!entry.classList.contains('is-current')) {
+          scrollReaderEntryIntoView(absoluteIndex, 'smooth');
+          return;
+        }
+
+        const nextOpen = App.state.readExpandedIndex === absoluteIndex ? null : absoluteIndex;
+        App.state.readExpandedIndex = nextOpen;
+        hydrateReaderEntry(absoluteIndex);
+        renderReaderWindow(absoluteIndex, {
+          preserveAnchorIndex: absoluteIndex,
+          preserveAnchorOffset: entry.offsetTop - carousel.scrollTop
         });
+        App.saveSettings({ defer: true, delay: 220 });
+
+        if (nextOpen === absoluteIndex && list[absoluteIndex]?.zh) {
+          App.speakText(list[absoluteIndex].zh, 'zh-TW');
+        }
+
+        requestAnimationFrame(() => {
+          syncReaderMeasurements();
+          syncReaderViewport();
+        });
+      });
+
+      renderReaderWindow(currentIndex, { alignCurrent: true });
+      updateReaderProgress(currentIndex);
+      requestAnimationFrame(() => {
+        syncReaderMeasurements();
+        syncReaderViewport();
       });
     },
   

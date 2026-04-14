@@ -87,7 +87,7 @@ init() {
         });
     });
 
-    document.getElementById('shuffleBtn')?.addEventListener('click', () => {
+    document.getElementById('shuffleBtn')?.addEventListener('click', async () => {
       const btn = document.getElementById('shuffleBtn');
       btn.classList.add('shuffling');
       setTimeout(() => btn.classList.remove('shuffling'), 500);
@@ -96,6 +96,7 @@ init() {
       btn.classList.toggle('active', App.state.shuffle);
       App.state.modeCache = {};
       App.saveSettings();
+      await App.ensureDataLoadedForCurrentState();
       App.updateActiveList();
       UI.render();
     });
@@ -227,10 +228,11 @@ init() {
     const qToggle = document.getElementById('quizTypeToggle');
     if (qToggle) {
         qToggle.checked = App.state.quizType === 'translate';
-        qToggle.addEventListener('change', (e) => {
+        qToggle.addEventListener('change', async (e) => {
           App.state.quizType = e.target.checked ? 'translate' : 'vocab';
           App.state.modeCache = {};
           App.saveSettings();
+          await App.ensureDataLoadedForCurrentState();
           App.updateActiveList();
           UI.updateNavVisibility();
           UI.render();
@@ -240,10 +242,11 @@ init() {
     const scToggle = document.getElementById('separateCharsToggle');
     if (scToggle) {
         scToggle.checked = App.state.separateMode !== 'off';
-        scToggle.addEventListener('change', (e) => {
+        scToggle.addEventListener('change', async (e) => {
           App.state.separateMode = e.target.checked ? 'all' : 'off';
           App.state.modeCache = {}; 
           App.saveSettings();
+          await App.ensureDataLoadedForCurrentState();
           App.updateActiveList();
           UI.render();
         });
@@ -268,7 +271,7 @@ init() {
     const lhToggle = document.getElementById('listeningHardToggle');
     if (lhToggle) {
         lhToggle.checked = App.state.listeningHard;
-        lhToggle.addEventListener('change', (e) => {
+        lhToggle.addEventListener('change', async (e) => {
           App.state.listeningHard = e.target.checked;
           if (e.target.checked) {
             App.state.listeningMode = 'type';
@@ -278,6 +281,7 @@ init() {
           App.state.modeCache = {}; 
           App.saveSettings();
           if (App.state.mode === 'listening') {
+             await App.ensureDataLoadedForCurrentState();
              App.updateActiveList();
              UI.render();
           }
@@ -536,7 +540,10 @@ showCourseSelector() {
       if (Array.isArray(tempDialogues)) tempDialogues = {};
       let focusedLesson = tempLessons.length > 0 && tempLessons[0] !== 'All' ? tempLessons[tempLessons.length - 1] : null;
 
-      const books = Array.from(new Set(DATA.VOCAB.map(v => String(v.book)))).sort((a,b) => a.localeCompare(b));
+      const books = typeof App.getAvailableBooks === 'function'
+        ? App.getAvailableBooks('vocab')
+        : Array.from(new Set(DATA.VOCAB.map(v => String(v.book)))).sort((a,b) => a.localeCompare(b));
+      if (tempBook.includes('All')) tempBook = [...books];
       if(!books.includes('1')) books.unshift('1');
 
       overlay.innerHTML = `
@@ -649,13 +656,9 @@ showCourseSelector() {
               
               const isSentencesSource = ['sentences', 'builder'].includes(App.state.mode) ||
                                         (['quiz', 'quiz-mc'].includes(App.state.mode) && App.state.quizType === 'translate');
-              const source = isSentencesSource ? DATA.SENTENCES : DATA.VOCAB;
-              const lessonItems = source.filter(i => tempBook.includes(String(i.book)) && String(i.lesson) === l);
-
-              const availableDialogues = Array.from(new Set(
-                  lessonItems.map(v => String(v.dialogue))
-                            .filter(d => d !== '0' && d !== 'undefined' && d !== '')
-              )).sort((a,b) => Number(a) - Number(b));
+              const availableDialogues = typeof App.getAvailableDialoguesForLesson === 'function'
+                ? App.getAvailableDialoguesForLesson(tempBook, l, isSentencesSource ? 'sentences' : 'vocab')
+                : [];
 
               if (availableDialogues.length > 0) {
                   let diaHtml = availableDialogues.map((d, i) => {
@@ -736,7 +739,9 @@ showCourseSelector() {
               };
           });
 
-          const availableLessons = Array.from(new Set(DATA.VOCAB.filter(v => tempBook.includes(String(v.book))).map(v => String(v.lesson)))).sort((a, b) => Number(a) - Number(b));
+          const availableLessons = typeof App.getAvailableLessonsForBooks === 'function'
+            ? App.getAvailableLessonsForBooks(tempBook, 'vocab')
+            : Array.from(new Set(DATA.VOCAB.filter(v => tempBook.includes(String(v.book))).map(v => String(v.lesson)))).sort((a, b) => Number(a) - Number(b));
           
           let lessonHtml = `
               <div class="pastel-chip" data-lesson="All" style="grid-column: 1 / -1; animation-delay: 0s;">
@@ -795,7 +800,7 @@ showCourseSelector() {
       
       requestAnimationFrame(() => requestAnimationFrame(() => overlay.classList.add('open')));
       
-      const closeFn = () => {
+      const closeFn = async () => {
           const hasChanged = JSON.stringify(tempBook) !== JSON.stringify(App.state.bookFilter) || 
                              JSON.stringify(tempLessons) !== JSON.stringify(App.state.lessonFilter) ||
                              JSON.stringify(tempDialogues) !== JSON.stringify(App.state.dialogueFilter);
@@ -806,6 +811,7 @@ showCourseSelector() {
               App.state.dialogueFilter = tempDialogues;
               App.state.modeCache = {}; // 🌟 CLEAR CACHE SO OTHER MODES REBUILD THEIR LISTS
               App.saveSettings(); 
+              await App.ensureDataLoadedForCurrentState();
               App.updateActiveList(); 
               UI.updateLessonBadge(); 
               UI.render(); 
@@ -1498,6 +1504,10 @@ Speaker A: Fine. But we leave after this."
     
     const isWritingMode = App.state.mode === 'writing';
     const hasWritingContainer = this.container.querySelector('#writingAppWrapper');
+
+    if (App.state.mode !== 'sentences' && typeof this.destroyReaderRuntime === 'function') {
+        this.destroyReaderRuntime();
+    }
     
     if (!(isStudyMode && hasStudyContainer) && !(isListeningMode && hasListeningContainer) && !(isWritingMode && hasWritingContainer)) {
         this.container.innerHTML = ''; 
@@ -1639,10 +1649,11 @@ Speaker A: Fine. But we leave after this."
     `;
     this.container.innerHTML = html;
     
-    document.getElementById('restartBtn').onclick = () => {
+    document.getElementById('restartBtn').onclick = async () => {
         App.state.isFinished = false; // FIX: Ensure session un-finishes
         App.state.streak = 0; // FIX: Clear lingering streaks
         App.saveSettings();
+        await App.ensureDataLoadedForCurrentState();
         App.updateActiveList(); 
         UI.render();
     };
@@ -1665,11 +1676,12 @@ Speaker A: Fine. But we leave after this."
         };
     }
 
-    setTimeout(() => {
+    setTimeout(async () => {
         if (!App.state.isFinished) return;
         App.state.isFinished = false;
         App.state.streak = 0;
         App.saveSettings();
+        await App.ensureDataLoadedForCurrentState();
         App.updateActiveList();
         App.state.currentIndex = 0;
         App.state.isFlipped = false;
