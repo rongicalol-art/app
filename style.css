@@ -1753,6 +1753,11 @@ body.focus-mode div#app { max-width: none; width: 100vw; margin: 0; padding-left
 .prof-list-board { background: rgba(255, 255, 255, 0.98); border-radius: 28px; box-shadow: 0 8px 18px rgba(255, 158, 181, 0.1), 0 0 0 1px rgba(255,255,255,0.6) inset; display: flex; flex-direction: column; width: 100%; height: 100%; overflow: hidden; }
 .prof-search-header { padding: 20px 20px 16px 20px; background: rgba(255, 255, 255, 0.85); border-bottom: 1px solid rgba(255, 158, 181, 0.12); z-index: 10; }
 .prof-search-wrapper { position: relative; width: 100%; }
+.prof-list-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+.prof-list-action-btn { border: none; border-radius: 999px; background: #f8c7d5; color: #7c2d42; font-family: 'Nunito', sans-serif; font-size: 0.82rem; font-weight: 800; padding: 8px 12px; cursor: pointer; transition: transform 0.15s ease, background 0.15s ease; }
+.prof-list-action-btn:hover { background: #f4b3c6; }
+.prof-list-action-btn:active { transform: scale(0.97); }
+.prof-list-action-btn.is-hidden { display: none; }
 .prof-search-icon { position: absolute; left: 16px; top: 50%; transform: translateY(-50%); width: 18px; height: 18px; pointer-events: none; }
 .prof-search-input { width: 100%; padding: 12px 16px 12px 44px; border-radius: 14px; border: 2px solid transparent; background: #f1f5f9; font-family: 'Nunito', sans-serif; font-size: 1.05rem; font-weight: 700; color: var(--text-main); outline: none; transition: all 0.2s ease; }
 .prof-search-input:focus { background: #ffffff; border-color: var(--primary); box-shadow: 0 4px 20px rgba(255,158,181,0.15); }
@@ -1764,6 +1769,12 @@ body.focus-mode div#app { max-width: none; width: 100vw; margin: 0; padding-left
 .prof-list-row:last-child { border-bottom: none; }
 .prof-list-row:hover { background: rgba(248, 250, 252, 0.8); }
 .prof-list-row:active { background: rgba(241, 245, 249, 0.9); transform: scale(0.98); }
+.prof-list-row.is-selectable { padding-left: 14px; }
+.prof-list-row.is-selected { background: rgba(255, 228, 236, 0.92); }
+.prof-select-check { width: 22px; height: 22px; border-radius: 50%; border: 2px solid #f1a7bc; flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; background: white; box-shadow: 0 1px 3px rgba(15, 23, 42, 0.05); }
+.prof-select-check.is-selected { background: #ec4899; border-color: #ec4899; }
+.prof-select-check-dot { width: 8px; height: 8px; border-radius: 50%; background: white; opacity: 0; transition: opacity 0.15s ease; }
+.prof-select-check.is-selected .prof-select-check-dot { opacity: 1; }
 .prof-hz-large { font-family: 'twkai', serif; font-size: 2.2rem; color: var(--text-main); line-height: 1; min-width: 48px; text-align: center; }
 .prof-hz-sentence { font-size: 1.15rem; color: var(--text-main); margin-bottom: 4px; line-height: 1.4; }
 .prof-row-content { flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: center; gap: 2px; }
@@ -1902,8 +1913,11 @@ body.focus-mode div#app { max-width: none; width: 100vw; margin: 0; padding-left
     .nlr-meta { font-size: 0.65rem !important; }
     .prof-list-board { border-radius: 20px !important; }
     .prof-search-header { padding: 12px 12px 10px 12px !important; }
+    .prof-list-actions { gap: 6px !important; margin-top: 10px !important; }
+    .prof-list-action-btn { padding: 8px 10px !important; font-size: 0.78rem !important; }
     .prof-list-scroll { padding: 0 12px 80px 12px !important; }
     .prof-list-row { padding: 12px 10px !important; gap: 12px !important; }
+    .prof-list-row.is-selectable { padding-left: 8px !important; }
     .prof-hz-large { font-size: 1.8rem !important; min-width: 38px !important; }
     .prof-hz-sentence { font-size: 1.05rem !important; margin-bottom: 2px !important; }
     .prof-py { font-size: 0.9rem !important; }
@@ -4791,6 +4805,20 @@ body.hide-example-pinyin .sentence-pinyin { display: none !important; }
     .prof-list-row {
         gap: 10px !important;
         padding: 10px 12px !important;
+    }
+
+    .prof-list-actions {
+        gap: 6px !important;
+        margin-top: 10px !important;
+    }
+
+    .prof-list-action-btn {
+        padding: 7px 10px !important;
+        font-size: 0.76rem !important;
+    }
+
+    .prof-list-row.is-selectable {
+        padding-left: 8px !important;
     }
 
     .prof-hz-large {

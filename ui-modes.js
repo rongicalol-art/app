@@ -1758,6 +1758,11 @@ Object.assign(window.UI, {
                     </svg>
                   </button>
                 </div>
+                <div class="prof-list-actions">
+                  <button id="listSelectToggle" class="prof-list-action-btn" type="button">${App.state.listSelectionMode ? 'Done' : 'Select'}</button>
+                  <button id="listCopyVisibleBtn" class="prof-list-action-btn" type="button">Copy visible</button>
+                  <button id="listCopySelectedBtn" class="prof-list-action-btn${App.state.listSelectionMode ? '' : ' is-hidden'}" type="button">Copy selected</button>
+                </div>
               </div>
   
               <div id="listItemsContainer" class="prof-list-scroll"></div>
@@ -1769,6 +1774,9 @@ Object.assign(window.UI, {
         const searchInput = document.getElementById('listSearch');
         const clearBtn = document.getElementById('listSearchClear');
         const listContainer = document.getElementById('listItemsContainer');
+        const selectToggleBtn = document.getElementById('listSelectToggle');
+        const copyVisibleBtn = document.getElementById('listCopyVisibleBtn');
+        const copySelectedBtn = document.getElementById('listCopySelectedBtn');
         let debounceTimer;
         let longPressTimer = null;
         let startTouchX = 0;
@@ -1796,9 +1804,14 @@ Object.assign(window.UI, {
           this.populateList(App.state.activeList);
         });
 
+        selectToggleBtn?.addEventListener('click', () => App.toggleListSelectionMode());
+        copyVisibleBtn?.addEventListener('click', () => App.copyVisibleListItems());
+        copySelectedBtn?.addEventListener('click', () => App.copySelectedListItems());
+
         listContainer?.addEventListener('touchstart', e => {
           const row = e.target.closest('.prof-list-row');
           if (!row) return;
+          if (App.state.listSelectionMode) return;
 
           const touch = e.touches?.[0];
           if (!touch) return;
@@ -1854,12 +1867,25 @@ Object.assign(window.UI, {
         });
 
         listContainer?.addEventListener('click', e => {
+          const row = e.target.closest('.prof-list-row');
+          if (App.state.listSelectionMode && row) {
+            e.preventDefault();
+            e.stopPropagation();
+            const id = row.dataset.itemId;
+            if (id) App.toggleListItemSelection(id);
+            return;
+          }
           if (!suppressNextClick) return;
           e.preventDefault();
           e.stopPropagation();
           suppressNextClick = false;
         }, true);
       }
+
+      const selectToggleBtn = document.getElementById('listSelectToggle');
+      const copySelectedBtn = document.getElementById('listCopySelectedBtn');
+      if (selectToggleBtn) selectToggleBtn.textContent = App.state.listSelectionMode ? 'Done' : 'Select';
+      if (copySelectedBtn) copySelectedBtn.classList.toggle('is-hidden', !App.state.listSelectionMode);
   
       this.populateList(App.state.activeList);
     },
@@ -1872,6 +1898,7 @@ Object.assign(window.UI, {
         .replace(/"/g, '&quot;')
         .replace(/</g, '&lt;')
         .replace(/>/g, '&gt;');
+      App.state.listVisibleItems = Array.isArray(items) ? [...items] : [];
   
       containerEl.innerHTML = '';
   
@@ -1897,46 +1924,51 @@ Object.assign(window.UI, {
           const py = item.pinyin || item.py || '';
           const en = App.sanitizeDefinition(item.def || item.en);
           const isSentence = !!item.zh;
+          const hzHTML = item._interactiveHz || (item._interactiveHz = Utils.createInteractiveHanzi(hz));
+          const pyHTML = item.py || item.pinyin || '';
+          const bookColor = window.Utils && Utils.getBookColor ? Utils.getBookColor(item.book) : '#ec4899';
+          const bookBg = window.Utils && Utils.getBookBg ? Utils.getBookBg(item.book) : '#fce7f3';
+          const safeHz = hz.replace(/\\/g, "\\\\").replace(/'/g, "\\'").replace(/"/g, '"');
+          const safePy = py.replace(/\\/g, "\\\\").replace(/'/g, "\\'").replace(/"/g, '"');
+          const safeEn = (en || '').replace(/\\/g, "\\\\").replace(/'/g, "\\'").replace(/"/g, '"');
+          const copyText = escapeAttr(App.getCopyTextForItem(item));
+          const itemId = escapeAttr(App.getItemId(item));
+          const isSelected = App.state.listSelectedIds instanceof Set && App.state.listSelectedIds.has(App.getItemId(item));
+          const selectionMode = !!App.state.listSelectionMode;
+          const onClickStr = selectionMode
+            ? ''
+            : `if(window.App && App.handleCharClick) App.handleCharClick(event, '${safeHz}', '${safePy}', '${safeEn}')`;
   
-          if (!item._listStaticHTML) {
-            const hzHTML = item._interactiveHz || (item._interactiveHz = Utils.createInteractiveHanzi(hz));
-            // Use normal pinyin styling, disable colored Py
-            const pyHTML = item.py || item.pinyin || '';
-            const bookColor = window.Utils && Utils.getBookColor ? Utils.getBookColor(item.book) : '#ec4899';
-            const bookBg = window.Utils && Utils.getBookBg ? Utils.getBookBg(item.book) : '#fce7f3';
-  
-            const safeHz = hz.replace(/\\/g, "\\\\").replace(/'/g, "\\'").replace(/"/g, '"');
-            const safePy = py.replace(/\\/g, "\\\\").replace(/'/g, "\\'").replace(/"/g, '"');
-            const safeEn = (en || '').replace(/\\/g, "\\\\").replace(/'/g, "\\'").replace(/"/g, '"');
-            const copyText = escapeAttr(App.getCopyTextForItem(item));
-  
-            const onClickStr = `if(window.App && App.handleCharClick) App.handleCharClick(event, '${safeHz}', '${safePy}', '${safeEn}')`;
-  
-            let inner = '';
-            if (isSentence) {
-              inner = `
-                <div class="prof-row-content">
-                  <div class="prof-hz-sentence">${hzHTML}</div>
-                  <div class="prof-py" style="[PY_DISPLAY] color: ${bookColor};">${pyHTML}</div>
-                  <div class="prof-en">${en}</div>
-                </div>
-                <div class="prof-tag" style="color: ${bookColor}; background: ${bookBg}; align-self: flex-start;">B${item.book} L${item.lesson}</div>
-              `;
-            } else {
-              inner = `
-                <div class="prof-hz-large">${hzHTML}</div>
-                <div class="prof-row-content" style="border-left: 2px solid rgba(0,0,0,0.03); padding-left: 16px; margin-left: 4px;">
-                  <div class="prof-py" style="[PY_DISPLAY]">${pyHTML}</div>
-                  <div class="prof-en">${en}</div>
-                </div>
-                <div class="prof-tag" style="color: ${bookColor}; background: ${bookBg};">B${item.book} L${item.lesson}</div>
-              `;
-            }
-            item._listStaticHTML = `<div class="prof-list-row fade-in" data-copy-text="${copyText}" onclick="${onClickStr}">${inner}</div>`;
+          let inner = '';
+          if (selectionMode) {
+            inner += `
+              <div class="prof-select-check${isSelected ? ' is-selected' : ''}" aria-hidden="true">
+                <span class="prof-select-check-dot"></span>
+              </div>
+            `;
           }
-  
+          if (isSentence) {
+            inner += `
+              <div class="prof-row-content">
+                <div class="prof-hz-sentence">${hzHTML}</div>
+                <div class="prof-py" style="[PY_DISPLAY] color: ${bookColor};">${pyHTML}</div>
+                <div class="prof-en">${en}</div>
+              </div>
+              <div class="prof-tag" style="color: ${bookColor}; background: ${bookBg}; align-self: flex-start;">B${item.book} L${item.lesson}</div>
+            `;
+          } else {
+            inner += `
+              <div class="prof-hz-large">${hzHTML}</div>
+              <div class="prof-row-content" style="border-left: 2px solid rgba(0,0,0,0.03); padding-left: 16px; margin-left: 4px;">
+                <div class="prof-py" style="[PY_DISPLAY]">${pyHTML}</div>
+                <div class="prof-en">${en}</div>
+              </div>
+              <div class="prof-tag" style="color: ${bookColor}; background: ${bookBg};">B${item.book} L${item.lesson}</div>
+            `;
+          }
+
           const pyDisplay = App.state.noPinyin || (isSentence && App.state.noExamplePinyin) ? 'display:none;' : '';
-          chunkHTML += item._listStaticHTML.replace('[PY_DISPLAY]', pyDisplay);
+          chunkHTML += `<div class="prof-list-row fade-in${selectionMode ? ' is-selectable' : ''}${isSelected ? ' is-selected' : ''}" data-item-id="${itemId}" data-copy-text="${copyText}" ${onClickStr ? `onclick="${onClickStr}"` : ''}>${inner.replace('[PY_DISPLAY]', pyDisplay)}</div>`;
         }
   
         containerEl.insertAdjacentHTML('beforeend', chunkHTML);

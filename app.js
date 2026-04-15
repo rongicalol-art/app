@@ -103,6 +103,9 @@ const App = {
     ttsCardInterval: 2.0,
     ttsVoiceZh: '',
     ttsVoiceEn: '',
+    listSelectionMode: false,
+    listSelectedIds: new Set(),
+    listVisibleItems: [],
   },
 
   _dialoguePlayerRuntime: {
@@ -3039,6 +3042,56 @@ updateActiveList(preserveState = false) {
     const chars = (item.hanzi || item.zh || '').replace(/[()]/g, '').trim();
     const meaning = this.sanitizeDefinition(item.def || item.en || item.meaning || item.definition || '').trim();
     return [chars, meaning].filter(Boolean).join(' - ');
+  },
+
+  toggleListSelectionMode(force) {
+    const nextValue = typeof force === 'boolean' ? force : !this.state.listSelectionMode;
+    this.state.listSelectionMode = nextValue;
+    if (!nextValue) this.state.listSelectedIds = new Set();
+    if (window.UI && typeof UI.render === 'function') UI.render();
+  },
+
+  toggleListItemSelection(itemOrId) {
+    const id = typeof itemOrId === 'string' ? itemOrId : this.getItemId(itemOrId);
+    if (!id) return;
+    if (!(this.state.listSelectedIds instanceof Set)) this.state.listSelectedIds = new Set();
+    if (this.state.listSelectedIds.has(id)) this.state.listSelectedIds.delete(id);
+    else this.state.listSelectedIds.add(id);
+    if (window.UI && typeof UI.render === 'function') UI.render();
+  },
+
+  getListCopyText(items = []) {
+    return (items || [])
+      .map(item => this.getCopyTextForItem(item))
+      .filter(Boolean)
+      .join('\n');
+  },
+
+  async copyVisibleListItems() {
+    const text = this.getListCopyText(this.state.listVisibleItems || []);
+    if (!text) return;
+    try {
+      await Utils.copyToClipboard(text);
+      if (typeof UI !== 'undefined') UI.showToast(`Copied ${(this.state.listVisibleItems || []).length} items`);
+    } catch (err) {
+      console.error('Copy failed', err);
+    }
+  },
+
+  async copySelectedListItems() {
+    const selectedIds = this.state.listSelectedIds instanceof Set ? this.state.listSelectedIds : new Set();
+    const items = (this.state.listVisibleItems || []).filter(item => selectedIds.has(this.getItemId(item)));
+    const text = this.getListCopyText(items);
+    if (!text) {
+      if (typeof UI !== 'undefined') UI.showToast('No items selected');
+      return;
+    }
+    try {
+      await Utils.copyToClipboard(text);
+      if (typeof UI !== 'undefined') UI.showToast(`Copied ${items.length} items`);
+    } catch (err) {
+      console.error('Copy failed', err);
+    }
   },
 
   setupInteraction() {
