@@ -1,4 +1,4 @@
-const STATIC_CACHE = 'mandarin-flashcards-static-v20260415';
+const STATIC_CACHE = 'mandarin-flashcards-static-v20260416-clickfix';
 
 const isCacheableAsset = request => {
   if (request.method !== 'GET') return false;

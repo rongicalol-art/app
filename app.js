@@ -1836,14 +1836,30 @@ const App = {
     if (s) {
       try {
         const parsed = JSON.parse(s);
-        this.state.bookFilter = parsed.bookFilter || ['1'];
-        if (!Array.isArray(this.state.bookFilter)) {
-            this.state.bookFilter = this.state.bookFilter === 'All' ? ['All'] : [String(this.state.bookFilter)];
-        }
-        this.state.lessonFilter = parsed.lessonFilter || ['All'];
-        if (!Array.isArray(this.state.lessonFilter)) this.state.lessonFilter = [this.state.lessonFilter];
-        this.state.dialogueFilter = parsed.dialogueFilter || {};
-        if (Array.isArray(this.state.dialogueFilter)) this.state.dialogueFilter = {};
+        const rawBookFilter = Array.isArray(parsed.bookFilter) ? parsed.bookFilter : [parsed.bookFilter || '1'];
+        const normalizedBooks = [...new Set(rawBookFilter
+          .map(value => this.normalizeBookId(value))
+          .filter(Boolean))];
+        this.state.bookFilter = normalizedBooks.length ? normalizedBooks : ['1'];
+
+        const rawLessonFilter = Array.isArray(parsed.lessonFilter) ? parsed.lessonFilter : [parsed.lessonFilter || 'All'];
+        const normalizedLessons = [...new Set(rawLessonFilter
+          .map(value => this.normalizeLessonId(value))
+          .filter(Boolean))];
+        this.state.lessonFilter = normalizedLessons.length ? normalizedLessons : ['All'];
+
+        const rawDialogueFilter = parsed.dialogueFilter && typeof parsed.dialogueFilter === 'object' && !Array.isArray(parsed.dialogueFilter)
+          ? parsed.dialogueFilter
+          : {};
+        this.state.dialogueFilter = Object.fromEntries(
+          Object.entries(rawDialogueFilter).map(([lesson, dialogues]) => {
+            const normalizedLesson = this.normalizeLessonId(lesson);
+            const normalizedDialogues = [...new Set((Array.isArray(dialogues) ? dialogues : [dialogues])
+              .map(value => this.normalizeLessonId(value))
+              .filter(value => value && value !== '0'))];
+            return [normalizedLesson, normalizedDialogues];
+          }).filter(([lesson, dialogues]) => lesson && lesson !== 'All' && dialogues.length > 0)
+        );
         this.state.shuffle = parsed.shuffle || false;
         this.state.ttsRate = parsed.ttsRate || 0.85;
         this.state.quizType = parsed.quizType === 'translate' ? 'translate' : 'vocab';

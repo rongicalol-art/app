@@ -341,6 +341,9 @@ init() {
     if (charModal) {
         Utils.on(charModal, 'click', this.handleCharModalClick.bind(this));
     }
+
+    // Bind delegated interactions after the static shell is ready.
+    this.setupMainContainerListeners();
   },
   
   handleCharModalClick(e) {
@@ -373,6 +376,15 @@ init() {
     // Moved from init() for clarity
     const cont = this.getContainer();
     if (!cont) return;
+    if (this._mainContainerListenersBound) {
+      document.getElementById('shuffleBtn')?.classList.toggle('active', App.state.shuffle);
+      this.updateLessonBadge();
+      this.updateSpeedButtons();
+      this.updateStreak();
+      this.updateNavVisibility();
+      return;
+    }
+    this._mainContainerListenersBound = true;
 
     cont.addEventListener('click', (e) => {
       const target = e.target;
@@ -490,9 +502,6 @@ init() {
           }
       });
     }
-
-    // Set up container listeners for card interactions (CRITICAL!)
-    this.setupMainContainerListeners();
 
     document.getElementById('shuffleBtn')?.classList.toggle('active', App.state.shuffle);
     this.updateLessonBadge();
@@ -1607,16 +1616,22 @@ Speaker A: Fine. But we leave after this."
   updateLessonBadge() {
     const badge = document.getElementById('lessonBadge');
     if (!badge) return;
-    const books = Array.isArray(App.state.bookFilter) ? App.state.bookFilter : [App.state.bookFilter || '1'];
-    const filters = Array.isArray(App.state.lessonFilter) ? App.state.lessonFilter : ['All'];
+    const books = typeof App.getSelectedBookIds === 'function'
+      ? App.getSelectedBookIds()
+      : (Array.isArray(App.state.bookFilter) ? App.state.bookFilter : [App.state.bookFilter || '1']);
+    const rawFilters = Array.isArray(App.state.lessonFilter) ? App.state.lessonFilter : [App.state.lessonFilter || 'All'];
+    const filters = [...new Set(rawFilters
+      .map(value => typeof App.normalizeLessonId === 'function' ? App.normalizeLessonId(value) : String(value || 'All'))
+      .filter(Boolean))];
     const diaFilters = App.state.dialogueFilter || {};
     
     let lessonText = 'All';
     if (!filters.includes('All')) {
+        const orderedFilters = [...filters].sort((a, b) => Number(a) - Number(b));
         if (filters.length > 3) {
             lessonText = `${filters.length} Lessons`;
         } else {
-            lessonText = filters.map(l => {
+            lessonText = orderedFilters.map(l => {
                 const parts = diaFilters[l];
                 if (parts && parts.length > 0) return `L${l}(D${parts.join(',')})`;
                 return `L${l}`;

@@ -7,16 +7,10 @@
   "theme_color": "#ff6b9d",
   "icons": [
     {
-      "src": "icon.svg",
+      "src": "icon.svg?v=20260416iconrefresh",
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any maskable"
-    },
-    {
-      "src": "favicon.ico",
-      "sizes": "any",
-      "type": "image/x-icon",
-      "purpose": "any"
     }
   ]
 }
