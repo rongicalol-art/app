@@ -1,6 +1,11 @@
 const UI = {
   container: document.getElementById('mainContainer'),
   
+  // 🌟 SAFE GETTERS - PREVENT CRASHES IN READER MODE
+  getContainer() {
+    return this.container ?? Utils.id('mainContainer');
+  },
+  
   // 🌟 PRE-RENDER SVGs ONCE TO PREVENT RE-PARSING ON EVERY CLICK
   subModes: {
       'study': [
@@ -22,155 +27,179 @@ const UI = {
   },
 
 init() {
-    document.body.style.height = '100dvh';
-    document.body.style.minHeight = '-webkit-fill-available'; 
-    document.body.style.overflowX = 'hidden';
-    document.body.style.display = 'flex';
-    document.body.style.flexDirection = 'column';
+    // Safely set body styles
+    if (document.body) {
+      document.body.style.height = '100dvh';
+      document.body.style.minHeight = '-webkit-fill-available'; 
+      document.body.style.overflowX = 'hidden';
+      document.body.style.display = 'flex';
+      document.body.style.flexDirection = 'column';
+    }
     
-    this.container.style.flex = '1';
-    this.container.style.display = 'flex';
-    this.container.style.flexDirection = 'column';
-    this.container.style.justifyContent = 'center';
-    this.container.style.alignItems = 'center';
-    this.container.style.overflowY = 'auto';
-    this.container.style.webkitOverflowScrolling = 'touch';
+    // Safely set container styles
+    const cont = this.getContainer();
+    if (cont) {
+      cont.style.flex = '1';
+      cont.style.display = 'flex';
+      cont.style.flexDirection = 'column';
+      cont.style.justifyContent = 'center';
+      cont.style.alignItems = 'center';
+      cont.style.overflowY = 'auto';
+      cont.style.webkitOverflowScrolling = 'touch';
+    }
 
-    document.querySelectorAll('.nav-item').forEach(btn => {
-      if (btn.dataset.action) {
-          btn.addEventListener('click', (e) => {
-              e.stopPropagation();
-          });
+    // Nav items - safe iteration
+    Utils.qsa('.nav-item').forEach(btn => {
+      if (btn?.dataset?.action) {
+          Utils.on(btn, 'click', (e) => { e.stopPropagation(); });
           return;
       }
 
-      btn.addEventListener('click', (e) => {
-        const mode = btn.dataset.mode;
-
+      Utils.on(btn, 'click', (e) => {
+        const mode = btn?.dataset?.mode;
         if (UI.subModes[mode]) {
             e.stopPropagation();
             this.showNavPopup(btn, UI.subModes[mode]);
-        } else {
-            App.setMode(mode);
+        } else if (mode) {
+            App.setMode?.(mode);
         }
       });
     });
 
-    document.body.classList.remove('dock-hidden');
-    if (App.state.hideDock) {
-        App.state.hideDock = false;
-        App.saveSettings();
+    // Safe dock visibility
+    if (document.body) {
+      document.body.classList.remove('dock-hidden');
+      if (App?.state?.hideDock) {
+          App.state.hideDock = false;
+          App.saveSettings?.();
+      }
     }
 
-    document.addEventListener('click', () => {
-        this.closePopups();
+    // Global click handler for popups
+    Utils.on(document, 'click', () => {
+        this.closePopups?.();
     });
 
-    document.getElementById('settingsBtn')?.addEventListener('click', () => {
-      const settingsContent = document.getElementById('settingsModalContent');
+    // Settings button
+    const settingsBtn = Utils.id('settingsBtn');
+    Utils.on(settingsBtn, 'click', () => {
+      const settingsContent = Utils.id('settingsModalContent');
       if (settingsContent) settingsContent.scrollTop = 0;
-      document.getElementById('settingsModal').classList.add('open');
+      Utils.id('settingsModal')?.classList?.add('open');
     });
-    // --- NEW TAB SWITCHING LOGIC ---
-    document.querySelectorAll('.settings-tab').forEach(tab => {
-        tab.addEventListener('click', (e) => {
-            // Remove active state from all tabs
-            document.querySelectorAll('.settings-tab').forEach(t => t.classList.remove('active'));
-            // Add active state to the clicked tab
-            e.target.classList.add('active');
-            
-            // Hide all content panes
-            document.querySelectorAll('.settings-section-pane').forEach(p => p.classList.remove('active'));
-            // Show the target pane
-            const targetId = e.target.dataset.tab;
-            document.getElementById(targetId)?.classList.add('active');
+    
+    // Settings tab switching
+    Utils.qsa('.settings-tab').forEach(tab => {
+        Utils.on(tab, 'click', (e) => {
+            Utils.qsa('.settings-tab').forEach(t => Utils.removeClass(t, 'active'));
+            Utils.addClass(e.target, 'active');
+            Utils.qsa('.settings-section-pane').forEach(p => Utils.removeClass(p, 'active'));
+            const targetId = tab?.dataset?.tab;
+            if (targetId) Utils.addClass(Utils.id(targetId), 'active');
         });
     });
 
-    document.getElementById('shuffleBtn')?.addEventListener('click', async () => {
-      const btn = document.getElementById('shuffleBtn');
-      btn.classList.add('shuffling');
-      setTimeout(() => btn.classList.remove('shuffling'), 500);
+    // Shuffle button
+    const shuffleBtn = Utils.id('shuffleBtn');
+    Utils.on(shuffleBtn, 'click', async () => {
+      Utils.addClass(shuffleBtn, 'shuffling');
+      setTimeout(() => Utils.removeClass(shuffleBtn, 'shuffling'), 500);
       
-      App.state.shuffle = !App.state.shuffle;
-      btn.classList.toggle('active', App.state.shuffle);
-      App.state.modeCache = {};
-      App.saveSettings();
-      await App.ensureDataLoadedForCurrentState();
-      App.updateActiveList();
-      UI.render();
+      if (App?.state) {
+        App.state.shuffle = !App.state.shuffle;
+        Utils.toggleClass(shuffleBtn, 'active', App.state.shuffle);
+        App.state.modeCache = {};
+        App.saveSettings?.();
+        await App.ensureDataLoadedForCurrentState?.();
+        App.updateActiveList?.();
+        UI.render?.();
+      }
     });
 
-    document.getElementById('autoPlayBtn')?.addEventListener('click', (e) => {
+    // Auto-play button
+    const autoPlayBtn = Utils.id('autoPlayBtn');
+    Utils.on(autoPlayBtn, 'click', (e) => {
       e.stopPropagation();
-      if (App.state.autoPlay) App.stopAutoPlay();
-      else App.startAutoPlay();
-      this.updateAutoPlayButton();
+      if (App?.state?.autoPlay) App.stopAutoPlay?.();
+      else App.startAutoPlay?.();
+      this.updateAutoPlayButton?.();
     });
 
-    document.getElementById('lessonBadge')?.addEventListener('click', (e) => {
+    // Lesson badge
+    const lessonBadge = Utils.id('lessonBadge');
+    Utils.on(lessonBadge, 'click', (e) => {
       e.stopPropagation();
-      UI.showCourseSelector();
+      this.showCourseSelector?.();
     });
 
-    document.querySelectorAll('.modal-overlay').forEach(modal => {
-      // Bind to all close buttons inside the modal
-      modal.querySelectorAll('.modal-close').forEach(closeBtn => {
-        closeBtn.addEventListener('click', (e) => {
+    // Modal overlays
+    Utils.qsa('.modal-overlay').forEach(modal => {
+      Utils.qsa('.modal-close', modal).forEach(closeBtn => {
+        Utils.on(closeBtn, 'click', (e) => {
           e.stopPropagation();
-          modal.classList.remove('open');
+          Utils.removeClass(modal, 'open');
         });
       });
       
-      // Allow clicking the background overlay to close
-      modal.addEventListener('click', (e) => {
+      Utils.on(modal, 'click', (e) => {
         if (e.target === modal) {
-          modal.classList.remove('open');
+          Utils.removeClass(modal, 'open');
         }
       });
     });
     
-    document.querySelectorAll('.speed-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        App.state.ttsRate = parseFloat(btn.dataset.rate);
-        UI.updateSpeedButtons();
-        App.saveSettings();
+    // Speed buttons
+    Utils.qsa('.speed-btn').forEach(btn => {
+      Utils.on(btn, 'click', () => {
+        const rate = parseFloat(btn?.dataset?.rate);
+        if (App?.state) {
+          App.state.ttsRate = rate || 0.85;
+          this.updateSpeedButtons?.();
+          App.saveSettings?.();
+        }
       });
     });
 
+    // Helper for binding toggles
     const bindToggle = (id, propName, onUpdate) => {
-        const el = document.getElementById(id);
+        const el = Utils.id(id);
         if (el) {
-            el.checked = App.state[propName];
-            el.addEventListener('change', (e) => {
-                App.state[propName] = e.target.checked;
-                App.saveSettings();
-                if(onUpdate) onUpdate();
+            el.checked = App?.state?.[propName];
+            Utils.on(el, 'change', (e) => {
+                if (App?.state) {
+                  App.state[propName] = e.target.checked;
+                  App.saveSettings?.();
+                  onUpdate?.();
+                }
             });
         }
     };
 
+    // Helper for binding sliders
     const bindSlider = (id, propName, displayId, formatText, onUpdate) => {
-        const el = document.getElementById(id);
-        const displayEl = document.getElementById(displayId);
+        const el = Utils.id(id);
+        const displayEl = Utils.id(displayId);
         if (el) {
-            el.value = App.state[propName] || el.value;
+            el.value = App?.state?.[propName] ?? el.value;
             if (displayEl) displayEl.textContent = formatText(el.value);
-            el.addEventListener('input', (e) => {
+            Utils.on(el, 'input', (e) => {
                 if (displayEl) displayEl.textContent = formatText(e.target.value);
             });
-            el.addEventListener('change', (e) => {
-                App.state[propName] = parseFloat(e.target.value);
-                App.saveSettings();
-                if (onUpdate) onUpdate();
+            Utils.on(el, 'change', (e) => {
+                if (App?.state) {
+                  App.state[propName] = parseFloat(e.target.value);
+                  App.saveSettings?.();
+                  onUpdate?.();
+                }
             });
         }
     };
 
-    const island = document.getElementById('dynamicIsland');
+    // Dynamic island and clear review button
+    const island = Utils.id('dynamicIsland');
     if (island) {
-        const badge = document.getElementById('lessonBadge');
-        if (badge && !document.getElementById('clearReviewBtn')) {
+        const badge = Utils.id('lessonBadge');
+        if (badge && !Utils.id('clearReviewBtn')) {
             const resetBtn = document.createElement('button');
             resetBtn.id = 'clearReviewBtn';
             resetBtn.title = "Restart & Clear Learned";
@@ -181,42 +210,43 @@ init() {
             badge.insertAdjacentElement('afterend', resetBtn);
         }
 
-        island.addEventListener('click', (e) => {
+        Utils.on(island, 'click', (e) => {
             if (e.target.closest('#lessonBadge') || e.target.closest('#shuffleBtn') || e.target.closest('#settingsBtn') || e.target.closest('#clearReviewBtn')) return;
             island.classList.toggle('expanded');
         });
         
-        document.addEventListener('click', (e) => {
-            if (!island.contains(e.target) && island.classList.contains('expanded')) {
-                island.classList.remove('expanded');
+        Utils.on(document, 'click', (e) => {
+            if (!island?.contains(e.target) && island?.classList?.contains('expanded')) {
+                Utils.removeClass(island, 'expanded');
             }
         });
     }
 
-    bindToggle('quizDefOnlyToggle', 'quizDefOnly', () => { if (App.state.mode === 'quiz') UI.render(); });
+    // Bind all toggle switches
+    bindToggle('quizDefOnlyToggle', 'quizDefOnly', () => { if (App?.state?.mode === 'quiz') UI.render?.(); });
     
-    if (typeof App.state.noExamplePinyin === 'undefined') App.state.noExamplePinyin = true;
+    if (typeof App?.state?.noExamplePinyin === 'undefined') App.state.noExamplePinyin = true;
     bindToggle('noExamplePinyinToggle', 'noExamplePinyin', () => {
-        this.updateExamplePinyinState();
-        UI.render();
+        this.updateExamplePinyinState?.();
+        UI.render?.();
     });
-    this.updateExamplePinyinState();
+    this.updateExamplePinyinState?.();
 
-    bindToggle('noPinyinToggle', 'noPinyin', () => UI.render());
-    bindToggle('noHanziColorToggle', 'noHanziColor', () => UI.render());
-    bindToggle('noTranslationToggle', 'noTranslation', () => UI.render());
+    bindToggle('noPinyinToggle', 'noPinyin', () => UI.render?.());
+    bindToggle('noHanziColorToggle', 'noHanziColor', () => UI.render?.());
+    bindToggle('noTranslationToggle', 'noTranslation', () => UI.render?.());
     bindToggle('fastNextToggle', 'fastNext');
-    bindToggle('writingGuidelinesToggle', 'writingShowOutline', () => { if (App.state.mode === 'writing') UI.render(); });
-    bindToggle('writingHideDrawingToggle', 'writingHideDrawing', () => { if (App.state.mode === 'writing') UI.render(); });
-    bindToggle('showHooksToggle', 'showHooks', () => UI.render());
+    bindToggle('writingGuidelinesToggle', 'writingShowOutline', () => { if (App?.state?.mode === 'writing') UI.render?.(); });
+    bindToggle('writingHideDrawingToggle', 'writingHideDrawing', () => { if (App?.state?.mode === 'writing') UI.render?.(); });
+    bindToggle('showHooksToggle', 'showHooks', () => UI.render?.());
 
-    // --- AUDIO & AUTO-PLAY CUSTOMIZATION ---
-    if (typeof App.state.ttsReadWord === 'undefined') App.state.ttsReadWord = true;
-    if (typeof App.state.ttsReadMeaning === 'undefined') App.state.ttsReadMeaning = true;
-    if (typeof App.state.ttsReadExample === 'undefined') App.state.ttsReadExample = false;
-    if (typeof App.state.ttsReadExampleEn === 'undefined') App.state.ttsReadExampleEn = false;
-    if (typeof App.state.ttsItemInterval === 'undefined') App.state.ttsItemInterval = 1.0;
-    if (typeof App.state.ttsCardInterval === 'undefined') App.state.ttsCardInterval = 2.0;
+    // Audio customization defaults
+    if (typeof App?.state?.ttsReadWord === 'undefined') App.state.ttsReadWord = true;
+    if (typeof App?.state?.ttsReadMeaning === 'undefined') App.state.ttsReadMeaning = true;
+    if (typeof App?.state?.ttsReadExample === 'undefined') App.state.ttsReadExample = false;
+    if (typeof App?.state?.ttsReadExampleEn === 'undefined') App.state.ttsReadExampleEn = false;
+    if (typeof App?.state?.ttsItemInterval === 'undefined') App.state.ttsItemInterval = 1.0;
+    if (typeof App?.state?.ttsCardInterval === 'undefined') App.state.ttsCardInterval = 2.0;
 
     bindToggle('ttsReadWordToggle', 'ttsReadWord');
     bindToggle('ttsReadMeaningToggle', 'ttsReadMeaning');
@@ -225,161 +255,126 @@ init() {
     bindSlider('ttsItemIntervalSlider', 'ttsItemInterval', 'ttsItemIntervalVal', v => `${v}s`);
     bindSlider('ttsCardIntervalSlider', 'ttsCardInterval', 'ttsCardIntervalVal', v => `${v}s`);
 
-    const qToggle = document.getElementById('quizTypeToggle');
+    // Quiz type toggle
+    const qToggle = Utils.id('quizTypeToggle');
     if (qToggle) {
-        qToggle.checked = App.state.quizType === 'translate';
-        qToggle.addEventListener('change', async (e) => {
-          App.state.quizType = e.target.checked ? 'translate' : 'vocab';
-          App.state.modeCache = {};
-          App.saveSettings();
-          await App.ensureDataLoadedForCurrentState();
-          App.updateActiveList();
-          UI.updateNavVisibility();
-          UI.render();
+        qToggle.checked = App?.state?.quizType === 'translate';
+        Utils.on(qToggle, 'change', async (e) => {
+          if (App?.state) {
+            App.state.quizType = e.target.checked ? 'translate' : 'vocab';
+            App.state.modeCache = {};
+            App.saveSettings?.();
+            await App.ensureDataLoadedForCurrentState?.();
+            App.updateActiveList?.();
+            this.updateNavVisibility?.();
+            UI.render?.();
+          }
         });
     }
 
-    const scToggle = document.getElementById('separateCharsToggle');
+    // Separate chars toggle
+    const scToggle = Utils.id('separateCharsToggle');
     if (scToggle) {
-        scToggle.checked = App.state.separateMode !== 'off';
-        scToggle.addEventListener('change', async (e) => {
-          App.state.separateMode = e.target.checked ? 'all' : 'off';
-          App.state.modeCache = {}; 
-          App.saveSettings();
-          await App.ensureDataLoadedForCurrentState();
-          App.updateActiveList();
-          UI.render();
+        scToggle.checked = App?.state?.separateMode !== 'off';
+        Utils.on(scToggle, 'change', async (e) => {
+          if (App?.state) {
+            App.state.separateMode = e.target.checked ? 'all' : 'off';
+            App.state.modeCache = {}; 
+            App.saveSettings?.();
+            await App.ensureDataLoadedForCurrentState?.();
+            App.updateActiveList?.();
+            UI.render?.();
+          }
         });
     }
 
-    const ltToggle = document.getElementById('listeningToneTestToggle');
+    // Listening tone test toggle
+    const ltToggle = Utils.id('listeningToneTestToggle');
     if (ltToggle) {
-        ltToggle.checked = App.state.listeningToneTest;
-        ltToggle.addEventListener('change', (e) => {
-          App.state.listeningToneTest = e.target.checked;
-          if (e.target.checked && !App.state.listeningHard) {
-            App.state.listeningMode = 'py';
-          } else if (!e.target.checked && App.state.listeningMode === 'py') {
-            App.state.listeningMode = 'def';
+        ltToggle.checked = App?.state?.listeningToneTest;
+        Utils.on(ltToggle, 'change', (e) => {
+          if (App?.state) {
+            App.state.listeningToneTest = e.target.checked;
+            if (e.target.checked && !App.state.listeningHard) {
+              App.state.listeningMode = 'py';
+            } else if (!e.target.checked && App.state.listeningMode === 'py') {
+              App.state.listeningMode = 'def';
+            }
+            App.state.modeCache = {};
+            App.saveSettings?.();
+            if (App.state.mode === 'listening') UI.render?.();
           }
-          App.state.modeCache = {};
-          App.saveSettings();
-          if (App.state.mode === 'listening') UI.render();
         });
     }
 
-    const lhToggle = document.getElementById('listeningHardToggle');
+    // Listening hard toggle
+    const lhToggle = Utils.id('listeningHardToggle');
     if (lhToggle) {
-        lhToggle.checked = App.state.listeningHard;
-        lhToggle.addEventListener('change', async (e) => {
-          App.state.listeningHard = e.target.checked;
-          if (e.target.checked) {
-            App.state.listeningMode = 'type';
-          } else if (App.state.listeningMode === 'type') {
-            App.state.listeningMode = App.state.listeningToneTest ? 'py' : 'def';
-          }
-          App.state.modeCache = {}; 
-          App.saveSettings();
-          if (App.state.mode === 'listening') {
-             await App.ensureDataLoadedForCurrentState();
-             App.updateActiveList();
-             UI.render();
+        lhToggle.checked = App?.state?.listeningHard;
+        Utils.on(lhToggle, 'change', async (e) => {
+          if (App?.state) {
+            App.state.listeningHard = e.target.checked;
+            if (e.target.checked) {
+              App.state.listeningMode = 'type';
+            } else if (App.state.listeningMode === 'type') {
+              App.state.listeningMode = App.state.listeningToneTest ? 'py' : 'def';
+            }
+            App.state.modeCache = {}; 
+            App.saveSettings?.();
+            if (App.state.mode === 'listening') {
+               await App.ensureDataLoadedForCurrentState?.();
+               App.updateActiveList?.();
+               UI.render?.();
+            }
           }
         });
     }
 
-    document.getElementById('clearReviewBtn')?.addEventListener('click', () => {
-        App.clearReviewList();
+    // Clear review button
+    const clearReviewBtn = Utils.id('clearReviewBtn');
+    Utils.on(clearReviewBtn, 'click', () => {
+        App.clearReviewList?.();
     });
 
-    const charModal = document.getElementById('charModal');
+    // Character modal setup
+    const charModal = Utils.id('charModal');
     if (charModal) {
-        charModal.addEventListener('click', (e) => {
-            const target = e.target;
-            const actionTarget = target.closest('[data-action="show-char-details"]');
-            if (actionTarget) {
-                e.stopPropagation();
-                const char = actionTarget.dataset.char;
-                if (char) App.handleCharClick(e, char);
-            }
-            
-            const toggleTarget = target.closest('[data-action="toggle-breakdown"]');
-            if (toggleTarget) {
-                 e.stopPropagation();
-                 const l1 = document.getElementById('breakdown-l1');
-                 const l2 = document.getElementById('breakdown-l2');
-                 if (l1 && l2) {
-                     const isL2Visible = l2.style.display !== 'none';
-                     l1.style.display = isL2Visible ? 'block' : 'none';
-                     l2.style.display = isL2Visible ? 'none' : 'block';
-                 }
-            }
-        });
-
-        charModal.addEventListener('click', (e) => {
-            const summary = e.target.closest('summary');
-            if (!summary) return;
-            const details = summary.parentElement;
-            if (!details) return;
-            e.preventDefault();
-
-            if (details._closeTimer) {
-                clearTimeout(details._closeTimer);
-                details._closeTimer = null;
-            }
-
-            if (details.classList.contains('expanded')) {
-                details.classList.remove('expanded');
-                details._closeTimer = setTimeout(() => {
-                    details.removeAttribute('open');
-                    details._closeTimer = null;
-                }, 300);
-            } else {
-                details.setAttribute('open', '');
-                void details.offsetHeight;
-                details.classList.add('expanded');
-            }
-        });
-
-        charModal.addEventListener('click', (e) => {
-            const target = e.target;
-            const editBtn = target.closest('[data-action="edit-hook"]');
-            if (editBtn) {
-                const char = editBtn.dataset.char;
-                document.getElementById(`hook-display-${char}`).style.display = 'none';
-                document.getElementById(`hook-editor-${char}`).style.display = 'block';
-                editBtn.style.display = 'none';
-                const ta = document.getElementById(`hook-input-${char}`);
-                if (ta) {
-                    ta.focus();
-                    ta.style.height = 'auto';
-                    ta.style.height = ta.scrollHeight + 'px';
-                }
-            }
-            
-            const cancelBtn = target.closest('[data-action="cancel-edit-hook"]');
-            if (cancelBtn) {
-                App.handleCharClick(e, cancelBtn.dataset.char);
-            }
-            
-            const saveBtn = target.closest('[data-action="save-hook"]');
-            if (saveBtn) {
-                const char = saveBtn.dataset.char;
-                const val = document.getElementById(`hook-input-${char}`).value;
-                App.saveUserHook(char, val);
-                App.handleCharClick(e, char); 
-            }
-        });
-
-        charModal.addEventListener('input', (e) => {
-            if (e.target.tagName === 'TEXTAREA' && e.target.id.startsWith('hook-input-')) {
-                e.target.style.height = 'auto';
-                e.target.style.height = e.target.scrollHeight + 'px';
-            }
-        });
+        Utils.on(charModal, 'click', this.handleCharModalClick.bind(this));
     }
+  },
+  
+  handleCharModalClick(e) {
+    const target = e?.target;
+    if (!target) return;
+    
+    const actionTarget = target.closest?.('[data-action="show-char-details"]');
+    if (actionTarget) {
+      e.stopPropagation?.();
+      const char = actionTarget.dataset?.char;
+      if (char) App.handleCharClick?.(e, char);
+      return;
+    }
+    
+    const toggleTarget = target.closest?.('[data-action="toggle-breakdown"]');
+    if (toggleTarget) {
+      e.stopPropagation?.();
+      const l1 = Utils.id('breakdown-l1');
+      const l2 = Utils.id('breakdown-l2');
+      if (l1 && l2) {
+        const isL2Visible = l2.style.display !== 'none';
+        l1.style.display = isL2Visible ? 'block' : 'none';
+        l2.style.display = isL2Visible ? 'none' : 'block';
+      }
+      return;
+    }
+  },
 
-    this.container.addEventListener('click', (e) => {
+  setupMainContainerListeners() {
+    // Moved from init() for clarity
+    const cont = this.getContainer();
+    if (!cont) return;
+
+    cont.addEventListener('click', (e) => {
       const target = e.target;
       const actionTarget = target.closest('[data-action]');
       if (!actionTarget) return;
@@ -448,48 +443,56 @@ init() {
     let touchStartX = 0, touchStartY = 0;
     let isLongPress = false;
 
-    this.container.addEventListener('touchstart', (e) => {
-        const card = e.target.closest('.card');
-        if (!card || App.state.mode !== 'study') return;
-        
-        isLongPress = false;
-        const touch = e.touches[0];
-        touchStartX = touch.clientX;
-        touchStartY = touch.clientY;
+    // Use safe container reference for touch listeners
+    const touchContainer = this.getContainer() || this.container;
+    if (touchContainer) {
+      touchContainer.addEventListener('touchstart', (e) => {
+          const card = e.target.closest('.card');
+          if (!card || App?.state?.mode !== 'study') return;
+          
+          isLongPress = false;
+          const touch = e.touches?.[0];
+          if (!touch) return;
+          touchStartX = touch.clientX;
+          touchStartY = touch.clientY;
 
-        longPressTimer = setTimeout(() => {
-            longPressTimer = null;
-            isLongPress = true;
-            const currentItem = App.state.activeList[App.state.currentIndex];
-            if (currentItem) {
-                // 🌟 Pre-fill the cache so setMode smoothly transitions without losing your place
-                App.state.modeCache['writing'] = {
-                    list: App.state.activeList, index: App.state.currentIndex,
-                    isFinished: App.state.isFinished,
-                    sessionMistakes: App.state.sessionMistakes,
-                    filterKey: App.getFilterKey()
-                };
-                App.setMode('writing');
-            }
-        }, 500);
-    }, { passive: true });
+          longPressTimer = setTimeout(() => {
+              longPressTimer = null;
+              isLongPress = true;
+              const currentItem = App?.state?.activeList?.[App.state.currentIndex];
+              if (currentItem) {
+                  App.state.modeCache['writing'] = {
+                      list: App.state.activeList, index: App.state.currentIndex,
+                      isFinished: App.state.isFinished,
+                      sessionMistakes: App.state.sessionMistakes,
+                      filterKey: App.getFilterKey?.()
+                  };
+                  App.setMode?.('writing');
+              }
+          }, 500);
+      }, { passive: true });
 
-    this.container.addEventListener('touchmove', (e) => {
-        if (!longPressTimer) return;
-        const touch = e.touches[0];
-        if (Math.abs(touch.clientX - touchStartX) > 10 || Math.abs(touch.clientY - touchStartY) > 10) {
-            clearTimeout(longPressTimer);
-            longPressTimer = null;
-        }
-    }, { passive: true });
+      touchContainer.addEventListener('touchmove', (e) => {
+          if (!longPressTimer) return;
+          const touch = e.touches?.[0];
+          if (!touch) return;
+          if (Math.abs(touch.clientX - touchStartX) > 10 || Math.abs(touch.clientY - touchStartY) > 10) {
+              clearTimeout(longPressTimer);
+              longPressTimer = null;
+          }
+      }, { passive: true });
 
-    this.container.addEventListener('touchend', (e) => {
-        if (longPressTimer) clearTimeout(longPressTimer);
-        if (isLongPress) {
-            e.preventDefault();
-            isLongPress = false; // 🌟 FIX: Reset the flag so future taps aren't blocked!
-        }
-    });
+      touchContainer.addEventListener('touchend', (e) => {
+          if (longPressTimer) clearTimeout(longPressTimer);
+          if (isLongPress) {
+              e.preventDefault?.();
+              isLongPress = false;
+          }
+      });
+    }
+
+    // Set up container listeners for card interactions (CRITICAL!)
+    this.setupMainContainerListeners();
 
     document.getElementById('shuffleBtn')?.classList.toggle('active', App.state.shuffle);
     this.updateLessonBadge();
@@ -1478,6 +1481,12 @@ Speaker A: Fine. But we leave after this."
       this.teardownDialoguePlayerChrome();
     }
 
+    const isStudyMode = App.state.mode === 'study';
+    // 🌟 Clean up desktop expansion listener when leaving study mode
+    if (!isStudyMode && typeof this.destroyStudyDesktopExpansion === 'function') {
+      this.destroyStudyDesktopExpansion();
+    }
+
     if (isDialoguePlayer) {
         this.container.style.justifyContent = 'stretch';
         this.container.style.paddingTop = '0';
@@ -1496,7 +1505,6 @@ Speaker A: Fine. But we leave after this."
         this.container.style.alignItems = 'center';
     }
 
-    const isStudyMode = App.state.mode === 'study';
     const hasStudyContainer = this.container.querySelector('.card-container') && !this.container.querySelector('.card-container').style.maxWidth;
     
     const isListeningMode = App.state.mode === 'listening';

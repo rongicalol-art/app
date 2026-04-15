@@ -11,6 +11,36 @@ const DATA = {
 
 window.App = null;
 
+// ============ READER MODE DETECTION & STABILITY ============
+// Safari Reader Mode removes elements from DOM - we need to detect and handle this
+const ReaderModeDetection = {
+  isReaderModeActive() {
+    // Check if critical app elements are missing (sign of Reader Mode activation)
+    return !document.getElementById?.('mainContainer') || 
+           !document.getElementById?.('dynamicIsland') ||
+           !document.body?.querySelector?.('.bottom-nav');
+  },
+  
+  safeGetElement(id) {
+    try { return document.getElementById?.(id) ?? null; } catch { return null; }
+  },
+  
+  onReaderModeEnter() {
+    console.warn('[ReaderMode] Safari Reader Mode activated. Cleaning up event listeners.');
+    App?.stopAutoPlay?.();
+    App?.pauseDialoguePlayer?.({ persist: false, updateUI: false });
+  }
+};
+
+// Detect Reader Mode changes
+if (document) {
+  new MutationObserver(() => {
+    if (ReaderModeDetection.isReaderModeActive()) {
+      ReaderModeDetection.onReaderModeEnter();
+    }
+  }).observe(document.body || document, { childList: true, subtree: true });
+}
+
 const App = {
   state: {
     charHistory: [],
@@ -99,55 +129,77 @@ const App = {
   },
   
  async init() {
-    await this.importData();
-    this.loadSettings();
-    await this.ensureDataLoadedForCurrentState();
-
     try {
-        const learned = JSON.parse(localStorage.getItem('fc_learned_items') || '[]');
-        this.state.learnedItems = new Set(learned);
-    } catch (e) {
-        console.error("Failed to load learned items", e);
-    }
-
-    // 🌟 FIX: Tell the list generator to preserve the exact state we just loaded
-    this.updateActiveList(true); 
-    
-    if (this.state.activeList.length === 0 && DATA.VOCAB.length > 0 && !this.state.hideLearned) {
-      this.state.lessonFilter = ['All'];
-      this.state.bookFilter = ['All'];
+      // 🌟 CRITICAL FIX: Remove optional chaining to let errors propagate
+      // Optional chaining (?.) masks exceptions - they just return undefined instead of throwing
+      await this.importData();
+      this.loadSettings();
       await this.ensureDataLoadedForCurrentState();
-      this.updateActiveList(false); // Reset only if the list is broken/empty
-      this.saveSettings();
-    }
-    
-    document.body.dataset.mode = this.state.mode;
-    document.body.classList.toggle('mode-quiz', this.state.mode === 'quiz');
-    document.body.classList.toggle('mode-quiz-mc', this.state.mode === 'quiz-mc');
-    document.body.classList.toggle('focus-mode', this.state.mode === 'writing');
-    UI.init();
-    try {
-      UI.render();
-    } catch (renderError) {
-      console.error('Initial UI render failed, falling back to study mode.', renderError);
-      this.recoverFromInitialRenderFailure();
-      UI.render();
-      this.saveSettings();
-    }
-    this.setupInteraction();
 
-    // 🌟 PRE-COMPUTE HEAVY INDICES IN THE BACKGROUND TO PREVENT UI JANK LATER
-    const runBackground = window.requestIdleCallback || window.setTimeout;
-    runBackground(() => {
-      this.buildCharacterIndices().catch(error => {
-        console.error('Character support preload failed', error);
+      try {
+          const learned = JSON.parse(localStorage.getItem?.('fc_learned_items') ?? '[]');
+          this.state.learnedItems = new Set(learned);
+      } catch (e) {
+          console.error("Failed to load learned items", e);
+      }
+
+      // 🌟 FIX: Tell the list generator to preserve the exact state we just loaded
+      this.updateActiveList(true);
+      
+      if (this.state.activeList.length === 0 && DATA.VOCAB.length > 0 && !this.state.hideLearned) {
+        this.state.lessonFilter = ['All'];
+        this.state.bookFilter = ['All'];
+        await this.ensureDataLoadedForCurrentState();
+        this.updateActiveList(false);
+        this.saveSettings();
+      }
+      
+      // Safely update body and UI
+      if (document.body) {
+        document.body.dataset.mode = this.state.mode;
+        if (document.body.classList) {
+          document.body.classList.toggle('mode-quiz', this.state.mode === 'quiz');
+          document.body.classList.toggle('mode-quiz-mc', this.state.mode === 'quiz-mc');
+          document.body.classList.toggle('focus-mode', this.state.mode === 'writing');
+        }
+      }
+
+      UI.init();
+      try {
+        UI.render();
+      } catch (renderError) {
+        console.error('Initial UI render failed, falling back to study mode.', renderError);
+        this.recoverFromInitialRenderFailure();
+        UI.render();
+        this.saveSettings();
+      }
+      this.setupInteraction();
+
+      // 🌟 PRE-COMPUTE HEAVY INDICES IN THE BACKGROUND TO PREVENT UI JANK LATER
+      const runBackground = window.requestIdleCallback || window.setTimeout;
+      runBackground(() => {
+        this.buildCharacterIndices().catch(error => {
+          console.error('Character support preload failed', error);
+        });
       });
-    });
+    } catch (err) {
+      console.error('[App.init] Initialization failed:', err);
+      console.error('[App.init] Stack trace:', err.stack);
+      console.error('[App.init] DATA state:', { VOCAB_COUNT: DATA.VOCAB.length, SENTENCES_COUNT: DATA.SENTENCES.length });
+      // Fallback recovery
+      this.recoverFromInitialRenderFailure();
+    }
   },
 
   recoverFromInitialRenderFailure() {
-    if (this.state.mode === 'listening' && this.state.listeningMode === 'dialogue') {
-      this.pauseDialoguePlayer({ persist: false, updateUI: false });
+    // 🌟 Clean up timers before recovery
+    if (this._autoPlayTimer) clearTimeout(this._autoPlayTimer);
+    if (this._markLearnedAnimTimer) clearTimeout(this._markLearnedAnimTimer);
+    if (this._swipeFeedbackTimer) clearTimeout(this._swipeFeedbackTimer);
+    if (this._autoRestartTimer) clearTimeout(this._autoRestartTimer);
+
+    if (this.state?.mode === 'listening' && this.state?.listeningMode === 'dialogue') {
+      this.pauseDialoguePlayer?.({ persist: false, updateUI: false });
     }
 
     this.state.mode = 'study';
@@ -156,10 +208,13 @@ const App = {
     this.state.dialoguePlayerActiveLineIndex = 0;
     this.state.dialoguePlayerCurrentTimeMs = 0;
     this.state.skipFadeInOnce = true;
-    document.body.dataset.mode = this.state.mode;
-    document.body.classList.toggle('mode-quiz', false);
-    document.body.classList.toggle('mode-quiz-mc', false);
-    document.body.classList.toggle('focus-mode', false);
+    
+    if (document.body && document.body.classList) {
+      document.body.dataset.mode = this.state.mode;
+      document.body.classList.toggle('mode-quiz', false);
+      document.body.classList.toggle('mode-quiz-mc', false);
+      document.body.classList.toggle('focus-mode', false);
+    }
   },
 
   getDialoguePlayerLines(text = this.state.dialoguePlayerText) {
@@ -3303,6 +3358,14 @@ updateActiveList(preserveState = false) {
 
  setMode(newMode) {
     if (this.state.mode === newMode) return; 
+
+    // 🌟 Clear all pending timers before mode change to prevent iOS crashes from stale callbacks
+    if (this._autoPlayTimer) { clearTimeout(this._autoPlayTimer); this._autoPlayTimer = null; }
+    if (this._markLearnedAnimTimer) { clearTimeout(this._markLearnedAnimTimer); this._markLearnedAnimTimer = null; }
+    if (this._swipeFeedbackTimer) { clearTimeout(this._swipeFeedbackTimer); this._swipeFeedbackTimer = null; }
+    if (this._autoRestartTimer) { clearTimeout(this._autoRestartTimer); this._autoRestartTimer = null; }
+    if (this._dialoguePlayerProgressRafId) { cancelAnimationFrame(this._dialoguePlayerProgressRafId); this._dialoguePlayerProgressRafId = null; }
+    if (this._dialoguePlayerRafId) { cancelAnimationFrame(this._dialoguePlayerRafId); this._dialoguePlayerRafId = null; }
 
     this.state.previousMode = this.state.mode;
 

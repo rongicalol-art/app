@@ -521,13 +521,47 @@ Object.assign(window.UI, {
       const charCardsHtml = uniqueChars.slice(0, 4).map(char => {
         const charData = DATA.CHARS && DATA.CHARS[char] ? DATA.CHARS[char] : {};
         const pinyin = Utils.formatNumberedPinyin(Array.isArray(charData.pinyin) ? charData.pinyin[0] : (charData.pinyin || ''));
-        const definition = App.sanitizeDefinition(charData.def || charData.meaning).split(/[,;，\/]/)[0].trim() || 'Character';
+        
+        // 🌟 PRIORITIZE SHORT MEANINGS: Try book vocab meaning first, then character def
+        let definition = '';
+        const vocabExamples = ((DATA.VOCAB_BY_CHAR && DATA.VOCAB_BY_CHAR[char]) || []);
+        if (vocabExamples.length > 0) {
+          // Get first vocab's short meaning ranked by book/lesson
+          const sortedVocab = [...vocabExamples]
+            .sort((a, b) => {
+              const aScore = (Number(a?.book) || 99) * 1000 + (Number(a?.lesson) || 99);
+              const bScore = (Number(b?.book) || 99) * 1000 + (Number(b?.lesson) || 99);
+              return aScore - bScore;
+            });
+          const firstVocab = sortedVocab[0];
+          if (firstVocab) {
+            const vocabDef = App.sanitizeDefinition(firstVocab.def || firstVocab.en || '').split(/[,;，；\/]/)[0].trim();
+            // Use vocab def if it's reasonably short and not a generated "abbreviation for..." pattern
+            if (vocabDef && vocabDef.length < 40 && !vocabDef.toLowerCase().match(/^abbreviation|^short for|^variant/i)) {
+              definition = vocabDef;
+            }
+          }
+        }
+        // Fallback to character def if vocab didn't work
+        if (!definition) {
+          const charDef = App.sanitizeDefinition(charData.def || charData.meaning || '').split(/[,;，；\/]/)[0].trim();
+          // Use only first part if it looks good
+          if (charDef && charDef.length < 50) {
+            definition = charDef;
+          } else if (charDef) {
+            // Extract just the first meaningful word for long defs
+            const words = charDef.split(/[\s,;，；]/);
+            definition = words.slice(0, 2).join(' ').trim() || charDef.substring(0, 30);
+          }
+        }
+        definition = definition || 'Character';
+        
         const topComponents = (charData.deconstruction_tree?.children || [])
           .slice(0, 4)
           .map(child => ({
             char: child.component || '?',
             pinyin: Utils.formatNumberedPinyin(Array.isArray(child.pinyin) ? child.pinyin[0] : (child.pinyin || '')),
-            def: App.sanitizeDefinition(child.meaning).split(/[,;，\/]/)[0].trim() || 'Component'
+            def: App.sanitizeDefinition(child.meaning).split(/[,;，；\/]/)[0].trim() || 'Component'
           }))
           .filter(component => component.char && component.char !== '?');
 
@@ -672,24 +706,45 @@ Object.assign(window.UI, {
 
     attachStudyDesktopExpansion(studyWrapper) {
       this._studyDesktopWrapper = studyWrapper;
-      if (!this._studyDesktopExpansionHandler) {
-        this._studyDesktopExpansionHandler = () => {
-          if (this._studyDesktopSyncFrame) return;
-          this._studyDesktopSyncFrame = requestAnimationFrame(() => {
-            this._studyDesktopSyncFrame = null;
-            this.syncStudyDesktopExpansion();
-          });
-        };
-        window.addEventListener('resize', this._studyDesktopExpansionHandler, { passive: true });
+      
+      // 🌟 CRITICAL FIX: Remove old resize listener before adding new one (prevents memory leak)
+      if (this._studyDesktopExpansionHandler) {
+        window.removeEventListener('resize', this._studyDesktopExpansionHandler);
       }
+      
+      this._studyDesktopExpansionHandler = () => {
+        if (this._studyDesktopSyncFrame) return;
+        this._studyDesktopSyncFrame = requestAnimationFrame(() => {
+          this._studyDesktopSyncFrame = null;
+          this.syncStudyDesktopExpansion();
+        });
+      };
+      window.addEventListener('resize', this._studyDesktopExpansionHandler, { passive: true });
 
       this.syncStudyDesktopExpansion();
+    },
+
+    destroyStudyDesktopExpansion() {
+      // 🌟 Clean up resize listener on mode change to prevent memory leaks
+      if (this._studyDesktopExpansionHandler) {
+        window.removeEventListener('resize', this._studyDesktopExpansionHandler);
+        this._studyDesktopExpansionHandler = null;
+      }
+      if (this._studyDesktopExpandFrame) {
+        cancelAnimationFrame(this._studyDesktopExpandFrame);
+        this._studyDesktopExpandFrame = null;
+      }
+      if (this._studyDesktopSyncFrame) {
+        cancelAnimationFrame(this._studyDesktopSyncFrame);
+        this._studyDesktopSyncFrame = null;
+      }
+      this._studyDesktopWrapper = null;
     },
 
     syncStudyDesktopExpansion() {
       const wrapper = this._studyDesktopWrapper;
       if (!wrapper) return;
-      const isDesktopWideStudyLayout = window.matchMedia('(min-width: 768px) and (min-height: 700px)').matches;
+      const isDesktopWideStudyLayout = window.matchMedia('(min-width: 768px) and (min-height: 600px)').matches;
       const isCompactLandscapeStudyLayout = window.matchMedia('(orientation: landscape) and (max-height: 500px) and (pointer: coarse)').matches;
       const isWideStudyLayout = isDesktopWideStudyLayout || isCompactLandscapeStudyLayout;
       const shell = wrapper.querySelector('.study-desktop-shell');

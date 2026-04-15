@@ -1,4 +1,70 @@
 const Utils = {
+  // ============ SAFE DOM HELPERS FOR READER MODE COMPATIBILITY ============
+  // These prevent crashes when elements are removed (as happens in Safari Reader Mode)
+  
+  id(elementId) {
+    return typeof elementId === 'string' ? document.getElementById?.(elementId) ?? null : null;
+  },
+  
+  qs(selector, parent = document) {
+    try { return parent?.querySelector?.(selector) ?? null; } catch { return null; }
+  },
+  
+  qsa(selector, parent = document) {
+    try { return parent?.querySelectorAll?.(selector) ?? []; } catch { return []; }
+  },
+  
+  // ============ SAFE CLASS OPERATIONS ============
+  addClass(el, className) {
+    el?.classList?.add?.(className);
+    return el;
+  },
+  
+  removeClass(el, className) {
+    el?.classList?.remove?.(className);
+    return el;
+  },
+  
+  toggleClass(el, className, force) {
+    el?.classList?.toggle?.(className, force);
+    return el;
+  },
+  
+  // ============ SAFE EVENT LISTENERS ============
+  on(el, event, handler, options = {}) {
+    el?.addEventListener?.(event, handler, options);
+    return el;
+  },
+  
+  off(el, event, handler, options = {}) {
+    el?.removeEventListener?.(event, handler, options);
+    return el;
+  },
+  
+  // ============ SAFE STYLE & CONTENT UPDATES ============
+  setStyle(el, styles) {
+    if (!el?.style) return el;
+    Object.entries(styles || {}).forEach(([key, val]) => {
+      el.style[key] = val;
+    });
+    return el;
+  },
+  
+  setAttr(el, attr, value) {
+    el?.setAttribute?.(attr, value);
+    return el;
+  },
+  
+  setHTML(el, html) {
+    if (el) el.innerHTML = html;
+    return el;
+  },
+  
+  setText(el, text) {
+    if (el) el.textContent = text;
+    return el;
+  },
+
   formatNumberedPinyin(pinyinStr) {
       if (!pinyinStr || pinyinStr === "_stroke") return "";
       this._pyCache = this._pyCache || new Map();

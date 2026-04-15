@@ -3,7 +3,8 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"/>
-  <title>Mandarin Flashcards</title>
+  <meta name="description" content="Ron's Mandarin Flashcards - Learn Chinese vocabulary, characters, and sentences with interactive cards and quizzes.">
+  <title>Ron's Mandarin Flashcards</title>
 
   <meta name="theme-color" content="#f5dddf">
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -164,7 +165,7 @@
   <div id="hqLoader" class="hq-loader">
     <div class="hq-loader-content">
       <div class="hq-logo-wrapper">
-        <svg class="hq-spinner" viewBox="0 0 100 100" width="84" height="84">
+        <svg class="hq-spinner" viewBox="0 0 100 100" width="84" height="84" aria-hidden="true">
           <circle cx="50" cy="50" r="42" stroke="rgba(255, 158, 181, 0.2)" stroke-width="4" fill="none" />
           <circle class="hq-spinner-path" cx="50" cy="50" r="42" stroke="var(--primary)" stroke-width="4" fill="none" stroke-linecap="round" />
           <text x="50" y="64" font-family="'twkai', 'Noto Serif TC', serif" font-size="40" fill="var(--text-main)" text-anchor="middle" class="hq-spinner-char">字</text>
@@ -180,8 +181,8 @@
     </div>
   </div>
 
-  <div id="app">
-    <div class="dynamic-island-wrapper">
+  <article id="app" role="main">
+    <header class="dynamic-island-wrapper">
       <div id="dynamicIsland" class="dynamic-island">
         <div class="island-header">
          <div class="island-progress-container">
@@ -190,7 +191,7 @@
            <div class="island-stats">
              <div class="global-progress-text" style="color: var(--text-main); font-weight: 800;">0/0</div>
              <div class="island-chevron">
-               <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z"/></svg>
+               <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true"><path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z"/></svg>
              </div>
            </div>
         </div>
@@ -200,32 +201,32 @@
                <button id="lessonBadge" class="island-lesson-btn" style="flex: 1;">Book 1 All Lessons</button>
            </div>
            <div class="island-actions">
-            <button id="shuffleBtn" class="island-action-btn">
-              <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M10.59 9.17L5.41 4 4 5.41l5.17 5.17 1.42-1.41zM14.5 4l2.04 2.04L4 18.59 5.41 20 17.96 7.46 20 9.5V4h-5.5zm.33 9.41l-1.41 1.41 3.13 3.13L14.5 20H20v-5.5l-2.04 2.04-3.13-3.13z"/></svg>
+            <button id="shuffleBtn" class="island-action-btn" title="Shuffle learning order">
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true"><path d="M10.59 9.17L5.41 4 4 5.41l5.17 5.17 1.42-1.41zM14.5 4l2.04 2.04L4 18.59 5.41 20 17.96 7.46 20 9.5V4h-5.5zm.33 9.41l-1.41 1.41 3.13 3.13L14.5 20H20v-5.5l-2.04 2.04-3.13-3.13z"/></svg>
               <span>Shuffle</span>
             </button>
             <button id="autoPlayBtn" class="island-action-btn" title="Auto-play cards">
-              <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
               <span>Flow</span>
             </button>
-            <button id="settingsBtn" class="island-action-btn">
-              <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L3.16 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.04.64.09.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.04.24.24.41.48.41h3.84c.24 0 .43-.17.47-.41l.36-2.54c.59-.24 1.13-.57 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
+            <button id="settingsBtn" class="island-action-btn" title="Settings">
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L3.16 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.04.64.09.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.04.24.24.41.48.41h3.84c.24 0 .43-.17.47-.41l.36-2.54c.59-.24 1.13-.57 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
               <span>Settings</span>
             </button>
            </div>
         </div>
       </div>
-    </div>
+    </header>
 
     <div id="topSubNav" style="position: absolute; left: 50%; transform: translateX(-50%); z-index: 20;"></div>
 
-    <main id="mainContainer"></main>
-  </div>
+    <main id="mainContainer" role="region" aria-label="Learning content"></main>
+  </article>
 
-  <nav class="bottom-nav">
-    <button class="nav-item active" data-mode="study">
+  <nav class="bottom-nav" aria-label="Main navigation">
+    <button class="nav-item active" data-mode="study" title="Study mode">
       <div class="nav-icon-wrap">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <rect x="4" y="4" width="16" height="16" rx="3"/>
           <path d="M4 9h16"/>
           <path d="M9 20V9"/>
@@ -234,18 +235,18 @@
       <span class="nav-label">Study</span>
     </button>
     
-    <button class="nav-item" data-mode="listening">
+    <button class="nav-item" data-mode="listening" title="Listening mode">
       <div class="nav-icon-wrap">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <path d="M12 3v9.28c-.47-.17-.97-.28-1.5-.28C8.01 12 6 14.01 6 16.5S8.01 21 10.5 21c2.31 0 4.2-1.75 4.45-4H15V6h4V3h-7z"/>
         </svg>
       </div>
       <span class="nav-label">Listen</span>
     </button>
     
-    <button class="nav-item" data-mode="writing">
+    <button class="nav-item" data-mode="writing" title="Writing mode">
       <div class="nav-icon-wrap">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <path d="M12 19l7-7 3 3-7 7-3-3z"/>
           <path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/>
           <path d="M2 2l7.586 7.586"/>
@@ -254,9 +255,9 @@
       <span class="nav-label">Write</span>
     </button>
     
-    <button class="nav-item" data-mode="quiz">
+    <button class="nav-item" data-mode="quiz" title="Quiz mode">
       <div class="nav-icon-wrap">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <circle cx="12" cy="12" r="10"/>
           <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
           <circle cx="12" cy="17" r="0.5" fill="currentColor"/>
