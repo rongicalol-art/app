@@ -3019,11 +3019,26 @@ updateActiveList(preserveState = false) {
     if (e) e.stopPropagation();
     const item = this.state.activeList[this.state.currentIndex];
     if (!item) return;
+
+    if (this.state.mode === 'list') {
+      const text = this.getCopyTextForItem(item);
+      if (!text) return;
+      try { await Utils.copyToClipboard(text); UI.showCopyFeedback(); } catch (err) { console.error('Copy failed', err); }
+      return;
+    }
+
     const card = document.querySelector('.card');
     const isShowingExample = card && card.classList.contains('showing-example');
     let text = isShowingExample && this.state.currentExample ? this.state.currentExample.zh : (item.hanzi || item.zh || item.def || '').replace(/[()]/g, '').trim();
     if (!text) return;
     try { await Utils.copyToClipboard(text); UI.showCopyFeedback(); } catch (err) { console.error('Copy failed', err); }
+  },
+
+  getCopyTextForItem(item) {
+    if (!item) return '';
+    const chars = (item.hanzi || item.zh || '').replace(/[()]/g, '').trim();
+    const meaning = this.sanitizeDefinition(item.def || item.en || item.meaning || item.definition || '').trim();
+    return [chars, meaning].filter(Boolean).join(' - ');
   },
 
   setupInteraction() {

@@ -1768,8 +1768,14 @@ Object.assign(window.UI, {
   
         const searchInput = document.getElementById('listSearch');
         const clearBtn = document.getElementById('listSearchClear');
+        const listContainer = document.getElementById('listItemsContainer');
         let debounceTimer;
-  
+        let longPressTimer = null;
+        let startTouchX = 0;
+        let startTouchY = 0;
+        let longPressCopied = false;
+        let suppressNextClick = false;
+
         searchInput.addEventListener('input', e => {
           const val = e.target.value;
           clearBtn.style.display = val.length > 0 ? 'flex' : 'none';
@@ -1789,6 +1795,70 @@ Object.assign(window.UI, {
           searchInput.focus();
           this.populateList(App.state.activeList);
         });
+
+        listContainer?.addEventListener('touchstart', e => {
+          const row = e.target.closest('.prof-list-row');
+          if (!row) return;
+
+          const touch = e.touches?.[0];
+          if (!touch) return;
+
+          longPressCopied = false;
+          startTouchX = touch.clientX;
+          startTouchY = touch.clientY;
+
+          clearTimeout(longPressTimer);
+          longPressTimer = setTimeout(async () => {
+            longPressTimer = null;
+            const text = row.dataset.copyText || '';
+            if (!text) return;
+            try {
+              await Utils.copyToClipboard(text);
+              longPressCopied = true;
+              suppressNextClick = true;
+              UI.showToast('Copied');
+            } catch (err) {
+              console.error('Copy failed', err);
+            }
+          }, 500);
+        }, { passive: true });
+
+        listContainer?.addEventListener('touchmove', e => {
+          if (!longPressTimer) return;
+          const touch = e.touches?.[0];
+          if (!touch) return;
+          if (Math.abs(touch.clientX - startTouchX) > 10 || Math.abs(touch.clientY - startTouchY) > 10) {
+            clearTimeout(longPressTimer);
+            longPressTimer = null;
+          }
+        }, { passive: true });
+
+        listContainer?.addEventListener('touchend', e => {
+          if (longPressTimer) {
+            clearTimeout(longPressTimer);
+            longPressTimer = null;
+          }
+          if (longPressCopied) {
+            e.preventDefault();
+            longPressCopied = false;
+          }
+        });
+
+        listContainer?.addEventListener('touchcancel', () => {
+          if (longPressTimer) {
+            clearTimeout(longPressTimer);
+            longPressTimer = null;
+          }
+          longPressCopied = false;
+          suppressNextClick = false;
+        });
+
+        listContainer?.addEventListener('click', e => {
+          if (!suppressNextClick) return;
+          e.preventDefault();
+          e.stopPropagation();
+          suppressNextClick = false;
+        }, true);
       }
   
       this.populateList(App.state.activeList);
@@ -1797,6 +1867,11 @@ Object.assign(window.UI, {
     populateList(items) {
       const containerEl = document.getElementById('listItemsContainer');
       if (!containerEl) return;
+      const escapeAttr = value => String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/"/g, '&quot;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
   
       containerEl.innerHTML = '';
   
@@ -1833,6 +1908,7 @@ Object.assign(window.UI, {
             const safeHz = hz.replace(/\\/g, "\\\\").replace(/'/g, "\\'").replace(/"/g, '"');
             const safePy = py.replace(/\\/g, "\\\\").replace(/'/g, "\\'").replace(/"/g, '"');
             const safeEn = (en || '').replace(/\\/g, "\\\\").replace(/'/g, "\\'").replace(/"/g, '"');
+            const copyText = escapeAttr(App.getCopyTextForItem(item));
   
             const onClickStr = `if(window.App && App.handleCharClick) App.handleCharClick(event, '${safeHz}', '${safePy}', '${safeEn}')`;
   
@@ -1856,7 +1932,7 @@ Object.assign(window.UI, {
                 <div class="prof-tag" style="color: ${bookColor}; background: ${bookBg};">B${item.book} L${item.lesson}</div>
               `;
             }
-            item._listStaticHTML = `<div class="prof-list-row fade-in" onclick="${onClickStr}">${inner}</div>`;
+            item._listStaticHTML = `<div class="prof-list-row fade-in" data-copy-text="${copyText}" onclick="${onClickStr}">${inner}</div>`;
           }
   
           const pyDisplay = App.state.noPinyin || (isSentence && App.state.noExamplePinyin) ? 'display:none;' : '';
