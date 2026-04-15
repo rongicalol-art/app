@@ -1,0 +1,57 @@
+<svg viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <!-- Gradient Background -->
+  <defs>
+    <linearGradient id="bgGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#ff9eb5;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#ff6b9d;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="cardLight" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#ffffff;stop-opacity:0.95" />
+      <stop offset="100%" style="stop-color:#fff5fa;stop-opacity:1" />
+    </linearGradient>
+    <filter id="shadow" x="-50%" y="-50%" width="200%" height="200%">
+      <feDropShadow dx="0" dy="8" stdDeviation="12" flood-opacity="0.25" flood-color="#000000"/>
+    </filter>
+  </defs>
+  
+  <!-- Rounded Background -->
+  <rect width="512" height="512" rx="110" fill="url(#bgGradient)"/>
+  
+  <!-- Back Card (Rotated) -->
+  <g transform="translate(380, 200) rotate(12)">
+    <rect width="140" height="180" rx="16" fill="url(#cardLight)" opacity="0.6" filter="url(#shadow)"/>
+    <!-- Hanzi on back card -->
+    <text x="70" y="110" font-family="system-ui, -apple-system, 'Noto Sans CJK'" font-size="48" font-weight="300" text-anchor="middle" fill="#ff9eb5" opacity="0.4">学</text>
+  </g>
+  
+  <!-- Front Card (Centered) -->
+  <g transform="translate(256, 220)">
+    <rect width="160" height="200" rx="18" fill="url(#cardLight)" filter="url(#shadow)"/>
+    
+    <!-- Front Card Content -->
+    <g transform="translate(80, 100)">
+      <!-- Main Character -->
+      <text x="0" y="35" font-family="system-ui, -apple-system, 'Noto Sans CJK'" font-size="64" font-weight="600" text-anchor="middle" fill="#ff6b9d">中</text>
+      
+      <!-- Pinyin -->
+      <text x="0" y="65" font-family="system-ui, -apple-system" font-size="16" font-weight="500" text-anchor="middle" fill="#d4769f" letter-spacing="1">zhōng</text>
+      
+      <!-- Definition -->
+      <text x="0" y="95" font-family="system-ui, -apple-system" font-size="14" font-weight="400" text-anchor="middle" fill="#c85a8e">middle</text>
+    </g>
+  </g>
+  
+  <!-- Top Corner Accent (Book pages) -->
+  <g transform="translate(120, 100)">
+    <rect width="80" height="90" rx="8" fill="#ffffff" opacity="0.2"/>
+    <line x1="10" y1="30" x2="70" y2="30" stroke="#ff9eb5" stroke-width="2" opacity="0.5" stroke-linecap="round"/>
+    <line x1="10" y1="50" x2="60" y2="50" stroke="#ff9eb5" stroke-width="1.5" opacity="0.4" stroke-linecap="round"/>
+    <line x1="10" y1="65" x2="65" y2="65" stroke="#ff9eb5" stroke-width="1.5" opacity="0.4" stroke-linecap="round"/>
+  </g>
+  
+  <!-- Bottom Right Accent (Star - achievement) -->
+  <g transform="translate(380, 340)">
+    <circle cx="0" cy="0" r="24" fill="#ffffff" opacity="0.25"/>
+    <path d="M 0,-8 L 2,-2 L 8,-1 L 3,3 L 4,9 L 0,5 L -4,9 L -3,3 L -8,-1 L -2,-2 Z" fill="#ff9eb5" opacity="0.8"/>
+  </g>
+</svg>

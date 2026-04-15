@@ -215,6 +215,15 @@ const App = {
       document.body.classList.toggle('mode-quiz-mc', false);
       document.body.classList.toggle('focus-mode', false);
     }
+
+    // 🌟 CRITICAL: Re-initialize UI to attach event listeners after recovery
+    if (window.UI && typeof UI.init === 'function') {
+      try {
+        UI.init();
+      } catch (e) {
+        console.error('Failed to re-initialize UI during recovery', e);
+      }
+    }
   },
 
   getDialoguePlayerLines(text = this.state.dialoguePlayerText) {

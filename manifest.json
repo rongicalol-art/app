@@ -3,14 +3,20 @@
   "short_name": "Mandarin",
   "start_url": "./index.html",
   "display": "standalone",
-  "background_color": "#f5dddf",
-  "theme_color": "#f5dddf",
+  "background_color": "#ff9eb5",
+  "theme_color": "#ff6b9d",
   "icons": [
     {
-      "src": "favicon.ico",
+      "src": "icon.svg",
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any maskable"
+    },
+    {
+      "src": "favicon.ico",
+      "sizes": "any",
+      "type": "image/x-icon",
+      "purpose": "any"
     }
   ]
 }
