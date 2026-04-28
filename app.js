@@ -184,6 +184,12 @@ const App = {
         this.buildCharacterIndices().catch(error => {
           console.error('Character support preload failed', error);
         });
+        
+        // 🌟 Load all books in the background so character lookup has the full dictionary across all books
+        const allBooks = [...new Set([...this.getAvailableBooks('vocab'), ...this.getAvailableBooks('sentences')])];
+        if (allBooks.length > 0) {
+          this.ensureDatasetBooksLoaded(allBooks).catch(e => console.warn('Background dictionary preload failed', e));
+        }
       });
     } catch (err) {
       console.error('[App.init] Initialization failed:', err);
