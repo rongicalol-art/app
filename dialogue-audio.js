@@ -150,6 +150,11 @@ window.DialogueAudioEngine = {
     const timeline = app.ensureDialoguePlayerSession(options.forceNewSession === true);
     const wantsWarmup = options.warm !== false;
     const silent = options.silent === true;
+    const env = (window.App && typeof App.getDialoguePlayerSpeechEnvironment === 'function')
+      ? App.getDialoguePlayerSpeechEnvironment()
+      : { isMobile: false, isIOS: false, isAndroid: false, isWebKitShell: false };
+    const shouldWarmVoices = wantsWarmup && !(env.isMobile || env.isWebKitShell);
+    const prepTimeoutMs = env.isMobile ? 2500 : 5000;
 
     if (!timeline.length || !window.speechSynthesis) {
       if (!silent) {
@@ -164,7 +169,7 @@ window.DialogueAudioEngine = {
 
     const initialPlan = this.buildPlan(app, timeline);
     const alreadyWarm = initialPlan.warmups.every(warmup => this.warmedVoices.has(warmup.key));
-    if (!options.force && runtime.preparedKey === initialPlan.key && runtime.preparedPlan && (!wantsWarmup || alreadyWarm)) {
+    if (!options.force && runtime.preparedKey === initialPlan.key && runtime.preparedPlan && (!shouldWarmVoices || alreadyWarm)) {
       if (!silent) {
         app.updateDialoguePlayerPreparationState({
           isPreparing: false,
@@ -182,6 +187,19 @@ window.DialogueAudioEngine = {
     const prepareToken = ++runtime.prepareToken;
     runtime.prepareKey = initialPlan.key;
 
+    if (!shouldWarmVoices) {
+      runtime.preparedKey = initialPlan.key;
+      runtime.preparedPlan = initialPlan;
+      if (!silent) {
+        app.updateDialoguePlayerPreparationState({
+          isPreparing: false,
+          progress: 1,
+          label: 'Ready'
+        });
+      }
+      return true;
+    }
+
     if (!silent) {
       app.updateDialoguePlayerPreparationState({
         isPreparing: true,
@@ -191,58 +209,74 @@ window.DialogueAudioEngine = {
     }
 
     runtime.preparePromise = (async () => {
-      await this.waitForVoices();
-      if (prepareToken !== runtime.prepareToken) return false;
+      const timeoutPromise = new Promise(resolve => {
+        window.setTimeout(() => resolve(false), prepTimeoutMs);
+      });
 
-      const plan = this.buildPlan(app, timeline);
-      runtime.preparedKey = plan.key;
-      runtime.preparedPlan = plan;
+      const workPromise = (async () => {
+        await this.waitForVoices(Math.min(1600, prepTimeoutMs));
+        if (prepareToken !== runtime.prepareToken) return false;
 
-      if (!silent) {
-        app.updateDialoguePlayerPreparationState({
-          isPreparing: wantsWarmup && plan.warmups.length > 0,
-          progress: wantsWarmup && plan.warmups.length > 0 ? 0.18 : 0.92,
-          label: wantsWarmup && plan.warmups.length > 0 ? 'Warming voices...' : 'Readying queue...'
-        });
-      }
+        const plan = this.buildPlan(app, timeline);
+        runtime.preparedKey = plan.key;
+        runtime.preparedPlan = plan;
 
-      if (wantsWarmup && plan.warmups.length) {
-        const total = plan.warmups.length;
-        let completed = 0;
+        if (!silent) {
+          app.updateDialoguePlayerPreparationState({
+            isPreparing: shouldWarmVoices && plan.warmups.length > 0,
+            progress: shouldWarmVoices && plan.warmups.length > 0 ? 0.18 : 0.92,
+            label: shouldWarmVoices && plan.warmups.length > 0 ? 'Warming voices...' : 'Readying queue...'
+          });
+        }
 
-        for (const warmup of plan.warmups) {
-          if (prepareToken !== runtime.prepareToken) return false;
+        if (shouldWarmVoices && plan.warmups.length) {
+          const total = plan.warmups.length;
+          let completed = 0;
 
-          if (!this.warmedVoices.has(warmup.key)) {
-            await this.warmVoice(warmup);
+          for (const warmup of plan.warmups) {
             if (prepareToken !== runtime.prepareToken) return false;
-            this.warmedVoices.add(warmup.key);
-          }
 
-          completed += 1;
+            if (!this.warmedVoices.has(warmup.key)) {
+              await this.warmVoice(warmup);
+              if (prepareToken !== runtime.prepareToken) return false;
+              this.warmedVoices.add(warmup.key);
+            }
 
-          if (!silent) {
-            const progress = 0.18 + (completed / total) * 0.74;
-            app.updateDialoguePlayerPreparationState({
-              isPreparing: true,
-              progress,
-              label: `Preparing audio... ${Math.round(progress * 100)}%`
-            });
+            completed += 1;
+
+            if (!silent) {
+              const progress = 0.18 + (completed / total) * 0.74;
+              app.updateDialoguePlayerPreparationState({
+                isPreparing: true,
+                progress,
+                label: `Preparing audio... ${Math.round(progress * 100)}%`
+              });
+            }
           }
         }
-      }
 
-      if (prepareToken !== runtime.prepareToken) return false;
+        if (prepareToken !== runtime.prepareToken) return false;
 
-      if (!silent) {
+        if (!silent) {
+          app.updateDialoguePlayerPreparationState({
+            isPreparing: false,
+            progress: 1,
+            label: 'Ready'
+          });
+        }
+
+        return true;
+      })();
+
+      const result = await Promise.race([workPromise, timeoutPromise]);
+      if (result === false && prepareToken === runtime.prepareToken && !silent) {
         app.updateDialoguePlayerPreparationState({
           isPreparing: false,
           progress: 1,
           label: 'Ready'
         });
       }
-
-      return true;
+      return result !== false;
     })().catch(() => {
       if (!silent && prepareToken === runtime.prepareToken) {
         app.updateDialoguePlayerPreparationState({

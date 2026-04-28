@@ -2360,12 +2360,10 @@ updateActiveList(preserveState = false) {
 
     const alreadySwiped = this.state.skipSwipeAnimationOnce;
     if (alreadySwiped) {
-        const currentItem = this.state.activeList?.[this.state.currentIndex];
-      if (!currentItem) return;
       const currentItem = this.state.activeList?.[this.state.currentIndex];
       if (!currentItem) return;
       this.next(false);
-        return;
+      return;
     }
 
     if (this.state.mode === 'study') {
@@ -3010,8 +3008,6 @@ updateActiveList(preserveState = false) {
       await new Promise(r => setTimeout(r, this.state.ttsCardInterval * 1000));
       if (!checkToken()) return;
 
-      const currentItem = this.state.activeList?.[this.state.currentIndex];
-      if (!currentItem) return;
       this.next(false);
       this._autoPlayTimer = setTimeout(() => this.runAutoPlayStep(), 50);
   },
