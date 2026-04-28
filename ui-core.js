@@ -468,10 +468,16 @@ init() {
           if (!touch) return;
           touchStartX = touch.clientX;
           touchStartY = touch.clientY;
+          
+          // Interactive press down effect
+          card.style.transition = 'transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1)';
+          card.style.transform = 'scale(0.96)';
 
           longPressTimer = setTimeout(() => {
               longPressTimer = null;
               isLongPress = true;
+              
+              card.style.transform = ''; // Pop back up when menu opens
                 App.haptic?.('heavy'); // Heavy haptic bump when menu opens
               const currentItem = App?.state?.activeList?.[App.state.currentIndex];
               if (currentItem) {
@@ -487,16 +493,28 @@ init() {
           if (Math.abs(touch.clientX - touchStartX) > 10 || Math.abs(touch.clientY - touchStartY) > 10) {
               clearTimeout(longPressTimer);
               longPressTimer = null;
+              
+              // Cancel the press effect if user swipes
+              const card = e.target.closest('.card');
+              if (card) card.style.transform = '';
           }
       }, { passive: true });
 
-      touchContainer.addEventListener('touchend', (e) => {
-          if (longPressTimer) clearTimeout(longPressTimer);
+      const handleTouchEndOrCancel = (e) => {
+          if (longPressTimer) {
+              clearTimeout(longPressTimer);
+              longPressTimer = null;
+              const card = e.target.closest('.card');
+              if (card) card.style.transform = ''; // Reset scale on release
+          }
           if (isLongPress) {
               e.preventDefault?.();
               isLongPress = false;
           }
-      });
+      };
+
+      touchContainer.addEventListener('touchend', handleTouchEndOrCancel);
+      touchContainer.addEventListener('touchcancel', handleTouchEndOrCancel);
     }
 
     document.getElementById('shuffleBtn')?.classList.toggle('active', App.state.shuffle);

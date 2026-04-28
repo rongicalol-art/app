@@ -267,6 +267,19 @@
       }
     }
 
+    /* Prevent native text selection on UI elements to feel like a native app */
+    button,
+    .bottom-nav,
+    .dynamic-island,
+    .settings-header,
+    .nav-popup,
+    .ctx-menu,
+    body[data-mode="study"] .study-card-container {
+      -webkit-touch-callout: none !important;
+      -webkit-user-select: none !important;
+      user-select: none !important;
+    }
+
     /* iOS Style Context Menu */
     .ctx-overlay {
       position: fixed; inset: 0; background: rgba(0,0,0,0.25); backdrop-filter: blur(5px); -webkit-backdrop-filter: blur(5px);
