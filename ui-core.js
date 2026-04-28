@@ -469,15 +469,14 @@ init() {
           touchStartX = touch.clientX;
           touchStartY = touch.clientY;
           
-          // Interactive press down effect
-          card.style.transition = 'transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1)';
-          card.style.transform = 'scale(0.96)';
+          // Smooth interactive color border effect
+          card.classList.add('is-pressed');
 
           longPressTimer = setTimeout(() => {
               longPressTimer = null;
               isLongPress = true;
               
-              card.style.transform = ''; // Pop back up when menu opens
+              card.classList.remove('is-pressed'); // Remove border when menu opens
                 App.haptic?.('heavy'); // Heavy haptic bump when menu opens
               const currentItem = App?.state?.activeList?.[App.state.currentIndex];
               if (currentItem) {
@@ -496,7 +495,7 @@ init() {
               
               // Cancel the press effect if user swipes
               const card = e.target.closest('.card');
-              if (card) card.style.transform = '';
+              if (card) card.classList.remove('is-pressed');
           }
       }, { passive: true });
 
@@ -505,7 +504,7 @@ init() {
               clearTimeout(longPressTimer);
               longPressTimer = null;
               const card = e.target.closest('.card');
-              if (card) card.style.transform = ''; // Reset scale on release
+              if (card) card.classList.remove('is-pressed'); // Reset border on release
           }
           if (isLongPress) {
               e.preventDefault?.();
