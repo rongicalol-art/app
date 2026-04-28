@@ -1,8 +1,8 @@
 const fs = require('fs');
 const path = require('path');
 
-const ROOT = path.resolve(__dirname, '..');
-const SOURCE = path.join(ROOT, 'sentences.js');
+const ROOT = path.resolve(__dirname, '..', '..');
+const SOURCE = path.join(ROOT, 'dev', 'source-data', 'sentences.js');
 const OUTPUT_ROOT = path.join(ROOT, 'data', 'sentences');
 const BOOKS_DIR = path.join(OUTPUT_ROOT, 'books');
 

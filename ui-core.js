@@ -245,8 +245,8 @@ init() {
     if (typeof App?.state?.ttsReadMeaning === 'undefined') App.state.ttsReadMeaning = true;
     if (typeof App?.state?.ttsReadExample === 'undefined') App.state.ttsReadExample = false;
     if (typeof App?.state?.ttsReadExampleEn === 'undefined') App.state.ttsReadExampleEn = false;
-    if (typeof App?.state?.ttsItemInterval === 'undefined') App.state.ttsItemInterval = 1.0;
-    if (typeof App?.state?.ttsCardInterval === 'undefined') App.state.ttsCardInterval = 2.0;
+    if (typeof App?.state?.ttsItemInterval === 'undefined') App.state.ttsItemInterval = 0.5;
+    if (typeof App?.state?.ttsCardInterval === 'undefined') App.state.ttsCardInterval = 0.0;
 
     bindToggle('ttsReadWordToggle', 'ttsReadWord');
     bindToggle('ttsReadMeaningToggle', 'ttsReadMeaning');
@@ -1507,7 +1507,7 @@ Speaker A: Fine. But we leave after this."
     } else if (App.state.mode === 'writing') {
         this.container.style.justifyContent = 'center';
         this.container.style.paddingTop = '0';
-        this.container.style.alignItems = 'stretch';
+        this.container.style.alignItems = 'center';
     } else {
             this.container.style.justifyContent = 'flex-start';
         this.container.style.paddingTop = '0';
@@ -1578,7 +1578,9 @@ Speaker A: Fine. But we leave after this."
 
 	    this.updateAutoPlayButton();
 
-    const lockMainScroll = isDialoguePlayer || (window.matchMedia('(max-width: 768px)').matches && ['quiz', 'listening'].includes(App.state.mode));
+    const lockMainScroll = isDialoguePlayer
+      || App.state.mode === 'writing'
+      || (window.matchMedia('(max-width: 768px)').matches && ['quiz', 'listening'].includes(App.state.mode));
     const appShell = document.getElementById('app');
     this.container.style.overflowY = lockMainScroll ? 'hidden' : 'auto';
     this.container.style.webkitOverflowScrolling = lockMainScroll ? 'auto' : 'touch';
@@ -1616,6 +1618,15 @@ Speaker A: Fine. But we leave after this."
   updateLessonBadge() {
     const badge = document.getElementById('lessonBadge');
     if (!badge) return;
+    if (App.state.dailyReviewActive) {
+      const remaining = Math.max(0, (App.state.activeList?.length || 0) - (App.state.currentIndex || 0));
+      badge.textContent = `Daily Review • ${remaining || App.state.dailyReviewCount || 0} left`;
+      badge.style.backgroundColor = 'rgba(255, 242, 246, 0.96)';
+      badge.style.color = 'var(--primary-dark)';
+      badge.style.transition = 'background-color 0.3s, color 0.3s';
+      return;
+    }
+
     const books = typeof App.getSelectedBookIds === 'function'
       ? App.getSelectedBookIds()
       : (Array.isArray(App.state.bookFilter) ? App.state.bookFilter : [App.state.bookFilter || '1']);

@@ -2264,6 +2264,23 @@ updateActiveList(preserveState = false) {
   animateAndRender(direction) {
       const skipAnimationModes = ['writing', 'list', 'sentences']; 
       if (skipAnimationModes.includes(this.state.mode)) {
+          if (this.state.mode === 'sentences') {
+              const carousel = document.getElementById('readerCarousel');
+              if (carousel) {
+                  const node = carousel.querySelector(`[data-reader-index="${this.state.currentIndex}"]`);
+                  if (node) {
+                      const top = node.offsetTop - (carousel.clientHeight / 2) + (node.offsetHeight / 2);
+                      carousel.scrollTo({ top, behavior: 'smooth' });
+                      carousel.querySelectorAll('.reader-entry').forEach(n => {
+                          const isCurrent = Number(n.dataset.readerIndex) === this.state.currentIndex;
+                          n.classList.toggle('is-current', isCurrent);
+                          if (isCurrent) n.setAttribute('aria-current', 'true');
+                          else n.removeAttribute('aria-current');
+                      });
+                      return;
+                  }
+              }
+          }
           return UI.render();
       }
       if (this.state.skipSwipeAnimationOnce) {
@@ -2537,6 +2554,9 @@ updateActiveList(preserveState = false) {
                 <button class="btn-main sc-btn sc-btn-primary" onclick="App.reviewMistakes()">
                     Review ${mistakes} Mistakes
                 </button>
+                <button class="btn-sec sc-btn sc-btn-secondary" onclick="App.skipMistakesReview()">
+                    Skip Review
+                </button>
                 <button class="btn-sec sc-btn sc-btn-secondary" onclick="App.restartSession()">
                     Start Over
                 </button>
@@ -2576,6 +2596,9 @@ updateActiveList(preserveState = false) {
               actionHtml = `
                 <button class="btn-main sc-btn sc-btn-primary" onclick="App.startReview(${unlearned.length})">
                     Review ${unlearned.length} Remaining
+                </button>
+                <button class="btn-sec sc-btn sc-btn-secondary" onclick="App.skipReview()">
+                    Skip Review
                 </button>
                 <button class="btn-sec sc-btn sc-btn-secondary" onclick="App.restartSession()">
                     Start Over
@@ -2691,6 +2714,23 @@ updateActiveList(preserveState = false) {
       this.state.streak = 0; // FIX: Reset streak for the review
       UI.render();
       UI.showToast(`Reviewing ${count} items`);
+  },
+
+  skipReview() {
+      this.state.activeList.forEach(i => {
+          const id = i.id || i.hanzi || i.zh;
+          if (id) this.state.learnedItems.add(id);
+      });
+      this.saveLearned();
+      this.restartSession();
+      if (typeof UI !== 'undefined' && UI.showToast) UI.showToast("Review skipped", { variant: 'strong', duration: 1800 });
+  },
+
+  skipMistakesReview() {
+      this.state.sessionMistakes = [];
+      this.saveSettings();
+      this.restartSession();
+      if (typeof UI !== 'undefined' && UI.showToast) UI.showToast("Review skipped", { variant: 'strong', duration: 1800 });
   },
 
   restartSession() {
@@ -2839,6 +2879,27 @@ updateActiveList(preserveState = false) {
       if (!item) return;
 
       if (this.state.mode === 'study' && !this.state.isFlipped) this.toggleFlip(true);
+
+      // Auto-expand and focus in sentences mode to ensure it reads the right context
+      if (this.state.mode === 'sentences') {
+          if (this.state.readExpandedIndex !== this.state.currentIndex) {
+              this.state.readExpandedIndex = this.state.currentIndex;
+              const carousel = document.getElementById('readerCarousel');
+              if (carousel) {
+                  const node = carousel.querySelector(`[data-reader-index="${this.state.currentIndex}"]`);
+                  if (node && !node.classList.contains('is-open')) {
+                      node.classList.add('is-open');
+                      node.setAttribute('aria-expanded', 'true');
+                      if (node.dataset.readerPending === 'true') {
+                          item._zhHTML = item._zhHTML || (window.Utils && typeof window.Utils.createInteractiveSentence === 'function' ? window.Utils.createInteractiveSentence(item.zh) : item.zh);
+                          const sentenceNode = node.querySelector('.reader-entry-sentence');
+                          if (sentenceNode) sentenceNode.innerHTML = item._zhHTML;
+                          node.removeAttribute('data-reader-pending');
+                      }
+                  }
+              }
+          }
+      }
 
       const token = this._autoPlayToken || 0;
       const checkToken = () => this.state.autoPlay && token === this._autoPlayToken;

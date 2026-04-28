@@ -1,8 +1,8 @@
 const fs = require('fs');
 const path = require('path');
 
-const ROOT = path.resolve(__dirname, '..');
-const SOURCE = path.join(ROOT, 'chars.js');
+const ROOT = path.resolve(__dirname, '..', '..');
+const SOURCE = path.join(ROOT, 'dev', 'source-data', 'chars.js');
 const OUTPUT_ROOT = path.join(ROOT, 'data', 'chars');
 const CHUNKS_DIR = path.join(OUTPUT_ROOT, 'chunks');
 const CHUNK_SIZE = 64;

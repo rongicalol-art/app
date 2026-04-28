@@ -535,7 +535,9 @@ Object.assign(window.UI, {
             });
           const firstVocab = sortedVocab[0];
           if (firstVocab) {
-            const vocabDef = App.sanitizeDefinition(firstVocab.def || firstVocab.en || '').split(/[,;，；\/]/)[0].trim();
+            const vocabDef = typeof App.compactDefinition === 'function'
+              ? App.compactDefinition(firstVocab.def || firstVocab.en || '', { fallback: '', maxLength: 40 })
+              : App.sanitizeDefinition(firstVocab.def || firstVocab.en || '');
             // Use vocab def if it's reasonably short and not a generated "abbreviation for..." pattern
             if (vocabDef && vocabDef.length < 40 && !vocabDef.toLowerCase().match(/^abbreviation|^short for|^variant/i)) {
               definition = vocabDef;
@@ -544,7 +546,9 @@ Object.assign(window.UI, {
         }
         // Fallback to character def if vocab didn't work
         if (!definition) {
-          const charDef = App.sanitizeDefinition(charData.def || charData.meaning || '').split(/[,;，；\/]/)[0].trim();
+          const charDef = typeof App.compactDefinition === 'function'
+            ? App.compactDefinition(charData.def || charData.meaning || '', { fallback: '', maxLength: 50 })
+            : App.sanitizeDefinition(charData.def || charData.meaning || '');
           // Use only first part if it looks good
           if (charDef && charDef.length < 50) {
             definition = charDef;
@@ -561,7 +565,9 @@ Object.assign(window.UI, {
           .map(child => ({
             char: child.component || '?',
             pinyin: Utils.formatNumberedPinyin(Array.isArray(child.pinyin) ? child.pinyin[0] : (child.pinyin || '')),
-            def: App.sanitizeDefinition(child.meaning).split(/[,;，；\/]/)[0].trim() || 'Component'
+            def: (typeof App.compactDefinition === 'function'
+              ? App.compactDefinition(child.meaning || '', { fallback: 'Component', maxLength: 42 })
+              : App.sanitizeDefinition(child.meaning)) || 'Component'
           }))
           .filter(component => component.char && component.char !== '?');
 
@@ -643,7 +649,9 @@ Object.assign(window.UI, {
                 <button class="study-mini-inline-row" type="button" onclick="App.handleCharClick(event, '${safeHz}', '${safePy}', '${safeDef}')">
                   <span class="study-mini-inline-main">
                     <span class="study-mini-inline-hz">${componentWord.hanzi}</span>
-                    <span class="study-mini-inline-def">${App.sanitizeDefinition(componentWord.def || componentWord.meaning).split(/[,;，\/]/)[0].trim()}</span>
+                    <span class="study-mini-inline-def">${typeof App.compactDefinition === 'function'
+                      ? App.compactDefinition(componentWord.def || componentWord.meaning || '', { fallback: '', maxLength: 36 })
+                      : App.sanitizeDefinition(componentWord.def || componentWord.meaning)}</span>
                   </span>
                   ${rowBadge}
                 </button>
@@ -1232,6 +1240,7 @@ Object.assign(window.UI, {
       const input = document.getElementById('userAnswer');
       const revealBox = document.getElementById('quizRevealBox');
       const tagEl = card.querySelector('.qz-card-tag');
+      const attemptStartedAt = performance.now();
 
       card.dataset.answerType = aType;
       card.dataset.promptType = pType;
@@ -1352,8 +1361,9 @@ Object.assign(window.UI, {
           clearReveal();
           input.classList.add('state-correct');
           showReveal('is-correct');
-  
+
           App.speakText(item.hanzi || item.zh);
+          App.recordItemReview?.(item, 'correct', { durationMs: performance.now() - attemptStartedAt });
           App.state.streak++;
           if (typeof UI.updateStreak === 'function') UI.updateStreak();
           App.saveSettings();
@@ -1380,6 +1390,7 @@ Object.assign(window.UI, {
           App.state.streak = 0;
           if (typeof UI.updateStreak === 'function') UI.updateStreak();
           App.saveSettings();
+          App.recordItemReview?.(item, 'wrong', { durationMs: performance.now() - attemptStartedAt });
   
           const key = item.hanzi || item.zh;
           if (!App.state.sessionMistakes.includes(key)) App.state.sessionMistakes.push(key);
@@ -1422,6 +1433,26 @@ Object.assign(window.UI, {
   
       const pType = App.state.mcPrompt;
       const aType = App.state.mcAnswer;
+      const escapeAttr = value => String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/"/g, '&quot;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+      const escapeHtml = value => String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+      const formatHanziChoice = value => String(value ?? '')
+        .split(/([（(].*?[）)])/g)
+        .filter(Boolean)
+        .map(part => part.match(/^[（(].*[）)]$/)
+          ? `<span style="font-size: 0.55em; opacity: 0.7; margin: 0 2px; display: inline-block; vertical-align: middle;">${escapeHtml(part)}</span>`
+          : escapeHtml(part)
+        )
+        .join('');
+      const formatChoiceLabel = value => aType === 'hz'
+        ? formatHanziChoice(value)
+        : escapeHtml(value);
   
       const rawHz = (item.hanzi || item.zh || '').replace(/[^\u4e00-\u9fa5]/g, '');
       const charLen = rawHz.length || 1;
@@ -1456,6 +1487,9 @@ Object.assign(window.UI, {
       // Disable smart pinyin, just use standard clean py
       const pinyinText = item._cleanPy;
       const defText = App.sanitizeDefinition(item.def || item.en);
+      const revealDefText = typeof App.compactDefinition === 'function'
+        ? (App.compactDefinition(defText, { fallback: '' }) || defText)
+        : defText;
       const hanziText = item._plainHanzi;
       const pureHanzi = item._cleanHz;
   
@@ -1575,21 +1609,8 @@ Object.assign(window.UI, {
       const optionsContainer = document.getElementById('mcOptionsContainer');
   
       optionsContainer.innerHTML = options.map(opt => {
-        let displayOpt = opt;
         let extraClass = '';
         if (aType === 'hz') {
-          let formatted = '';
-          const parts = opt.split(/([（(].*?[）)])/g);
-          parts.forEach(part => {
-            if (!part) return;
-            if (part.match(/^[（(].*[）)]$/)) {
-              formatted += `<span style="font-size: 0.55em; opacity: 0.7; margin: 0 2px; display: inline-block; vertical-align: middle;">${part}</span>`;
-            } else {
-              formatted += part;
-            }
-          });
-          displayOpt = formatted;
-  
           const cleanLen = opt.replace(/[（(].*?[）)]/g, '').trim().length;
           if (cleanLen >= 4) {
             extraClass = ' chars-long-btn';
@@ -1597,10 +1618,37 @@ Object.assign(window.UI, {
             extraClass = ' chars-3-btn';
           }
         }
-        return `<button class="mc-option-btn fade-in${extraClass}${hzBtnClass}" data-opt="${opt.replace(/"/g, '"')}"><span class="mc-truncate">${displayOpt}</span></button>`;
+        return `<button class="mc-option-btn fade-in${extraClass}${hzBtnClass}" data-opt="${escapeAttr(opt)}"><span class="mc-truncate">${formatChoiceLabel(opt)}</span></button>`;
       }).join('');
   
       let isProcessing = false;
+      const attemptStartedAt = performance.now();
+      const buildChoiceReveal = () => {
+        const lines = [];
+        if (aType !== 'hz' && pureHanzi) lines.push(`<span class="answer-choice-line answer-choice-hz">${formatHanziChoice(pureHanzi)}</span>`);
+        if (aType !== 'py' && pinyinText) lines.push(`<span class="answer-choice-line answer-choice-py">${escapeHtml(pinyinText)}</span>`);
+        if (aType !== 'def' && revealDefText) lines.push(`<span class="answer-choice-line answer-choice-def">${escapeHtml(revealDefText)}</span>`);
+        return lines.length ? `<span class="answer-choice-meta">${lines.join('')}</span>` : '';
+      };
+      const revealCorrectChoice = btn => {
+        if (!btn) return;
+        btn.classList.add('has-answer-meta');
+        btn.innerHTML = `<span class="mc-truncate answer-choice-value">${formatChoiceLabel(correctAns)}</span>${buildChoiceReveal()}`;
+      };
+      const lockChoices = selectedBtn => {
+        const cards = Array.from(optionsContainer.querySelectorAll('.mc-option-btn'));
+        const correctBtn = cards.find(card => (card.dataset.opt || '') === correctAns);
+        cards.forEach(card => {
+          card.classList.add('disabled');
+          card.disabled = true;
+          if (card !== selectedBtn && card !== correctBtn) card.style.opacity = '0.4';
+        });
+        if (correctBtn) {
+          correctBtn.classList.add('state-correct');
+          correctBtn.style.opacity = '1';
+          revealCorrectChoice(correctBtn);
+        }
+      };
   
       optionsContainer.querySelectorAll('.mc-option-btn').forEach(btn => {
         btn.onclick = () => {
@@ -1608,50 +1656,12 @@ Object.assign(window.UI, {
           const selectedOpt = btn.dataset.opt;
   
           if (selectedOpt === correctAns) {
-            btn.classList.add('state-correct');
             isProcessing = true;
-            optionsContainer.querySelectorAll('.mc-option-btn').forEach(b => {
-              b.classList.add('disabled');
-              if (b !== btn) b.style.opacity = '0.4';
-            });
-  
+            lockChoices(btn);
+
             App.speakText(item.hanzi || item.zh);
-  
-            let extraInfo = [];
-            if (aType !== 'py' && pType !== 'py') extraInfo.push(pinyinText);
-            if (aType !== 'def' && pType !== 'def') extraInfo.push(defText);
-            if (aType !== 'hz' && pType !== 'hz') extraInfo.push(pureHanzi);
-            let infoStr = extraInfo.join(' • ');
-  
-            let displayOpt = selectedOpt;
-  
-            if (aType === 'hz') {
-              let formatted = '';
-              const parts = selectedOpt.split(/([（(].*?[）)])/g);
-              parts.forEach(part => {
-                if (!part) return;
-                if (part.match(/^[（(].*[）)]$/)) {
-                  formatted += `<span style="font-size: 0.55em; opacity: 0.7; margin: 0 2px; display: inline-block; vertical-align: middle;">${part}</span>`;
-                } else {
-                  formatted += part;
-                }
-              });
-              displayOpt = formatted;
-  
-              btn.innerHTML = `
-                <div class="mc-truncate" style="font-weight: normal; margin-top: 6px;">${displayOpt}</div>
-                <div class="mc-truncate" style="font-size: 1.1rem; font-weight: 800; color: #059669; margin-top: 8px; font-family: 'Nunito', sans-serif; letter-spacing: 0.5px;">${pinyinText}</div>
-              `;
-            } else {
-              if (infoStr) {
-                btn.innerHTML = `
-                  <div class="mc-truncate" style="font-weight: 700;">${displayOpt}</div>
-                  <div class="mc-truncate" style="font-size: 1.05rem; font-weight: 700; opacity: 0.85; line-height: 1.3; margin-top: 6px; font-family: 'Nunito', sans-serif;">${infoStr}</div>
-                `;
-              } else {
-                btn.innerHTML = `<div class="mc-truncate" style="font-weight: 700;">${displayOpt}</div>`;
-              }
-            }
+            App.recordItemReview?.(item, 'correct', { durationMs: performance.now() - attemptStartedAt });
+            App.state.streak++;
             if (typeof UI.updateStreak === 'function') UI.updateStreak();
             App.saveSettings();
             if (window.Sound) window.Sound.play('correct');
@@ -1662,6 +1672,8 @@ Object.assign(window.UI, {
               App.next();
             }, App.state.fastNext ? 1000 : 2200);
           } else {
+            isProcessing = true;
+            lockChoices(btn);
             btn.classList.remove('shake');
             void btn.offsetWidth;
             btn.classList.add('shake', 'state-wrong');
@@ -1670,10 +1682,15 @@ Object.assign(window.UI, {
             App.state.streak = 0;
             if (typeof UI.updateStreak === 'function') UI.updateStreak();
             App.saveSettings();
+            App.recordItemReview?.(item, 'wrong', { durationMs: performance.now() - attemptStartedAt });
   
             const key = item.hanzi || item.zh;
             if (!App.state.sessionMistakes.includes(key)) App.state.sessionMistakes.push(key);
             if (window.Sound) window.Sound.play('wrong');
+            setTimeout(() => {
+              App.state.lastSwipe = 'left';
+              App.next();
+            }, App.state.fastNext ? 1100 : 2200);
           }
         };
       });
@@ -2347,13 +2364,6 @@ Object.assign(window.UI, {
                     </button>
                   `).join('')}
                 </div>
-
-                <div class="listening-reveal-box" id="listeningRevealBox" aria-live="polite">
-                  <div class="listening-reveal-head">Answer</div>
-                  <div class="listening-reveal-hz">${hanziHtml}</div>
-                  ${tonedPinyinText ? `<div class="listening-reveal-py">${tonedPinyinText}</div>` : ''}
-                  ${revealDefText ? `<div class="listening-reveal-def">${escapeHtml(revealDefText)}</div>` : ''}
-                </div>
               </div>
             </div>
           </div>
@@ -2363,20 +2373,36 @@ Object.assign(window.UI, {
 
       const playBtn = document.getElementById('listeningPlayBtn');
       const exampleBtn = document.getElementById('listeningExampleBtn');
-      const revealBox = document.getElementById('listeningRevealBox');
       const optionsHost = document.getElementById('listeningOptions');
       let isProcessing = false;
       let playToken = 0;
-
-      const setReveal = state => {
-        if (!revealBox) return;
-        revealBox.className = 'listening-reveal-box is-visible';
-        if (state) revealBox.classList.add(state);
+      const attemptStartedAt = performance.now();
+      const buildOptionReveal = () => {
+        const lines = [];
+        if (listeningMode !== 'hz' && hanziHtml) lines.push(`<span class="answer-choice-line answer-choice-hz">${hanziHtml}</span>`);
+        if (listeningMode !== 'py' && tonedPinyinText) lines.push(`<span class="answer-choice-line answer-choice-py">${escapeHtml(tonedPinyinText)}</span>`);
+        if (listeningMode !== 'def' && revealDefText) lines.push(`<span class="answer-choice-line answer-choice-def">${escapeHtml(revealDefText)}</span>`);
+        return lines.length ? `<span class="answer-choice-meta">${lines.join('')}</span>` : '';
       };
-
-      const clearReveal = () => {
-        if (!revealBox) return;
-        revealBox.className = 'listening-reveal-box';
+      const revealCorrectOption = btn => {
+        if (!btn) return;
+        btn.classList.add('has-answer-meta');
+        btn.innerHTML = `<span class="listen-opt-main">${correctChoice.mainHtml}</span>${buildOptionReveal()}`;
+      };
+      const resolveOptions = selectedBtn => {
+        if (!optionsHost) return null;
+        const cards = Array.from(optionsHost.querySelectorAll('.listen-option-card'));
+        const correctBtn = cards.find(card => (card.dataset.compare || '') === correctCompare);
+        cards.forEach(card => {
+          card.disabled = true;
+          if (card !== selectedBtn && card !== correctBtn) card.style.opacity = '0.45';
+        });
+        if (correctBtn) {
+          correctBtn.classList.add('state-correct');
+          correctBtn.style.opacity = '1';
+          revealCorrectOption(correctBtn);
+        }
+        return correctBtn;
       };
 
       const playAudio = async (text, activeBtn) => {
@@ -2397,10 +2423,10 @@ Object.assign(window.UI, {
         App.state.streak = 0;
         if (typeof UI.updateStreak === 'function') UI.updateStreak();
         App.saveSettings();
+        App.recordItemReview?.(item, 'wrong', { durationMs: performance.now() - attemptStartedAt });
         const key = item.hanzi || item.zh;
         if (!App.state.sessionMistakes.includes(key)) App.state.sessionMistakes.push(key);
         if (window.Sound) window.Sound.play('wrong');
-        setReveal('is-wrong');
         setTimeout(() => {
           App.state.lastSwipe = 'left';
           App.next();
@@ -2408,12 +2434,12 @@ Object.assign(window.UI, {
       };
 
       const handleCorrect = () => {
+        App.recordItemReview?.(item, 'correct', { durationMs: performance.now() - attemptStartedAt });
         App.state.streak++;
         if (typeof UI.updateStreak === 'function') UI.updateStreak();
         App.saveSettings();
         if (window.Sound) window.Sound.play('correct');
         if (typeof UI.celebrate === 'function') UI.celebrate();
-        setReveal('is-correct');
         isProcessing = true;
         setTimeout(() => {
           App.state.lastSwipe = 'right';
@@ -2426,11 +2452,7 @@ Object.assign(window.UI, {
           btn.onclick = () => {
             if (isProcessing) return;
             const selectedCompare = btn.dataset.compare || '';
-
-            optionsHost.querySelectorAll('.listen-option-card').forEach(card => {
-              card.disabled = true;
-              if ((card.dataset.compare || '') === correctCompare) card.classList.add('state-correct');
-            });
+            resolveOptions(btn);
 
             if (selectedCompare === correctCompare) {
               handleCorrect();
@@ -2445,7 +2467,6 @@ Object.assign(window.UI, {
       playBtn.onclick = () => playAudio(audioText, playBtn);
       if (exampleBtn) exampleBtn.onclick = () => playAudio(exampleAudioText, exampleBtn);
 
-      clearReveal();
       requestAnimationFrame(() => {
         setTimeout(() => { playAudio(audioText, playBtn); }, 180);
       });
@@ -2479,7 +2500,13 @@ Object.assign(window.UI, {
       const displayWord = word || rawWord.trim() || currentChar;
       item._plainDisplayHanzi = item._plainDisplayHanzi || Utils.createInteractiveHanzi(displayWord, false);
       const isMobile = window.innerWidth <= 768;
-      const wrapperBottomPadding = isMobile ? 80 : 100;
+      const wrapperBottomPadding = isMobile ? 94 : 110;
+
+      const writingItemId = App.getItemId ? App.getItemId(item) : (item.id || item.hanzi || item.zh || '');
+      if (App.state.writingCharIndex === 0 && this._writingWordItemId !== writingItemId) {
+        this._writingWordItemId = writingItemId;
+        this._writingWordStartedAt = performance.now();
+      }
   
       const inlineProgressHtml = chars.map((c, i) => {
         if (i < App.state.writingCharIndex) return `<div class="progress-dot filled"></div>`;
@@ -2489,6 +2516,7 @@ Object.assign(window.UI, {
   
       const isFS = !!App.state.writingFullscreen;
       let wrapper = this.container.querySelector('#writingAppWrapper');
+      const wrapperStyles = `display: flex; flex-direction: row; width: 100%; height: 100%; min-height: 100%; flex: 1 1 auto; justify-content: center; align-items: center; padding: max(10px, env(safe-area-inset-top) + 2px) 10px ${wrapperBottomPadding}px 10px; box-sizing: border-box; position: relative; align-self: stretch; overflow: hidden;`;
   
       let animClass = App.state.skipFadeInOnce ? '' : 'fade-in';
       if (App.state.lastSwipe === 'right') animClass = 'swipe-in-right';
@@ -2500,7 +2528,7 @@ Object.assign(window.UI, {
           const style = document.createElement('style');
           style.id = 'writing-styles';
           style.innerHTML = `
-            .premium-practice-card{background:rgba(255,255,255,.98);backdrop-filter:none;-webkit-backdrop-filter:none;border:1px solid rgba(255,158,181,.22);border-radius:36px;box-shadow:0 16px 40px rgba(255,158,181,.2);width:100%;max-width:320px;display:flex;flex-direction:column;overflow:hidden;transition:transform .4s cubic-bezier(0.34,1.56,0.64,1),opacity .4s ease;transform:scale(.96) translateY(10px);opacity:0;margin:auto;will-change:transform,opacity}.premium-practice-card.is-fullscreen{max-width:480px;width:90vw;aspect-ratio:1 / 1.15;max-height:calc(100vh - 160px);border-radius:40px;box-shadow:0 24px 50px rgba(255,158,181,.24)}.practice-card-header{padding:12px 20px;background:rgba(248,250,252,.7);border-bottom:2px dashed rgba(226,232,240,.8);cursor:pointer;transition:opacity .4s ease,background .2s}.practice-card-header:hover{background:rgba(241,245,249,.9)}.header-top-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px}.writing-progress-dots{display:flex;gap:5px;align-items:center}.progress-dot{height:4px;width:12px;border-radius:4px;background:#e2e8f0;transition:all .3s ease}.progress-dot.filled{background:#94a3b8}.progress-dot.current{background:var(--primary);width:20px}.hint-text-wrapper{position:relative;height:24px;overflow:hidden}.hint-text-inner{transition:opacity .2s ease}.hint-def,.hint-py{position:absolute;left:0;top:0;width:100%;transition:transform .35s cubic-bezier(0.34,1.56,0.64,1),opacity .35s;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.hint-def{font-family:'Nunito',sans-serif;font-size:1.05rem;font-weight:700;color:var(--text-main);transform:translateY(0);opacity:1}.hint-py{font-family:'Nunito',sans-serif;font-size:1.05rem;font-weight:800;color:var(--primary);letter-spacing:.5px;transform:translateY(20px);opacity:0}.practice-card-header.show-py .hint-def{transform:translateY(-20px);opacity:0}.practice-card-header.show-py .hint-py{transform:translateY(0);opacity:1}.header-controls{display:flex;gap:14px;align-items:center}.swap-icon{color:#cbd5e1;transition:transform .3s;display:flex;align-items:center}.practice-card-header.show-py .swap-icon{transform:rotate(180deg);color:var(--primary)}.fs-toggle-btn-header{background:transparent;border:none;color:#cbd5e1;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:4px;transition:color .15s ease,background-color .15s ease;outline:none;border-radius:6px;margin-right:-4px}.fs-toggle-btn-header:hover{color:var(--primary);background:rgba(255,158,181,.08)}.fs-toggle-btn-header:active{transform:scale(.98)}.writing-bottom-dock{position:fixed;left:50%;bottom:clamp(16px,3.4vh,28px);transform:translate3d(-50%,0,0);z-index:100;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;padding:6px;min-width:232px;width:min(calc(100% - 28px),272px);background:rgba(255,255,255,.72);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);border:1px solid rgba(255,255,255,.72);border-radius:22px;box-shadow:0 14px 28px rgba(216,180,193,.12),0 4px 10px rgba(148,163,184,.08);will-change:transform,opacity}.action-icon-btn{background:rgba(255,255,255,.56);border:1px solid rgba(255,255,255,.52);color:#9f95a1;width:100%;height:42px;cursor:pointer;border-radius:14px;transition:transform .2s cubic-bezier(.22,1,.36,1),color .16s ease,background-color .16s ease,border-color .16s ease,box-shadow .16s ease;display:flex;align-items:center;justify-content:center;outline:none;will-change:transform}.action-icon-btn:hover{background:rgba(255,255,255,.85);color:#7d7280;border-color:rgba(232,197,210,.88)}.action-icon-btn:active{transform:translate3d(0,1px,0) scale(.97)}.action-icon-btn.active{color:var(--primary-dark);background:rgba(255,247,250,.94);border-color:rgba(232,197,210,.92);box-shadow:inset 0 1px 0 rgba(255,255,255,.88),0 6px 12px rgba(246,183,201,.12)}.action-icon-btn.text-danger{color:#ab94a0}.action-icon-btn.text-danger:hover{color:#8f7380;background:rgba(255,248,250,.9);border-color:rgba(234,205,216,.9)}@keyframes successPop{0%{opacity:0;transform:scale(.8) translateY(10px)}60%{transform:scale(1.05) translateY(-2px)}100%{opacity:1;transform:scale(1) translateY(0)}}
+            .premium-practice-card{background:linear-gradient(180deg,rgba(255,255,255,.99),rgba(255,250,252,.97));backdrop-filter:none;-webkit-backdrop-filter:none;border:1px solid rgba(255,192,208,.34);border-radius:36px;box-shadow:0 20px 44px rgba(247,188,204,.24),0 8px 18px rgba(255,255,255,.72) inset;width:100%;max-width:320px;display:flex;flex-direction:column;overflow:hidden;transition:transform .4s cubic-bezier(0.34,1.56,0.64,1),opacity .4s ease;transform:scale(.96) translateY(10px);opacity:0;margin:auto;will-change:transform,opacity}.premium-practice-card.is-fullscreen{max-width:480px;width:90vw;aspect-ratio:1 / 1.15;max-height:calc(100dvh - 132px);border-radius:40px;box-shadow:0 26px 56px rgba(247,188,204,.26),0 10px 24px rgba(255,255,255,.76) inset}.practice-card-header{padding:12px 20px;background:rgba(250,244,247,.88);border-bottom:1px solid rgba(238,212,222,.9);cursor:pointer;transition:opacity .4s ease,background .2s}.practice-card-header:hover{background:rgba(255,248,251,.96)}.header-top-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px}.writing-progress-dots{display:flex;gap:5px;align-items:center}.progress-dot{height:4px;width:12px;border-radius:4px;background:#ead8df;transition:all .3s ease}.progress-dot.filled{background:#c4a4af}.progress-dot.current{background:var(--primary-dark);width:20px}.hint-text-wrapper{position:relative;height:24px;overflow:hidden}.hint-text-inner{transition:opacity .2s ease}.hint-def,.hint-py{position:absolute;left:0;top:0;width:100%;transition:transform .35s cubic-bezier(0.34,1.56,0.64,1),opacity .35s;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.hint-def{font-family:'Nunito',sans-serif;font-size:1.05rem;font-weight:700;color:var(--text-main);transform:translateY(0);opacity:1}.hint-py{font-family:'Nunito',sans-serif;font-size:1.05rem;font-weight:800;color:var(--primary-dark);letter-spacing:.5px;transform:translateY(20px);opacity:0}.practice-card-header.show-py .hint-def{transform:translateY(-20px);opacity:0}.practice-card-header.show-py .hint-py{transform:translateY(0);opacity:1}.header-controls{display:flex;gap:14px;align-items:center}.swap-icon{color:#d8c1ca;transition:transform .3s;display:flex;align-items:center}.practice-card-header.show-py .swap-icon{transform:rotate(180deg);color:var(--primary-dark)}.fs-toggle-btn-header{background:transparent;border:none;color:#d8c1ca;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:4px;transition:color .15s ease,background-color .15s ease;outline:none;border-radius:10px;margin-right:-4px}.fs-toggle-btn-header:hover{color:var(--primary-dark);background:rgba(255,188,207,.12)}.fs-toggle-btn-header:active{transform:scale(.98)}.writing-bottom-dock{position:fixed;left:50%;bottom:max(14px,env(safe-area-inset-bottom) + 8px);transform:translate3d(-50%,0,0);z-index:100;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;padding:7px;min-width:232px;width:min(calc(100% - 28px),274px);background:rgba(255,248,251,.84);backdrop-filter:blur(22px) saturate(1.08);-webkit-backdrop-filter:blur(22px) saturate(1.08);border:1px solid rgba(255,255,255,.82);border-radius:24px;box-shadow:0 20px 38px rgba(247,188,204,.2),0 1px 0 rgba(255,255,255,.72) inset;will-change:transform,opacity}.action-icon-btn{background:rgba(255,255,255,.62);border:1px solid rgba(255,255,255,.62);color:#9f95a1;width:100%;height:42px;cursor:pointer;border-radius:15px;transition:transform .2s cubic-bezier(.22,1,.36,1),color .16s ease,background-color .16s ease,border-color .16s ease,box-shadow .16s ease;display:flex;align-items:center;justify-content:center;outline:none;will-change:transform}.action-icon-btn:hover{background:rgba(255,255,255,.92);color:#7d7280;border-color:rgba(239,210,221,.96);box-shadow:0 10px 18px rgba(249,210,221,.14)}.action-icon-btn:active{transform:translate3d(0,1px,0) scale(.97)}.action-icon-btn.active{color:var(--primary-dark);background:rgba(255,244,248,.96);border-color:rgba(239,210,221,.96);box-shadow:inset 0 1px 0 rgba(255,255,255,.92),0 8px 16px rgba(247,188,204,.16)}.action-icon-btn.text-danger{color:#ab94a0}.action-icon-btn.text-danger:hover{color:#8f7380;background:rgba(255,248,250,.94);border-color:rgba(239,210,221,.92)}@keyframes successPop{0%{opacity:0;transform:scale(.8) translateY(10px)}60%{transform:scale(1.05) translateY(-2px)}100%{opacity:1;transform:scale(1) translateY(0)}}
             @keyframes dockEnter { 0% { opacity: 0; transform: translate(-50%, 150%) scale(0.9); pointer-events: none; } 100% { opacity: 1; transform: translate(-50%, 0) scale(1); pointer-events: auto; } }
             @keyframes dockExit { 0% { opacity: 1; transform: translate(-50%, 0) scale(1); } 100% { opacity: 0; transform: translate(-50%, 150%) scale(0.9); pointer-events: none; } }
             .dock-enter { animation: dockEnter 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards !important; }
@@ -2509,7 +2537,7 @@ Object.assign(window.UI, {
           document.head.appendChild(style);
         }
         const html = `
-          <div id="writingAppWrapper" class="writing-wrapper ${animClass}" style="display: flex; flex-direction: row; width: 100%; height: 100%; justify-content: center; align-items: center; padding: max(20px, env(safe-area-inset-top)) 10px ${wrapperBottomPadding}px 10px; box-sizing: border-box; position: relative;">
+          <div id="writingAppWrapper" class="writing-wrapper ${animClass}" style="${wrapperStyles}">
             <div id="premiumPracticeCard" class="premium-practice-card ${isFS ? 'is-fullscreen' : ''}">
               <div id="cardHeaderToggle" class="practice-card-header" title="Tap to flip">
                 <div class="header-top-row">
@@ -2556,6 +2584,12 @@ Object.assign(window.UI, {
         `;
         this.container.innerHTML = html;
         document.getElementById('cardHeaderToggle').onclick = function () { this.classList.toggle('show-py'); };
+        wrapper = this.container.querySelector('#writingAppWrapper');
+      }
+
+      if (wrapper) {
+        wrapper.className = `writing-wrapper ${animClass}`;
+        wrapper.style.cssText = wrapperStyles;
       }
   
       const textInner = document.getElementById('hintTextInner');
@@ -2723,6 +2757,11 @@ Object.assign(window.UI, {
                 setTimeout(() => this.renderWriting(item), 200);
               }, 500);
             } else {
+              App.recordItemReview?.(item, 'correct', {
+                durationMs: performance.now() - (this._writingWordStartedAt || performance.now())
+              });
+              this._writingWordItemId = '';
+              this._writingWordStartedAt = 0;
               if (typeof UI.celebrate === 'function') UI.celebrate();
               App.speakText(item.hanzi || item.zh);
   

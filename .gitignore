@@ -1,0 +1,17 @@
+# OS / editor junk
+.DS_Store
+_DS_Store
+.vscode/
+.sixth/
+
+# Dependencies
+node_modules/
+
+# Optional deployment/build artifacts
+archive/
+PROJECT_ORGANIZATION_GUIDE.md
+STABILITY_IMPROVEMENTS.md
+TECHNICAL_CHANGES.md
+
+# Temp/log files
+*.log

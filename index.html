@@ -19,7 +19,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&family=Noto+Serif+TC:wght@400;700&display=swap" rel="stylesheet">
   
-  <link rel="stylesheet" href="style.css?v=20260408dialoguek">
+  <link rel="stylesheet" href="style.css?v=20260428dailyreview">
   <style>
     /* Quiz layout: horizontal hanzi/pinyin, handle long text, expand container */
     .qz-card {
@@ -146,6 +146,42 @@
       .mc-option-btn.chars-long-btn[style*="twkai"] {
         font-size: clamp(1.2rem, 3.5vmin, 2.5rem) !important;
       }
+    }
+
+    /* Modernized Active Nav Item */
+    .bottom-nav {
+      border-top: 1px solid rgba(0,0,0,0.06) !important;
+      background: #ffffff !important;
+    }
+    .bottom-nav .nav-item {
+      transition: all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    .bottom-nav .nav-item.active {
+      background: transparent !important;
+      box-shadow: none !important;
+      border: none !important;
+      transform: translateY(-2px);
+    }
+    .bottom-nav .nav-item.active::before,
+    .bottom-nav .nav-item.active::after {
+      display: none !important; /* Removes top line indicator and background gradient */
+    }
+    .bottom-nav .nav-item.active .nav-icon-wrap {
+      background: var(--primary, #ff758c) !important;
+      color: white !important;
+      border-radius: 14px !important;
+      padding: 6px 14px !important;
+      margin-bottom: 4px !important;
+      box-shadow: 0 4px 12px rgba(255, 117, 140, 0.35) !important;
+      transform: scale(1.05);
+    }
+    .bottom-nav .nav-item.active .nav-icon-wrap svg {
+      stroke: white !important;
+    }
+    .bottom-nav .nav-item.active .nav-label {
+      font-weight: 800 !important;
+      color: var(--primary, #ff758c) !important;
+      opacity: 1 !important;
     }
 
     /* Make Character Lookup Window taller on mobile to utilize space */
@@ -328,16 +364,16 @@
               <div class="setting-row" style="flex-direction: column; align-items: stretch; gap: 8px;">
                 <div style="display:flex; justify-content:space-between; align-items:center;">
                     <div class="setting-label"><span class="setting-name">Pause Between Items</span><span class="setting-desc">Delay between word, meaning, and example</span></div>
-                    <div id="ttsItemIntervalVal" class="slider-value-badge">1s</div>
+                    <div id="ttsItemIntervalVal" class="slider-value-badge">0.5s</div>
                 </div>
-                <input type="range" id="ttsItemIntervalSlider" min="0" max="4" step="0.5" value="1">
+                <input type="range" id="ttsItemIntervalSlider" min="0" max="4" step="0.5" value="0.5">
               </div>
               <div class="setting-row" style="flex-direction: column; align-items: stretch; gap: 8px;">
                 <div style="display:flex; justify-content:space-between; align-items:center;">
                     <div class="setting-label"><span class="setting-name">Pause Between Cards</span><span class="setting-desc">Delay before moving to the next flashcard</span></div>
-                    <div id="ttsCardIntervalVal" class="slider-value-badge">2s</div>
+                    <div id="ttsCardIntervalVal" class="slider-value-badge">0s</div>
                 </div>
-                <input type="range" id="ttsCardIntervalSlider" min="0" max="10" step="0.5" value="2">
+                <input type="range" id="ttsCardIntervalSlider" min="0" max="10" step="0.5" value="0">
               </div>
             </div>
           </div>
@@ -415,10 +451,10 @@
   
   <script src="utils.js?v=20260408dialoguek"></script>
   <script src="sound.js?v=20260408dialoguek"></script>
-  <script src="ui-core.js?v=20260416clickfix"></script>
-  <script src="ui-modes.js?v=20260408dialoguek"></script>
+  <script src="ui-core.js?v=20260428dailyreview"></script>
+  <script src="ui-modes.js?v=20260428dailyreview"></script>
   <script src="dialogue-audio.js?v=20260408dialoguek"></script>
-  <script src="app.js?v=20260415initfix"></script>
+  <script src="app.js?v=20260428dailyreview"></script>
   <script src="tutorial.js?v=20260408dialoguek"></script>
   <script src="keybinds.js?v=20260408dialoguek"></script>
 </body>

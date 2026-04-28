@@ -1,0 +1,1 @@
+I’m in **Explore Mode** — a codebase investigation mode. I can analyze the project and produce documentation, but I can’t move, delete, or reorganize files here. To actually clean up or restructure the project, switch to **Act Mode** using the mode selector at the bottom of the chat. Your exploration findings will carry over as context.

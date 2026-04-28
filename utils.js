@@ -103,7 +103,9 @@ const Utils = {
   buildPremiumTree(node) {
       if (!node) return '';
       const char = node.component || '?';
-      const meaning = (node.meaning || 'Component').split(/[,;]/)[0]; 
+      const meaning = (window.App && typeof App.compactDefinition === 'function')
+        ? App.compactDefinition(node.meaning || '', { fallback: 'Component', maxLength: 56 })
+        : ((node.meaning || 'Component').split(/[,;]/)[0]);
       const pinyinRaw = Array.isArray(node.pinyin) ? node.pinyin[0] : (node.pinyin || '');
       const pinyin = this.formatNumberedPinyin(pinyinRaw);
       const hasChildren = node.children && node.children.length > 0;

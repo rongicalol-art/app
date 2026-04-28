@@ -1,8 +1,8 @@
 const fs = require('fs');
 const path = require('path');
 
-const ROOT = path.resolve(__dirname, '..');
-const SOURCE = path.join(ROOT, 'new_vocab.js');
+const ROOT = path.resolve(__dirname, '..', '..');
+const SOURCE = path.join(ROOT, 'dev', 'source-data', 'new_vocab.js');
 const OUTPUT_ROOT = path.join(ROOT, 'data', 'vocab');
 const BOOKS_DIR = path.join(OUTPUT_ROOT, 'books');
 
