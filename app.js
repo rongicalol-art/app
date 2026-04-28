@@ -2348,7 +2348,11 @@ updateActiveList(preserveState = false) {
 
     const alreadySwiped = this.state.skipSwipeAnimationOnce;
     if (alreadySwiped) {
-        this.next(false);
+        const currentItem = this.state.activeList?.[this.state.currentIndex];
+      if (!currentItem) return;
+      const currentItem = this.state.activeList?.[this.state.currentIndex];
+      if (!currentItem) return;
+      this.next(false);
         return;
     }
 
@@ -2881,49 +2885,68 @@ updateActiveList(preserveState = false) {
           return;
       }
 
-      const item = this.state.activeList[this.state.currentIndex];
-      if (!item) return;
-
       if (this.state.mode === 'study' && !this.state.isFlipped) this.toggleFlip(true);
-
-      // Auto-expand and focus in sentences mode to ensure it reads the right context
-      if (this.state.mode === 'sentences') {
-          if (this.state.readExpandedIndex !== this.state.currentIndex) {
-              this.state.readExpandedIndex = this.state.currentIndex;
-              const carousel = document.getElementById('readerCarousel');
-              if (carousel) {
-                  const node = carousel.querySelector(`[data-reader-index="${this.state.currentIndex}"]`);
-                  if (node && !node.classList.contains('is-open')) {
-                      node.classList.add('is-open');
-                      node.setAttribute('aria-expanded', 'true');
-                      if (node.dataset.readerPending === 'true') {
-                          item._zhHTML = item._zhHTML || (window.Utils && typeof window.Utils.createInteractiveSentence === 'function' ? window.Utils.createInteractiveSentence(item.zh) : item.zh);
-                          const sentenceNode = node.querySelector('.reader-entry-sentence');
-                          if (sentenceNode) sentenceNode.innerHTML = item._zhHTML;
-                          node.removeAttribute('data-reader-pending');
-                      }
-                  }
-              }
-          }
-      }
 
       const token = this._autoPlayToken || 0;
       const checkToken = () => this.state.autoPlay && token === this._autoPlayToken;
+      const currentIndex = this.state.currentIndex;
 
-      // Give the card a moment to flip before reading starts
+      // Give the card a moment to settle before reading starts
       await new Promise(r => setTimeout(r, 600));
       if (!checkToken()) return;
 
+      const resolveCurrentItem = () => this.state.activeList[currentIndex];
+
+      const syncSentenceCard = (sentenceItem) => {
+          if (this.state.mode !== 'sentences' || !sentenceItem) return;
+          if (this.state.readExpandedIndex !== currentIndex) {
+              this.state.readExpandedIndex = currentIndex;
+          }
+
+          const carousel = document.getElementById('readerCarousel');
+          if (!carousel) return;
+
+          const node = carousel.querySelector(`[data-reader-index="${currentIndex}"]`);
+          if (!node) return;
+
+          if (!node.classList.contains('is-open')) {
+              node.classList.add('is-open');
+              node.setAttribute('aria-expanded', 'true');
+          }
+
+          if (node.dataset.readerPending === 'true') {
+              sentenceItem._zhHTML = sentenceItem._zhHTML || (window.Utils && typeof window.Utils.createInteractiveSentence === 'function'
+                ? window.Utils.createInteractiveSentence(sentenceItem.zh)
+                : sentenceItem.zh);
+              const sentenceNode = node.querySelector('.reader-entry-sentence');
+              if (sentenceNode) sentenceNode.innerHTML = sentenceItem._zhHTML;
+              node.removeAttribute('data-reader-pending');
+          }
+      };
+
+      const item = resolveCurrentItem();
+      if (!item) return;
+
+      if (this.state.mode === 'sentences') {
+          syncSentenceCard(item);
+      }
+
+      const currentItem = () => resolveCurrentItem();
+
       if (this.state.ttsReadWord) {
-          const text = item.hanzi || item.zh || '';
-          await this.speakText(text, 'zh-TW');
+          const wordItem = currentItem();
+          const text = wordItem?.hanzi || wordItem?.zh || '';
+          if (text) {
+              await this.speakText(text, 'zh-TW');
+          }
           if (!checkToken()) return;
           await new Promise(r => setTimeout(r, this.state.ttsItemInterval * 1000));
           if (!checkToken()) return;
       }
 
       if (this.state.ttsReadMeaning) {
-          const rawDef = item.def || item.en || '';
+          const meaningItem = currentItem();
+          const rawDef = meaningItem?.def || meaningItem?.en || '';
           const defText = this.cleanDefinitionForTTS(rawDef);
           if (defText) {
               await this.speakText(defText, 'en-US');
@@ -2933,23 +2956,41 @@ updateActiveList(preserveState = false) {
           }
       }
 
-      if (this.state.ttsReadExample && !item.zh) {
-          const exNode = document.querySelector('.example-item .example-zh') || document.querySelector('.smart-example-item .example-zh');
-          if (exNode && exNode.textContent) {
-              await this.speakText(exNode.textContent, 'zh-TW');
+      if (this.state.mode === 'sentences') {
+          const sentenceItem = currentItem();
+          if (sentenceItem?.zh && this.state.ttsReadExample) {
+              await this.speakText(sentenceItem.zh, 'zh-TW');
               if (!checkToken()) return;
               await new Promise(r => setTimeout(r, this.state.ttsItemInterval * 1000));
               if (!checkToken()) return;
           }
-      }
-      
-      if (this.state.ttsReadExampleEn && !item.zh) {
-          const exEnNode = document.querySelector('.example-item.is-primary .example-en') || document.querySelector('.example-item .example-en') || document.querySelector('.smart-example-item .example-en');
-          if (exEnNode && exEnNode.textContent) {
-              await this.speakText(exEnNode.textContent, 'en-US');
+
+          if (sentenceItem?.en && this.state.ttsReadExampleEn) {
+              await this.speakText(sentenceItem.en, 'en-US');
               if (!checkToken()) return;
               await new Promise(r => setTimeout(r, this.state.ttsItemInterval * 1000));
               if (!checkToken()) return;
+          }
+      } else {
+          const item = currentItem();
+          if (this.state.ttsReadExample && !item.zh) {
+              const exNode = document.querySelector('.example-item .example-zh') || document.querySelector('.smart-example-item .example-zh');
+              if (exNode && exNode.textContent) {
+                  await this.speakText(exNode.textContent, 'zh-TW');
+                  if (!checkToken()) return;
+                  await new Promise(r => setTimeout(r, this.state.ttsItemInterval * 1000));
+                  if (!checkToken()) return;
+              }
+          }
+          
+          if (this.state.ttsReadExampleEn && !item.zh) {
+              const exEnNode = document.querySelector('.example-item.is-primary .example-en') || document.querySelector('.example-item .example-en') || document.querySelector('.smart-example-item .example-en');
+              if (exEnNode && exEnNode.textContent) {
+                  await this.speakText(exEnNode.textContent, 'en-US');
+                  if (!checkToken()) return;
+                  await new Promise(r => setTimeout(r, this.state.ttsItemInterval * 1000));
+                  if (!checkToken()) return;
+              }
           }
       }
 
@@ -2957,6 +2998,8 @@ updateActiveList(preserveState = false) {
       await new Promise(r => setTimeout(r, this.state.ttsCardInterval * 1000));
       if (!checkToken()) return;
 
+      const currentItem = this.state.activeList?.[this.state.currentIndex];
+      if (!currentItem) return;
       this.next(false);
       this._autoPlayTimer = setTimeout(() => this.runAutoPlayStep(), 50);
   },

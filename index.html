@@ -160,7 +160,8 @@
       background: rgba(255, 255, 255, 0.92);
       backdrop-filter: blur(16px);
       -webkit-backdrop-filter: blur(16px);
-      padding: 8px 8px calc(8px + env(safe-area-inset-bottom, 16px)) 8px;
+      padding: 8px 8px max(12px, env(safe-area-inset-bottom)) 8px;
+      box-sizing: border-box;
       box-shadow: 0 -1px 0 rgba(0, 0, 0, 0.05), 0 -4px 24px rgba(0, 0, 0, 0.04);
       z-index: 1000;
     }
@@ -264,6 +265,29 @@
         overflow-y: auto;
       }
     }
+
+    /* iOS Style Context Menu */
+    .ctx-overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.25); backdrop-filter: blur(5px); -webkit-backdrop-filter: blur(5px);
+      z-index: 3000; display: flex; justify-content: center; align-items: flex-end; padding-bottom: calc(24px + env(safe-area-inset-bottom));
+      opacity: 0; transition: opacity 0.3s ease; pointer-events: none;
+    }
+    .ctx-overlay.visible { opacity: 1; pointer-events: auto; }
+    .ctx-menu {
+      background: rgba(255, 255, 255, 0.85); backdrop-filter: blur(25px) saturate(1.5); -webkit-backdrop-filter: blur(25px) saturate(1.5);
+      border-radius: 20px; width: 92%; max-width: 360px; box-shadow: 0 15px 40px rgba(0,0,0,0.15);
+      transform: translateY(120px) scale(0.95); transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+      overflow: hidden; display: flex; flex-direction: column; border: 1px solid rgba(255,255,255,0.4);
+    }
+    .ctx-overlay.visible .ctx-menu { transform: translateY(0) scale(1); }
+    .ctx-btn {
+      background: transparent; border: none; width: 100%; padding: 18px 22px; font-size: 1.05rem; font-weight: 700;
+      color: #334155; display: flex; align-items: center; justify-content: space-between; cursor: pointer;
+      font-family: 'Nunito', sans-serif; border-bottom: 1px solid rgba(0,0,0,0.06); transition: background 0.2s;
+    }
+    .ctx-btn:last-child { border-bottom: none; }
+    .ctx-btn:active { background: rgba(0,0,0,0.08); }
+    .ctx-btn.ctx-cancel { color: #f43f5e; justify-content: center; font-weight: 800; background: rgba(255,255,255,0.5); }
   </style>
 </head>
 <body>
