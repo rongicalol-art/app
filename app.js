@@ -3550,7 +3550,17 @@ updateActiveList(preserveState = false) {
       });
   },
 
+    haptic(style = 'light') {
+        if (!navigator.vibrate) return;
+        try {
+            if (style === 'light') navigator.vibrate(10);
+            else if (style === 'medium') navigator.vibrate(15);
+            else navigator.vibrate([20, 10, 20]);
+        } catch(e) {}
+    },
+
   createTapAnimation(x, y) {
+        this.haptic('light');
       const ripple = document.createElement('div');
       ripple.className = 'tap-ripple';
       ripple.style.left = `${x}px`;

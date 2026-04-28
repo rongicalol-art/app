@@ -55,6 +55,7 @@ init() {
           return;
       }
 
+      Utils.on(btn, 'touchstart', () => App.haptic?.('light'), { passive: true });
       Utils.on(btn, 'click', (e) => {
         const mode = btn?.dataset?.mode;
         if (UI.subModes[mode]) {
@@ -471,15 +472,10 @@ init() {
           longPressTimer = setTimeout(() => {
               longPressTimer = null;
               isLongPress = true;
+                App.haptic?.('heavy'); // Heavy haptic bump when menu opens
               const currentItem = App?.state?.activeList?.[App.state.currentIndex];
               if (currentItem) {
-                  App.state.modeCache['writing'] = {
-                      list: App.state.activeList, index: App.state.currentIndex,
-                      isFinished: App.state.isFinished,
-                      sessionMistakes: App.state.sessionMistakes,
-                      filterKey: App.getFilterKey?.()
-                  };
-                  App.setMode?.('writing');
+                    UI.showCardContextMenu(currentItem);
               }
           }, 500);
       }, { passive: true });
@@ -508,6 +504,42 @@ init() {
     this.updateSpeedButtons();
     this.updateStreak();
     this.updateNavVisibility();
+  },
+
+  showCardContextMenu(item) {
+      let overlay = document.getElementById('cardCtxMenu');
+      if (!overlay) {
+          overlay = document.createElement('div');
+          overlay.id = 'cardCtxMenu';
+          overlay.className = 'ctx-overlay';
+          document.body.appendChild(overlay);
+          
+          overlay.addEventListener('click', (e) => {
+              if (e.target === overlay || e.target.closest('.ctx-cancel')) {
+                  overlay.classList.remove('visible');
+              }
+          });
+      }
+      
+      const writeAction = `App.state.modeCache['writing'] = { list: App.state.activeList, index: App.state.currentIndex, isFinished: App.state.isFinished, sessionMistakes: App.state.sessionMistakes, filterKey: App.getFilterKey?.() }; App.setMode('writing'); document.getElementById('cardCtxMenu').classList.remove('visible');`;
+      const copyAction = `App.copyCurrent(); document.getElementById('cardCtxMenu').classList.remove('visible');`;
+      
+      overlay.innerHTML = `
+          <div class="ctx-menu">
+              <button class="ctx-btn" onclick="${copyAction}">
+                  <span>Copy Word</span>
+                  <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+              </button>
+              <button class="ctx-btn" onclick="${writeAction}">
+                  <span>Practice Writing</span>
+                  <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19l7-7 3 3-7 7-3-3z"></path><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"></path><path d="M2 2l7.586 7.586"></path></svg>
+              </button>
+              <button class="ctx-btn ctx-cancel">Cancel</button>
+          </div>
+      `;
+      
+      void overlay.offsetWidth; // Force reflow to ensure animation triggers
+      overlay.classList.add('visible');
   },
 
   showNavPopup(btn, options) {
