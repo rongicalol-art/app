@@ -845,10 +845,30 @@ showCourseSelector() {
   updateNavHighlight() {
     document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
     let target = App.state.mode;
-    if (target === 'list' || target === 'sentences' || target === 'builder') target = 'study';
-    if (target === 'quiz-mc') target = 'quiz';
-    const btn = document.querySelector(`.nav-item[data-mode="${target}"]`);
-    if (btn) btn.classList.add('active');
+    
+    let parentTarget = target;
+    if (['list', 'sentences', 'builder'].includes(target)) parentTarget = 'study';
+    if (target === 'quiz-mc') parentTarget = 'quiz';
+    
+    const btn = document.querySelector(`.nav-item[data-mode="${parentTarget}"]`);
+    if (btn) {
+      btn.classList.add('active');
+      
+      const subModesList = this.subModes[parentTarget] || [];
+      const activeSub = subModesList.find(s => (s.active ? s.active() : s.mode === target));
+      if (activeSub) {
+          const iconWrap = btn.querySelector('.nav-icon-wrap');
+          const labelWrap = btn.querySelector('.nav-label');
+          if (iconWrap) {
+              const currentSVG = iconWrap.innerHTML.replace(/['"\s]/g, '');
+              const newSVG = activeSub.icon.replace(/['"\s]/g, '');
+              if (currentSVG !== newSVG) iconWrap.innerHTML = activeSub.icon;
+          }
+          if (labelWrap && labelWrap.textContent !== activeSub.label) {
+              labelWrap.textContent = activeSub.label;
+          }
+      }
+    }
   },
 
   updateFlipState() {
@@ -1509,7 +1529,7 @@ Speaker A: Fine. But we leave after this."
         this.container.style.paddingTop = '0';
         this.container.style.alignItems = 'center';
     } else {
-            this.container.style.justifyContent = 'flex-start';
+        this.container.style.justifyContent = 'center';
         this.container.style.paddingTop = '0';
         this.container.style.alignItems = 'center';
     }

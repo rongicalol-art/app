@@ -203,10 +203,6 @@ Object.assign(window.UI, {
         let py = item.pinyin || item.py || '';
         if (String(hz).toLowerCase() === 'undefined') hz = '';
         if (String(py).toLowerCase() === 'undefined') py = '';
-        if (hz.includes('/') || hz.includes('／')) {
-          hz = hz.split(/[\/／]/)[0];
-          py = py.split(/[\/／]/)[0];
-        }
         item._cleanHz = hz.trim();
         item._cleanPy = py.trim();
       }
@@ -1353,7 +1349,9 @@ Object.assign(window.UI, {
             ? Utils.checkAnswer(val, target)
             : val.replace(/\s+/g, '').toLowerCase() === target.replace(/\s+/g, '').toLowerCase();
         } else {
-          isCorrect = val.replace(/\s+/g, '') === target.replace(/\s+/g, '');
+          const hzTargets = target.split(/[\/／;|]/).map(t => t.replace(/\s+/g, ''));
+          const cleanVal = val.replace(/\s+/g, '');
+          isCorrect = hzTargets.includes(cleanVal);
         }
   
         if (isCorrect) {

@@ -5860,6 +5860,7 @@ body.mode-quiz-mc .bottom-nav {
   width: 24px !important;
   height: 24px !important;
   position: relative;
+  z-index: 1;
 }
 
 .nav-icon-wrap::before {
@@ -5869,6 +5870,7 @@ body.mode-quiz-mc .bottom-nav {
   border-radius: 14px;
   background: transparent;
   transition: background-color 0.22s ease, transform 0.22s ease, box-shadow 0.22s ease;
+  z-index: -1;
 }
 
 .nav-icon-wrap svg,
