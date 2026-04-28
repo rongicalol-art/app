@@ -179,18 +179,30 @@ const App = {
       this.setupInteraction();
 
       // 🌟 PRE-COMPUTE HEAVY INDICES IN THE BACKGROUND TO PREVENT UI JANK LATER
-      const runBackground = window.requestIdleCallback || window.setTimeout;
-      runBackground(() => {
-        this.buildCharacterIndices().catch(error => {
-          console.error('Character support preload failed', error);
+      // Delayed by 2.5 seconds to ensure the UI has completely faded in and is interactive
+      setTimeout(() => {
+        const runBackground = window.requestIdleCallback || ((cb) => window.setTimeout(cb, 1));
+        runBackground(async () => {
+          try {
+            await this.buildCharacterIndices();
+          } catch (error) {
+            console.error('Character support preload failed', error);
+          }
+          
+          // 🌟 Load all books sequentially in the background so character lookup has the full dictionary
+          // without causing a massive memory/network spike that freezes mobile browsers
+          const allBooks = [...new Set([...this.getAvailableBooks('vocab'), ...this.getAvailableBooks('sentences')])];
+          for (const book of allBooks) {
+            try {
+              await this.ensureDatasetBooksLoaded([book]);
+            } catch (e) {
+              console.warn(`Background dictionary preload failed for book ${book}`, e);
+            }
+            // Yield to main thread to let the phone breathe between heavy data processing
+            await new Promise(r => setTimeout(r, 150));
+          }
         });
-        
-        // 🌟 Load all books in the background so character lookup has the full dictionary across all books
-        const allBooks = [...new Set([...this.getAvailableBooks('vocab'), ...this.getAvailableBooks('sentences')])];
-        if (allBooks.length > 0) {
-          this.ensureDatasetBooksLoaded(allBooks).catch(e => console.warn('Background dictionary preload failed', e));
-        }
-      });
+      }, 2500);
     } catch (err) {
       console.error('[App.init] Initialization failed:', err);
       console.error('[App.init] Stack trace:', err.stack);
@@ -3217,6 +3229,11 @@ updateActiveList(preserveState = false) {
           if (document.visibilityState === 'hidden') {
               persistSessionState();
               this.releaseVolatileResources({ aggressive: true });
+              
+              // Stop active background progress loops to prevent battery drain
+              if (this._dialoguePlayerRuntime && this._dialoguePlayerRuntime.isPlaying) {
+                  this.pauseDialoguePlayer({ persist: true, updateUI: false });
+              }
           } else if (document.visibilityState === 'visible') {
               // Re-acquire the wake lock if returning to the app and autoplay is still running
               if (this.state.autoPlay) this.requestWakeLock();
