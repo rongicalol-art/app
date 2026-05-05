@@ -83,6 +83,7 @@ const Tutorial = {
     init() {
         // Only show once
         if (localStorage.getItem('tutorialCompleted') === 'true') return;
+        if (window.location?.protocol === 'file:') return;
         
         // Check if device is primarily touch based
         this.isMobile = window.matchMedia("(pointer: coarse)").matches || window.innerWidth < 768;
@@ -92,6 +93,7 @@ const Tutorial = {
     },
 
     forceShow() {
+        if (window.location?.protocol === 'file:') return;
         this.currentStep = 0;
         this.isMobile = window.matchMedia("(pointer: coarse)").matches || window.innerWidth < 768;
         if (!document.getElementById('tut-styles')) this.injectStyles();

@@ -751,11 +751,6 @@ Object.assign(window.UI, {
       const isDesktopWideStudyLayout = window.matchMedia('(min-width: 768px) and (min-height: 600px)').matches;
       const isCompactLandscapeStudyLayout = window.matchMedia('(orientation: landscape) and (max-height: 500px) and (pointer: coarse)').matches;
       const isWideStudyLayout = isDesktopWideStudyLayout || isCompactLandscapeStudyLayout;
-      const shell = wrapper.querySelector('.study-desktop-shell');
-      const shouldStack = isDesktopWideStudyLayout
-        && shell
-        && shell.clientWidth < 930
-        && wrapper.classList.contains('has-breakdown');
       const shouldExpand = isWideStudyLayout
         && App.state.mode === 'study'
         && App.state.isFlipped
@@ -766,7 +761,7 @@ Object.assign(window.UI, {
         this._studyDesktopExpandFrame = null;
       }
       wrapper.classList.toggle('compact-landscape', isCompactLandscapeStudyLayout);
-      wrapper.classList.toggle('desktop-stacked', Boolean(shouldStack));
+      wrapper.classList.remove('desktop-stacked');
       if (!shouldExpand) {
         wrapper.classList.remove('desktop-expanded');
         return;

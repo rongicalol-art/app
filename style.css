@@ -453,16 +453,6 @@ body.dock-hidden .bottom-nav {
   transition: transform 0.25s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.2s ease;
 }
 
-@keyframes dockGrow {
-  0% { transform: translateX(-50%) scale(0.96); }
-  100% { transform: translateX(-50%) scale(1); }
-}
-
-@keyframes dockItemPop {
-  0% { opacity: 0; transform: translateY(6px) scale(0.92); }
-  100% { opacity: 1; transform: translateY(0) scale(1); }
-}
-
 body.dock-hidden #app {
   padding-bottom: 20px;
 }
@@ -556,17 +546,6 @@ body.focus-mode .dock-hide-btn {
 
 .nav-item.dock-toggle {
   display: none;
-}
-
-body.mode-quiz .nav-item.dock-toggle,
-body.mode-quiz-mc .nav-item.dock-toggle {
-  display: flex;
-  animation: dockItemPop 0.25s ease;
-}
-
-body.mode-quiz .bottom-nav,
-body.mode-quiz-mc .bottom-nav {
-  animation: dockGrow 0.25s ease;
 }
 
 .nav-item:active {
@@ -3770,33 +3749,6 @@ body.hide-example-pinyin .sentence-pinyin { display: none !important; }
         transform: translate3d(124px, 0, 0);
     }
 
-    .study-static-wrapper.desktop-stacked .study-desktop-shell {
-        width: min(100%, 720px);
-        flex-direction: column;
-        justify-content: flex-start;
-        gap: 16px;
-    }
-
-    .study-static-wrapper.desktop-stacked .study-card-group,
-    .study-static-wrapper.desktop-stacked.desktop-expanded .study-card-group {
-        width: min(100%, 620px);
-        transform: none;
-    }
-
-    .study-static-wrapper.desktop-stacked .study-mini-breakdown {
-        position: relative;
-        top: auto;
-        right: auto;
-        width: min(100%, 620px);
-        max-width: 620px;
-        height: auto;
-        max-height: min(42svh, 340px);
-        transform: translate3d(0, -8px, 0);
-    }
-
-    .study-static-wrapper.desktop-stacked.has-breakdown.desktop-expanded .study-mini-breakdown {
-        transform: translate3d(0, 0, 0);
-    }
 
     .study-static-wrapper.has-breakdown .study-card-container {
         max-width: 620px;
@@ -4394,10 +4346,6 @@ body.hide-example-pinyin .sentence-pinyin { display: none !important; }
         transform: translate3d(98px, 0, 0);
     }
 
-    body[data-mode="study"] .study-static-wrapper.desktop-stacked .study-card-group,
-    body[data-mode="study"] .study-static-wrapper.desktop-stacked.desktop-expanded .study-card-group {
-        transform: none;
-    }
 
     body[data-mode="study"] .study-static-wrapper .face-content.vocab-content {
         padding: 14px 14px 12px;
